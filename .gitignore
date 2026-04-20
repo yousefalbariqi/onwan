@@ -1,1 +1,13 @@
+# dependencies
+node_modules/
+
+# env files (secrets)
+.env
+.env.local
+.env*.local
+
+# build output
+dist/
+
+# vercel
 .vercel
