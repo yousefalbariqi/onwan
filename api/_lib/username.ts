@@ -1,0 +1,69 @@
+import { pool } from './db';
+
+export const USERNAME_PATTERN = /^(?=.{1,30}$)(?!.*[_-]{2})[a-z0-9_-]+$/;
+
+export function normalizeUsername(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export function validateUsername(username: string) {
+  const normalized = normalizeUsername(username);
+
+  if (!USERNAME_PATTERN.test(normalized)) {
+    return {
+      valid: false,
+      normalized,
+      reason: 'اسم المستخدم يجب أن يكون من 1 إلى 30 حرفًا ويتكون من أحرف إنجليزية صغيرة أو أرقام أو - أو _ فقط.',
+    };
+  }
+
+  return { valid: true, normalized };
+}
+
+export async function getUsernameAvailability(username: string) {
+  const validation = validateUsername(username);
+
+  if (!validation.valid) {
+    return {
+      available: false,
+      normalized: validation.normalized,
+      reason: validation.reason,
+      status: 'invalid' as const,
+    };
+  }
+
+  const reservedResult = await pool.query(
+    'select 1 from reserved_usernames where username = $1 limit 1',
+    [validation.normalized],
+  );
+
+  if (reservedResult.rowCount) {
+    return {
+      available: false,
+      normalized: validation.normalized,
+      reason: 'اسم المستخدم محجوز.',
+      status: 'reserved' as const,
+    };
+  }
+
+  const existingResult = await pool.query(
+    'select 1 from usernames where username = $1 limit 1',
+    [validation.normalized],
+  );
+
+  if (existingResult.rowCount) {
+    return {
+      available: false,
+      normalized: validation.normalized,
+      reason: 'اسم المستخدم مستخدم بالفعل.',
+      status: 'taken' as const,
+    };
+  }
+
+  return {
+    available: true,
+    normalized: validation.normalized,
+    reason: null,
+    status: 'available' as const,
+  };
+}

@@ -1,14 +1,124 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Sparkles } from 'lucide-react';
+import { checkUsername } from '../lib/api';
+
+type UsernameStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'available_unverified'
+  | 'invalid'
+  | 'reserved'
+  | 'taken'
+  | 'service_error';
+
+const LOCAL_USERNAME_PATTERN = /^(?=.{1,30}$)(?!.*[_-]{2})[a-z0-9_-]+$/;
+
+function isLocallyValidUsername(username: string) {
+  return LOCAL_USERNAME_PATTERN.test(username);
+}
+
+function getUsernameFeedback(status: UsernameStatus, normalizedUsername: string) {
+  switch (status) {
+    case 'checking':
+      return {
+        tone: 'neutral' as const,
+        title: 'جاري التحقق من توفر الاسم...',
+        details: [],
+      };
+    case 'available':
+      return {
+        tone: 'success' as const,
+        title: `ممتاز، ${normalizedUsername} متاح حاليًا.`,
+        details: ['سيتم تأكيد الحجز النهائي لاحقًا عند اكتمال خطوات الإطلاق/الدفع.'],
+      };
+    case 'available_unverified':
+      return {
+        tone: 'warning' as const,
+        title: `سنسمح لك بالمتابعة بالاسم ${normalizedUsername}.`,
+        details: [
+          'تعذر التحقق من قاعدة البيانات الآن، لذلك هذا قبول مبدئي فقط.',
+          'سيتم التأكد من توفر الاسم فعليًا عند اكتمال الربط مع الخدمة.',
+        ],
+      };
+    case 'taken':
+      return {
+        tone: 'error' as const,
+        title: `الاسم ${normalizedUsername} مستخدم بالفعل.`,
+        details: ['جرّب إضافة رقم أو شرطة مثل: name1 أو my-name.'],
+      };
+    case 'reserved':
+      return {
+        tone: 'error' as const,
+        title: `الاسم ${normalizedUsername} محجوز من النظام.`,
+        details: ['هذا النوع من الأسماء لا يمكن استخدامه لأنه مخصص لصفحات داخلية أو تشغيلية.'],
+      };
+    case 'invalid':
+      return {
+        tone: 'error' as const,
+        title: 'صيغة الاسم غير صحيحة.',
+        details: [
+          'يجب أن يكون بين 1 و30 حرفًا.',
+          'المسموح فقط: أحرف إنجليزية صغيرة، أرقام، - و _',
+        ],
+      };
+    case 'service_error':
+      return {
+        tone: 'error' as const,
+        title: 'تعذر الوصول إلى خدمة التحقق.',
+        details: [
+          'الواجهة لم تستطع الاتصال بالـ API أو قاعدة البيانات.',
+          'إذا كنت تعمل محليًا فشغّل المشروع ببيئة تدعم مجلد api، أو تأكد من إعداد DATABASE_URL و SESSION_SECRET.',
+        ],
+      };
+    default:
+      return {
+        tone: 'hint' as const,
+        title: 'اكتب الاسم الذي تريد أن يظهر في رابط صفحتك.',
+        details: ['مثال: yaamur أو yaamur_store'],
+      };
+  }
+}
 
 export default function Landing() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
+  const [status, setStatus] = useState<UsernameStatus>('idle');
+  const [serviceMessage, setServiceMessage] = useState('');
+  const normalizedUsername = username.trim().toLowerCase();
+  const feedback = getUsernameFeedback(status, normalizedUsername);
+  const canProceed = Boolean(normalizedUsername) && isLocallyValidUsername(normalizedUsername) && status !== 'taken' && status !== 'reserved';
+
+  useEffect(() => {
+    const trimmed = normalizedUsername;
+
+    if (!trimmed) {
+      setStatus('idle');
+      setServiceMessage('');
+      return;
+    }
+
+    setStatus('checking');
+    setServiceMessage('');
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await checkUsername(trimmed);
+        setStatus(result.status);
+        setServiceMessage('');
+      } catch (error) {
+        setStatus(isLocallyValidUsername(trimmed) ? 'available_unverified' : 'service_error');
+        setServiceMessage(error instanceof Error ? error.message : 'تعذر التحقق من الاسم.');
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [normalizedUsername]);
 
   const handleStart = () => {
-    if (username.trim()) {
-      navigate(`/phone?username=${username}`);
+    if (canProceed) {
+      navigate(`/phone?username=${normalizedUsername}`);
     }
   };
 
@@ -27,10 +137,16 @@ export default function Landing() {
             bio.sa
           </div>
           <div className="flex gap-3">
-            <button className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition-all">
+            <button
+              onClick={() => navigate('/phone')}
+              className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition-all"
+            >
               دخول
             </button>
-            <button className="px-6 py-2 bg-white text-emerald-600 rounded-full hover:bg-white/90 transition-all font-semibold">
+            <button
+              onClick={handleStart}
+              className="px-6 py-2 bg-white text-emerald-600 rounded-full hover:bg-white/90 transition-all font-semibold"
+            >
               ابدأ
             </button>
           </div>
@@ -66,7 +182,7 @@ export default function Landing() {
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => setUsername(e.target.value.replace(/\s+/g, '').toLowerCase())}
                 onKeyPress={handleKeyPress}
                 placeholder="bio.sa/ اسمك او اسم الشركة"
                 className="w-full px-4 pr-24 py-5 rounded-2xl text-lg text-left bg-white text-black focus:outline-none focus:ring-4 focus:ring-white/50 transition-all shadow-xl bg-[#ffffff00]"
@@ -74,9 +190,43 @@ export default function Landing() {
               />
             </div>
 
+            <div
+              className={`rounded-2xl border px-4 py-3 text-right ${
+                feedback.tone === 'success'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                  : feedback.tone === 'warning'
+                    ? 'border-amber-200 bg-amber-50 text-amber-900'
+                  : feedback.tone === 'error'
+                    ? 'border-red-200 bg-red-50 text-red-900'
+                    : feedback.tone === 'neutral'
+                      ? 'border-white/20 bg-white/10 text-white'
+                      : 'border-white/20 bg-white/10 text-white'
+              }`}
+              style={{ fontFamily: 'Tajawal, sans-serif' }}
+            >
+              <div className="text-sm font-semibold">
+                {status === 'service_error' && serviceMessage ? serviceMessage : feedback.title}
+              </div>
+              {feedback.details.length > 0 && (
+                <div className={`mt-2 space-y-1 text-xs ${
+                  feedback.tone === 'neutral' || feedback.tone === 'hint'
+                    ? 'text-white/85'
+                    : feedback.tone === 'success'
+                      ? 'text-emerald-800'
+                      : feedback.tone === 'warning'
+                        ? 'text-amber-800'
+                      : 'text-red-800'
+                }`}>
+                  {feedback.details.map((detail) => (
+                    <div key={detail}>{detail}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               onClick={handleStart}
-              disabled={!username.trim()}
+              disabled={!canProceed}
               className="w-full bg-gray-900 text-white py-5 rounded-2xl text-xl font-bold hover:bg-gray-800 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router';
-import { Sparkles, Zap, ArrowRight } from 'lucide-react';
+import { Zap, ArrowRight, Check } from 'lucide-react';
 
 export default function PlanSelection() {
   const navigate = useNavigate();
@@ -14,11 +14,11 @@ export default function PlanSelection() {
             className="text-gray-600 hover:text-gray-800 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19l7-7-7-7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <h1 className="text-lg font-bold text-gray-800" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            اختر خطتك
+            الاشتراك
           </h1>
           <div className="w-6"></div>
         </div>
@@ -26,108 +26,53 @@ export default function PlanSelection() {
 
       {/* Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
-        <div className="max-w-md w-full space-y-4">
-          {/* Free Trial Card */}
-          <div className="bg-white rounded-3xl p-6 shadow-xl border-2 border-gray-200 hover:border-emerald-300 transition-all">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-lime-400 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-white" />
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-3xl p-8 shadow-2xl border border-emerald-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-lime-400 flex items-center justify-center">
+                <Zap className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <h2 className="text-2xl font-black text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
                   تجربة مجانية
                 </h2>
                 <p className="text-sm text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                  7 أيام مجاناً
+                  7 أيام مجاناً — جميع الميزات
                 </p>
               </div>
             </div>
-            <ul className="space-y-2 mb-6">
-              <li className="flex items-start gap-2 text-sm text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>جميع الثيمات والميزات</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>روابط غير محدودة</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>تحديثات مباشرة</span>
-              </li>
+
+            <ul className="space-y-3 mb-8">
+              {[
+                'جميع الثيمات والتصاميم',
+                'روابط غير محدودة',
+                'تحديثات مباشرة',
+                'تخصيص الألوان والخطوط',
+                'صفحة عامة مع رابطك الخاص',
+                'ملفاتك التعريفية',
+              ].map((feature) => (
+                <li key={feature} className="flex items-center gap-3" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                    <Check className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <span className="text-gray-700">{feature}</span>
+                </li>
+              ))}
             </ul>
+
             <button
               onClick={() => navigate('/processing?plan=trial')}
-              className="w-full bg-gradient-to-r from-emerald-500 to-lime-500 text-white py-4 rounded-2xl font-bold text-base hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-emerald-500 to-lime-500 text-white py-4 rounded-2xl font-bold text-lg hover:shadow-lg transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               ابدأ التجربة المجانية
               <ArrowRight className="w-5 h-5" />
             </button>
-          </div>
 
-          {/* Premium Card */}
-          <div className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-2 left-2 bg-yellow-400 text-purple-900 px-3 py-1 rounded-full text-xs font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              الأكثر شعبية
-            </div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  الخطة المميزة
-                </h2>
-                <p className="text-sm text-white/80" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                  دفع لمرة واحدة
-                </p>
-              </div>
-            </div>
-            <div className="mb-4">
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold text-white" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  99
-                </span>
-                <span className="text-lg text-white/80" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  ريال
-                </span>
-              </div>
-              <p className="text-xs text-white/70 mt-1" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                دفع لمرة واحدة - مدى الحياة
-              </p>
-            </div>
-            <ul className="space-y-2 mb-6">
-              <li className="flex items-start gap-2 text-sm text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                <span className="text-yellow-300 mt-0.5">★</span>
-                <span>جميع ميزات التجربة ال��جانية</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                <span className="text-yellow-300 mt-0.5">★</span>
-                <span>إطار صورة متحرك حصري</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                <span className="text-yellow-300 mt-0.5">★</span>
-                <span>بدون إعلانات</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                <span className="text-yellow-300 mt-0.5">★</span>
-                <span>دعم فني ذي أولوية</span>
-              </li>
-            </ul>
-            <button
-              onClick={() => navigate('/payment')}
-              className="w-full bg-white text-purple-600 py-4 rounded-2xl font-bold text-base hover:bg-gray-50 transition-all flex items-center justify-center gap-2 shadow-xl"
-              style={{ fontFamily: 'Cairo, sans-serif' }}
-            >
-              اشترك الآن
-              <ArrowRight className="w-5 h-5" />
-            </button>
+            <p className="text-center text-xs text-gray-400 mt-4" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+              لا يتطلب بطاقة دفع — يمكنك الإلغاء في أي وقت
+            </p>
           </div>
-
-          <p className="text-center text-xs text-gray-500 mt-4" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            يمكنك إلغاء الاشتراك في أي وقت
-          </p>
         </div>
       </div>
     </div>

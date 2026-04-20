@@ -1,10 +1,17 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
+import { fetchMyPage, saveMyPage } from '../lib/api';
+import { clearSessionToken, getSessionToken } from '../lib/session';
 
 export interface Link {
   id: string;
   title: string;
   url: string;
-  platform?: 'instagram' | 'twitter' | 'tiktok' | 'youtube' | 'linkedin' | 'github' | 'facebook' | 'snapchat' | 'whatsapp' | 'telegram' | 'website' | 'email' | 'custom';
+  platform?: 'instagram' | 'twitter' | 'tiktok' | 'youtube' | 'linkedin' | 'github' | 'facebook' | 'snapchat' | 'whatsapp' | 'telegram' | 'website' | 'email' | 'custom' | 'file';
+  linkType?: 'url' | 'file';
+  fileCategory?: 'cv' | 'menu' | 'other';
+  fileName?: string;
+  fileMimeType?: string;
+  fileSize?: number;
   iconStyle?: 'color' | 'mono';
   textPosition?: 'center' | 'right';
 }
@@ -37,7 +44,7 @@ export interface PageData {
     useCustomColor?: boolean;
   };
   profileStyle: {
-    type: 'circle' | 'rounded' | 'hero' | 'premium';
+    type: 'circle' | 'rounded' | 'hero' | 'hero_safe' | 'premium';
   };
   customColors?: {
     nameColor?: string;
@@ -48,6 +55,10 @@ export interface PageData {
 
 interface PageContextType {
   pageData: PageData;
+  replacePageData: (nextPageData: PageData) => void;
+  isAuthenticated: boolean;
+  setAuthenticated: (value: boolean) => void;
+  loadingPage: boolean;
   updatePageData: (updates: Partial<PageData>) => void;
   updateTheme: (theme: Theme) => void;
   updateWallpaper: (wallpaper: PageData['wallpaper']) => void;
@@ -226,76 +237,156 @@ const defaultThemes: Theme[] = [
 
 export const themes = defaultThemes;
 
+const LOCAL_STORAGE_KEY = 'bio_page_data';
+
+const defaultPageData: PageData = {
+  username: '',
+  profileImage: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+  name: 'أحمد محمد',
+  bio: 'مصمم جرافيك ومطور مواقع 🎨💻',
+  links: [
+    { id: '1', title: 'إنستقرام', url: 'https://instagram.com', platform: 'instagram', iconStyle: 'color', textPosition: 'center' },
+    { id: '2', title: 'تويتر X', url: 'https://twitter.com', platform: 'twitter', iconStyle: 'color', textPosition: 'center' },
+    { id: '3', title: 'موقعي الشخصي', url: 'https://example.com', platform: 'website', iconStyle: 'color', textPosition: 'center' },
+  ],
+  theme: defaultThemes[0],
+  wallpaper: {
+    type: 'color',
+    value: '#ffffff',
+  },
+  buttonStyle: {
+    shape: 'rounded',
+    border: false,
+    shadow: true,
+  },
+  profileStyle: {
+    type: 'circle',
+  },
+};
+
+function mergeWithDefaults(candidate?: Partial<PageData> | null): PageData {
+  return {
+    ...defaultPageData,
+    ...(candidate || {}),
+    links: Array.isArray(candidate?.links) ? candidate.links : defaultPageData.links,
+    theme: {
+      ...defaultPageData.theme,
+      ...(candidate?.theme || {}),
+    },
+    wallpaper: {
+      ...defaultPageData.wallpaper,
+      ...(candidate?.wallpaper || {}),
+    },
+    buttonStyle: {
+      ...defaultPageData.buttonStyle,
+      ...(candidate?.buttonStyle || {}),
+    },
+    profileStyle: {
+      ...defaultPageData.profileStyle,
+      ...(candidate?.profileStyle || {}),
+    },
+    customColors: candidate?.customColors || undefined,
+    extractedColors: candidate?.extractedColors || [],
+  };
+}
+
+function loadLocalPageData() {
+  if (typeof window === 'undefined') {
+    return defaultPageData;
+  }
+
+  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+
+  if (!saved) {
+    return defaultPageData;
+  }
+
+  try {
+    return mergeWithDefaults(JSON.parse(saved));
+  } catch (error) {
+    console.error('Error parsing saved data:', error);
+    return defaultPageData;
+  }
+}
+
 export function PageProvider({ children }: { children: ReactNode }) {
-  const [pageData, setPageData] = useState<PageData>(() => {
-    // البيانات الافتراضية
-    const defaultData: PageData = {
-      username: '',
-      profileImage: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
-      name: 'أحمد محمد',
-      bio: 'مصمم جرافيك ومطور مواقع 🎨💻',
-      links: [
-        { id: '1', title: 'إنستقرام', url: 'https://instagram.com', platform: 'instagram', iconStyle: 'color', textPosition: 'center' },
-        { id: '2', title: 'تويتر X', url: 'https://twitter.com', platform: 'twitter', iconStyle: 'color', textPosition: 'center' },
-        { id: '3', title: 'موقعي الشخصي', url: 'https://example.com', platform: 'website', iconStyle: 'color', textPosition: 'center' },
-      ],
-      theme: defaultThemes[0],
-      wallpaper: {
-        type: 'color',
-        value: '#ffffff',
-      },
-      buttonStyle: {
-        shape: 'rounded',
-        border: false,
-        shadow: true,
-      },
-      profileStyle: {
-        type: 'circle',
-      },
-    };
+  const [pageData, setPageData] = useState<PageData>(() => loadLocalPageData());
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getSessionToken()));
+  const [loadingPage, setLoadingPage] = useState(true);
+  const skipNextRemoteSave = useRef(true);
 
-    // محاولة استرجاع البيانات من localStorage
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bio_page_data');
-      if (saved) {
-        try {
-          const parsedData = JSON.parse(saved);
-          // دمج البيانات المحفوظة مع البيانات الافتراضية للتأكد من وجود جميع الخصائص
-          return {
-            ...defaultData,
-            ...parsedData,
-            buttonStyle: {
-              ...defaultData.buttonStyle,
-              ...(parsedData.buttonStyle || {}),
-            },
-            profileStyle: {
-              ...defaultData.profileStyle,
-              ...(parsedData.profileStyle || {}),
-            },
-            wallpaper: {
-              ...defaultData.wallpaper,
-              ...(parsedData.wallpaper || {}),
-            },
-            customColors: parsedData.customColors || undefined,
-          };
-        } catch (e) {
-          console.error('Error parsing saved data:', e);
-        }
-      }
-    }
-    
-    return defaultData;
-  });
-
-  // حفظ البيانات في localStorage عند كل تغيير
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('bio_page_data', JSON.stringify(pageData));
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pageData));
     }
   }, [pageData]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateFromApi() {
+      const token = getSessionToken();
+
+      if (!token) {
+        setLoadingPage(false);
+        return;
+      }
+
+      try {
+        const response = await fetchMyPage();
+
+        if (!cancelled && response.pageData) {
+          skipNextRemoteSave.current = true;
+          setPageData(mergeWithDefaults(response.pageData));
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        console.error('Failed to hydrate page data:', error);
+        clearSessionToken();
+
+        if (!cancelled) {
+          setIsAuthenticated(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingPage(false);
+        }
+      }
+    }
+
+    hydrateFromApi();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (loadingPage || !isAuthenticated) {
+      return;
+    }
+
+    if (skipNextRemoteSave.current) {
+      skipNextRemoteSave.current = false;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      saveMyPage(pageData).catch((error) => {
+        console.error('Failed to save page data:', error);
+      });
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [pageData, isAuthenticated, loadingPage]);
+
+  const replacePageData = useCallback((nextPageData: PageData) => {
+    skipNextRemoteSave.current = true;
+    setPageData(mergeWithDefaults(nextPageData));
+  }, []);
+
   const updatePageData = useCallback((updates: Partial<PageData>) => {
-    setPageData((prev) => ({ ...prev, ...updates }));
+    setPageData((prev) => mergeWithDefaults({ ...prev, ...updates }));
   }, []);
 
   const updateTheme = useCallback((theme: Theme) => {
@@ -378,6 +469,10 @@ export function PageProvider({ children }: { children: ReactNode }) {
     <PageContext.Provider
       value={{
         pageData,
+        replacePageData,
+        isAuthenticated,
+        setAuthenticated: setIsAuthenticated,
+        loadingPage,
         updatePageData,
         updateTheme,
         updateWallpaper,

@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api/|src/|@vite/|@react-refresh|@fs/|node_modules/|assets/|favicon\\.ico|vite\\.svg).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

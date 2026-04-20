@@ -7,7 +7,8 @@ import { HeaderEditor } from '../components/HeaderEditor';
 import { WallpaperEditor } from '../components/WallpaperEditor';
 import { StyleEditor } from '../components/StyleEditor';
 import { LinkEditor } from '../components/LinkEditor';
-import { Palette, User, Image as ImageIcon, Sparkles, Share2, Link2, Check, Eye, Home, ChevronDown, ChevronUp, Info, ArrowLeft } from 'lucide-react';
+import { QRCodeDisplay } from '../components/QRCodeDisplay';
+import { Palette, User, Image as ImageIcon, Sparkles, Link2, Eye, Home, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
 
 type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links';
 
@@ -17,10 +18,13 @@ export default function Builder() {
   const username = searchParams.get('username') || '';
   const [activeTab, setActiveTab] = useState<Tab>('theme');
   const [showSettings, setShowSettings] = useState(true);
-  const [showWelcome, setShowWelcome] = useState(true);
-  const { pageData, updatePageData } = usePageContext();
+  const [showWelcome, setShowWelcome] = useState(() => {
+    if (localStorage.getItem('bio_sa_welcome_seen')) return false;
+    localStorage.setItem('bio_sa_welcome_seen', '1');
+    return true;
+  });
+  const { pageData, updatePageData, isAuthenticated, loadingPage } = usePageContext();
 
-  // تعيين اسم المستخدم عند التحميل
   useEffect(() => {
     if (!pageData.username && username) {
       updatePageData({ username });
@@ -28,11 +32,17 @@ export default function Builder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username]);
 
-  // إخفاء رسالة الترحيب بعد 8 ثوان
+  useEffect(() => {
+    if (!loadingPage && !isAuthenticated) {
+      navigate(username ? `/phone?username=${username}` : '/phone');
+    }
+  }, [isAuthenticated, loadingPage, navigate, username]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowWelcome(false);
     }, 8000);
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -48,9 +58,45 @@ export default function Builder() {
     { id: 'style' as Tab, label: 'الأزرار', icon: Sparkles },
   ];
 
+  const renderActivePanel = () => {
+    if (activeTab === 'theme') {
+      return <ThemeSelector />;
+    }
+
+    if (activeTab === 'header') {
+      return <HeaderEditor />;
+    }
+
+    if (activeTab === 'links') {
+      return <LinkEditor />;
+    }
+
+    if (activeTab === 'wallpaper') {
+      return <WallpaperEditor />;
+    }
+
+    return <StyleEditor />;
+  };
+
+  if (loadingPage) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center" dir="rtl">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-10 w-10 rounded-full border-4 border-emerald-100 border-t-emerald-500 animate-spin"></div>
+          <p className="text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+            جاري تحميل صفحتك...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
-    <div className="h-screen flex flex-col bg-gray-50" dir="rtl">
-      {/* Top Bar */}
+    <div className="min-h-screen bg-gray-50" dir="rtl">
       <div className="bg-white border-b border-gray-200 px-2 sm:px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-2 sm:gap-3">
           <button
@@ -65,113 +111,173 @@ export default function Builder() {
           </div>
           <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
           <div className="text-xs sm:text-sm text-gray-600 hidden sm:block" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            {username}
+            {pageData.username}
           </div>
         </div>
+
         <div className="flex items-center gap-1 sm:gap-2">
-          <button 
+          <QRCodeDisplay username={pageData.username} />
+          <button
             onClick={() => navigate('/preview')}
             className="flex items-center gap-1 sm:gap-2 bg-gray-100 text-gray-700 px-2 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-semibold hover:bg-gray-200 transition-all"
             title="اعرض صفحتك في نافذة جديدة"
           >
             <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline" style={{ fontFamily: 'Cairo, sans-serif' }}>معاينة</span>
+            <span className="hidden sm:inline" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              معاينة
+            </span>
           </button>
-          <button 
+          <button
             onClick={handleShare}
             className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-lime-500 to-emerald-500 text-white px-4 sm:px-6 py-2.5 rounded-full text-sm sm:text-base font-bold hover:shadow-lg transition-all min-w-[100px] sm:min-w-[120px]"
             title="المتابعة إلى الخطوة التالية"
           >
-            <span style={{ fontFamily: 'Cairo, sans-serif' }}>
-              التالي
-            </span>
+            <span style={{ fontFamily: 'Cairo, sans-serif' }}>التالي</span>
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
       </div>
 
-      {/* Preview Area */}
-      <div className={`flex-1 overflow-y-auto px-4 transition-all duration-300 ${showSettings ? 'pb-24' : 'pb-4'}`}>
-        <div className="max-w-md mx-auto py-6">
-          <PagePreview />
+      <div className="lg:hidden h-[calc(100vh-73px)] flex flex-col">
+        <div className={`flex-1 overflow-y-auto px-4 transition-all duration-300 ${showSettings ? 'pb-24' : 'pb-4'}`}>
+          <div className="max-w-md mx-auto py-6">
+            <PagePreview />
+          </div>
+
+          {!showSettings && (
+            <div className="max-w-md mx-auto pb-6 flex justify-center">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-emerald-700 transition-all hover:shadow-xl"
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                <ChevronUp className="w-5 h-5" />
+                <span className="text-sm font-semibold">إظهار الإعدادات</span>
+              </button>
+            </div>
+          )}
         </div>
-        
-        {/* Toggle Settings Button - positioned at bottom of preview when settings hidden */}
-        {!showSettings && (
-          <div className="max-w-md mx-auto pb-6 flex justify-center">
+
+        <div
+          className={`fixed left-0 right-0 bg-white border-t border-gray-200 shadow-lg transition-all duration-300 ${
+            showSettings ? 'bottom-0' : '-bottom-full'
+          }`}
+          style={{ zIndex: 40 }}
+        >
+          <div className="border-b border-gray-100 py-2 px-4 flex justify-center">
             <button
-              onClick={() => setShowSettings(true)}
-              className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-emerald-700 transition-all hover:shadow-xl"
+              onClick={() => setShowSettings(false)}
+              className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 px-4 py-1.5 rounded-full hover:bg-emerald-50 transition-all"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
-              <ChevronUp className="w-5 h-5" />
-              <span className="text-sm font-semibold">إظهار الإعدادات</span>
+              <ChevronDown className="w-4 h-4" />
+              <span className="text-sm font-semibold">إخفاء الإعدادات</span>
             </button>
           </div>
-        )}
-      </div>
 
-      {/* Bottom Navigation */}
-      <div 
-        className={`fixed left-0 right-0 bg-white border-t border-gray-200 shadow-lg transition-all duration-300 ${
-          showSettings ? 'bottom-0' : '-bottom-full'
-        }`}
-        style={{ zIndex: 40 }}
-      >
-        {/* Hide Settings Button - at top of settings panel */}
-        <div className="border-b border-gray-100 py-2 px-4 flex justify-center">
-          <button
-            onClick={() => setShowSettings(false)}
-            className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 px-4 py-1.5 rounded-full hover:bg-emerald-50 transition-all"
-            style={{ fontFamily: 'Cairo, sans-serif' }}
-          >
-            <ChevronDown className="w-4 h-4" />
-            <span className="text-sm font-semibold">إخفاء الإعدادات</span>
-          </button>
-        </div>
+          <div className="flex items-center justify-around px-1 py-2">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
 
-        <div className="flex items-center justify-around px-1 py-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center gap-1 px-2 sm:px-4 py-2 rounded-xl transition-all ${
-                  isActive
-                    ? 'bg-emerald-50 text-emerald-600'
-                    : 'text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-[10px] sm:text-xs font-semibold" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  {tab.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex flex-col items-center gap-1 px-2 sm:px-4 py-2 rounded-xl transition-all ${
+                    isActive ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="text-[10px] sm:text-xs font-semibold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Tab Content */}
-        <div className="border-t border-gray-100 bg-gray-50 max-h-80 overflow-y-auto">
-          {activeTab === 'theme' && <ThemeSelector />}
-          {activeTab === 'header' && <HeaderEditor />}
-          {activeTab === 'links' && <LinkEditor />}
-          {activeTab === 'wallpaper' && <WallpaperEditor />}
-          {activeTab === 'style' && <StyleEditor />}
+          <div className="border-t border-gray-100 bg-gray-50 max-h-80 overflow-y-auto">{renderActivePanel()}</div>
         </div>
       </div>
 
-      {/* Welcome Message */}
+      <div className="hidden lg:block h-[calc(100vh-73px)] overflow-hidden">
+        <div className="mx-auto grid h-full max-w-[1440px] grid-cols-[minmax(360px,420px)_minmax(0,560px)] justify-center gap-8 px-6 py-6">
+          <aside className="h-full overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm">
+            <div className="flex h-full flex-col">
+              <div className="border-b border-gray-100 px-5 py-5">
+                <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  تخصيص الصفحة
+                </h2>
+                <p className="mt-1 text-sm text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+                  حرر صفحتك من هنا، والمعاينة تبقى واضحة طوال الوقت.
+                </p>
+              </div>
+
+              <div className="border-b border-gray-100 p-3">
+                <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-semibold transition-all ${
+                          isActive ? 'bg-emerald-500 text-white shadow-sm' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        }`}
+                        style={{ fontFamily: 'Cairo, sans-serif' }}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto bg-gray-50">{renderActivePanel()}</div>
+            </div>
+          </aside>
+
+          <section className="h-full overflow-y-auto rounded-[32px] border border-gray-200 bg-gradient-to-br from-white via-gray-50 to-emerald-50/50 px-8 py-8 shadow-sm">
+            <div className="mx-auto flex min-h-full max-w-[460px] flex-col">
+              <div className="mb-6 flex items-center justify-between gap-4 rounded-3xl border border-white/70 bg-white/80 px-5 py-4 shadow-sm backdrop-blur">
+                <div>
+                  <div className="text-sm font-semibold text-emerald-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    معاينة مباشرة
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+                    هذا هو شكل صفحتك على المقاس الحقيقي تقريبًا.
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate('/preview')}
+                  className="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-200"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  <Eye className="h-4 w-4" />
+                  <span>فتح المعاينة</span>
+                </button>
+              </div>
+
+              <div className="mx-auto w-full max-w-[420px]">
+                <PagePreview />
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
       {showWelcome && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-4 transition-all duration-300" 
+        <div
+          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-4 transition-all duration-300"
           style={{ zIndex: 50 }}
           onClick={() => setShowWelcome(false)}
         >
-          <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all duration-300 animate-slide-up"
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all duration-300 animate-slideUp"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3 mb-4">
@@ -187,7 +293,7 @@ export default function Builder() {
                 </p>
               </div>
             </div>
-            
+
             <div className="space-y-3 mb-5">
               <div className="flex items-start gap-3 bg-emerald-50 p-3 rounded-xl">
                 <Palette className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -200,7 +306,7 @@ export default function Builder() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start gap-3 bg-blue-50 p-3 rounded-xl">
                 <User className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div>
@@ -212,7 +318,7 @@ export default function Builder() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start gap-3 bg-purple-50 p-3 rounded-xl">
                 <Eye className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
                 <div>
@@ -232,12 +338,12 @@ export default function Builder() {
                     إخفاء الإعدادات
                   </p>
                   <p className="text-xs text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                    اضغط \"إخفاء الإعدادات\" لرؤية أوضح
+                    اضغط "إخفاء الإعدادات" لرؤية أوضح
                   </p>
                 </div>
               </div>
             </div>
-            
+
             <button
               onClick={() => setShowWelcome(false)}
               className="w-full bg-gradient-to-r from-lime-500 to-emerald-500 text-white px-6 py-3 rounded-full font-bold hover:shadow-lg transition-all"

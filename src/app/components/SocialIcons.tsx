@@ -1,4 +1,4 @@
-import { Instagram, MessageCircle, Youtube, Linkedin, Github, Facebook, Mail, Globe, Link as LinkIcon } from 'lucide-react';
+import { Instagram, MessageCircle, Youtube, Linkedin, Github, Facebook, Mail, Globe, Link as LinkIcon, FileText } from 'lucide-react';
 
 export const SOCIAL_PLATFORMS = [
   {
@@ -74,6 +74,12 @@ export const SOCIAL_PLATFORMS = [
     color: '#EA4335',
   },
   {
+    id: 'file',
+    name: 'ملف PDF',
+    placeholder: 'https://example.com/file.pdf',
+    color: '#0f766e',
+  },
+  {
     id: 'custom',
     name: 'رابط مخصص',
     placeholder: 'https://example.com',
@@ -138,6 +144,8 @@ export function SocialIcon({ platform, iconStyle, className = 'w-5 h-5' }: Socia
       return <Globe {...iconProps} />;
     case 'email':
       return <Mail {...iconProps} />;
+    case 'file':
+      return <FileText {...iconProps} />;
     default:
       return <LinkIcon {...iconProps} />;
   }

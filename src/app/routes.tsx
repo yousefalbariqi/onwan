@@ -108,6 +108,10 @@ export const router = createBrowserRouter([
         element: <Success />,
       },
       {
+        path: ':username',
+        element: <PublicPage />,
+      },
+      {
         path: '*',
         element: <NotFound />,
       },

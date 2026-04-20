@@ -16,8 +16,14 @@ const profileStyles = [
   },
   {
     id: 'hero' as const,
-    name: 'صورة كاملة',
-    description: 'غلاف Hero',
+    name: 'مشهد ممتلئ',
+    description: 'أفضل للصور الشخصية',
+    icon: ImageIcon,
+  },
+  {
+    id: 'hero_safe' as const,
+    name: 'مشهد متوازن',
+    description: 'أفضل للشعارات والصور الشفافة',
     icon: ImageIcon,
   },
   {
@@ -42,7 +48,7 @@ export function ProfileStyleSelector() {
           تصميم الصورة
         </h3>
         <div className="text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-          4 تصاميم
+          5 تصاميم
         </div>
       </div>
 

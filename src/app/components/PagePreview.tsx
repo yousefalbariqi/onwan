@@ -5,6 +5,7 @@ import { SocialIcon } from './SocialIcons';
 
 export function PagePreview() {
   const { pageData } = usePageContext();
+  const isHeroLayout = pageData.profileStyle.type === 'hero' || pageData.profileStyle.type === 'hero_safe';
 
   const getBackgroundStyle = () => {
     switch (pageData.wallpaper.type) {
@@ -37,14 +38,14 @@ export function PagePreview() {
 
   return (
     <div 
-      className={`w-full rounded-3xl shadow-2xl transition-all duration-300 ${pageData.profileStyle.type === 'hero' ? 'min-h-[700px] overflow-hidden' : 'min-h-[600px] overflow-hidden'}`}
+      className={`w-full rounded-3xl shadow-2xl transition-all duration-300 ${isHeroLayout ? 'min-h-[700px] overflow-hidden' : 'min-h-[600px] overflow-hidden'}`}
       style={{
         ...getBackgroundStyle(),
         color: pageData.theme.textColor,
       }}
     >
       {/* Profile Image - خارج padding إذا كان Hero */}
-      {pageData.profileStyle.type === 'hero' && (
+      {isHeroLayout && (
         <div className="relative -mt-0">
           <ProfileImageDisplay
             profileImage={pageData.profileImage}
@@ -57,9 +58,9 @@ export function PagePreview() {
         </div>
       )}
 
-      <div className={pageData.profileStyle.type === 'hero' ? 'p-8 pt-6 flex flex-col items-center' : 'p-8 flex flex-col items-center'}>
+      <div className={isHeroLayout ? 'p-8 pt-6 flex flex-col items-center' : 'p-8 flex flex-col items-center'}>
         {/* Profile Image - داخل padding إذا لم يكن Hero */}
-        {pageData.profileStyle.type !== 'hero' && (
+        {!isHeroLayout && (
           <ProfileImageDisplay
             profileImage={pageData.profileImage}
             name={pageData.name}
@@ -71,7 +72,7 @@ export function PagePreview() {
 
         {/* Name */}
         <h1 
-          className={`text-2xl font-bold mb-2 text-center ${pageData.profileStyle.type === 'hero' ? 'mt-0 drop-shadow-md' : 'mt-4'}`}
+          className={`text-2xl font-bold mb-2 text-center ${isHeroLayout ? 'mt-0 drop-shadow-md' : 'mt-4'}`}
           style={{ 
             fontFamily: 'Cairo, sans-serif',
             color: pageData.customColors?.nameColor || pageData.theme.textColor
@@ -92,7 +93,14 @@ export function PagePreview() {
         </p>
 
         {/* Username */}
-        <div className="text-xs opacity-60 mb-8" style={{ fontFamily: 'Cairo, sans-serif' }}>
+        <div
+          className="text-sm mb-8 text-center"
+          style={{
+            fontFamily: 'Cairo, sans-serif',
+            color: pageData.customColors?.usernameColor || pageData.theme.textColor,
+            opacity: pageData.customColors?.usernameColor ? 1 : 0.7
+          }}
+        >
           bio.sa/{pageData.username || 'username'}
         </div>
 
@@ -107,6 +115,7 @@ export function PagePreview() {
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
+                download={link.linkType === 'file' ? (link.fileName || true) : undefined}
                 className={`w-full px-6 py-4 flex items-center gap-3 transition-all hover:scale-105 active:scale-95 ${getButtonClassName()}`}
                 style={{
                   backgroundColor: pageData.buttonStyle.border 

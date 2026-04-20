@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { User } from 'lucide-react';
 import { PageData } from '../context/PageContext';
 
@@ -18,10 +19,37 @@ export function ProfileImageDisplay({
   size = 'medium',
   backgroundColor,
 }: ProfileImageDisplayProps) {
+  const isHeroFillStyle = profileStyle.type === 'hero';
+  const isHeroSafeStyle = profileStyle.type === 'hero_safe';
+  const [heroImagePosition, setHeroImagePosition] = useState('center center');
+
   const sizeClasses = {
     small: 'w-24 h-24',
     medium: 'w-28 h-28',
     large: 'w-32 h-32',
+  };
+
+  const handleHeroImageLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+
+    if (!naturalWidth || !naturalHeight) {
+      setHeroImagePosition('center center');
+      return;
+    }
+
+    const aspectRatio = naturalWidth / naturalHeight;
+
+    if (aspectRatio < 0.85) {
+      setHeroImagePosition('center 24%');
+      return;
+    }
+
+    if (aspectRatio > 1.6) {
+      setHeroImagePosition('center 42%');
+      return;
+    }
+
+    setHeroImagePosition('center center');
   };
 
   const renderImage = () => {
@@ -57,7 +85,7 @@ export function ProfileImageDisplay({
   }
 
   // صورة كاملة (Hero)
-  if (profileStyle.type === 'hero') {
+  if (isHeroFillStyle || isHeroSafeStyle) {
     // استخراج لون الخلفية للتدرج
     const getGradientOverlay = () => {
       if (!backgroundColor) {
@@ -129,22 +157,49 @@ export function ProfileImageDisplay({
     };
 
     return (
-      <div className="w-full min-h-[400px] overflow-hidden flex items-center justify-center relative">
+      <div
+        className="relative w-full min-h-[340px] overflow-hidden sm:min-h-[420px] lg:min-h-[520px]"
+        style={{ backgroundColor: backgroundColor && !backgroundColor.includes('gradient') ? backgroundColor : '#111827' }}
+      >
         {profileImage ? (
           <>
-            {/* الصورة الأساسية */}
-            <img 
-              src={profileImage} 
-              alt={name}
-              className="w-full h-full object-cover"
-            />
-            {/* طبقة التدرج - يبدأ من 60% فقط الجزء السفلي */}
-            <div 
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: getGradientOverlay(),
-              }}
-            />
+            {isHeroFillStyle && (
+              <div
+                className="absolute inset-0 scale-110 opacity-45 blur-2xl"
+                style={{
+                  backgroundImage: `url(${profileImage})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: heroImagePosition,
+                }}
+              />
+            )}
+            {isHeroFillStyle && <div className="absolute inset-0 bg-black/10" />}
+            {isHeroFillStyle ? (
+              <img
+                src={profileImage}
+                alt={name}
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ objectPosition: heroImagePosition }}
+                onLoad={handleHeroImageLoad}
+              />
+            ) : (
+              <div className="absolute inset-0 p-4 sm:p-6 lg:p-8">
+                <img
+                  src={profileImage}
+                  alt={name}
+                  className="h-full w-full object-contain"
+                  style={{ objectPosition: 'center center' }}
+                />
+              </div>
+            )}
+            {isHeroFillStyle && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: getGradientOverlay(),
+                }}
+              />
+            )}
           </>
         ) : (
           <div className="w-full h-full bg-white/10 backdrop-blur-sm flex items-center justify-center">

@@ -12,17 +12,11 @@ const colors = [
   { name: 'برتقالي', value: '#ffe0b2' },
 ];
 
-const gradients = [
-  { name: 'غروب', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-  { name: 'محيط', value: 'linear-gradient(135deg, #667eea 0%, #48c6ef 100%)' },
-  { name: 'ليموني', value: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)' },
-  { name: 'ناري', value: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
-  { name: 'شفق', value: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)' },
-  { name: 'خوخي', value: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' },
-];
-
 export function WallpaperEditor() {
   const { pageData, updateWallpaper } = usePageContext();
+  const extractedColors = Array.from(
+    new Set((pageData.extractedColors || []).filter((color) => /^#([A-Fa-f0-9]{6})$/.test(color))),
+  ).slice(0, 8);
 
   return (
     <div className="p-4 space-y-4">
@@ -60,39 +54,48 @@ export function WallpaperEditor() {
         </div>
       </div>
 
-      {/* Gradients */}
+      {/* Extracted Colors */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          تدرجات لونية
+          ألوان من الصورة المرفوعة
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          {gradients.map((gradient) => {
-            const isActive = pageData.wallpaper.type === 'gradient' && pageData.wallpaper.value === gradient.value;
-            return (
-              <button
-                key={gradient.name}
-                onClick={() => updateWallpaper({ type: 'gradient', value: gradient.value })}
-                className={`relative h-20 rounded-lg border-2 transition-all hover:scale-105 ${
-                  isActive ? 'border-emerald-500 shadow-lg' : 'border-gray-200'
-                }`}
-                style={{ background: gradient.value }}
-              >
-                {isActive && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-lg">
-                      <Check className="w-4 h-4 text-emerald-500" />
+
+        {extractedColors.length > 0 ? (
+          <div className="grid grid-cols-4 gap-2">
+            {extractedColors.map((color) => {
+              const isActive = pageData.wallpaper.type === 'color' && pageData.wallpaper.value === color;
+
+              return (
+                <button
+                  key={color}
+                  onClick={() => updateWallpaper({ type: 'color', value: color })}
+                  className={`relative aspect-square rounded-lg border-2 transition-all hover:scale-105 ${
+                    isActive ? 'border-emerald-500 shadow-lg' : 'border-gray-200'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  title={color}
+                >
+                  {isActive && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
                     </div>
-                  </div>
-                )}
-                <div className="absolute bottom-2 left-0 right-0 text-center">
-                  <span className="text-xs font-semibold text-white drop-shadow-lg" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    {gradient.name}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-3 bg-blue-50 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+                ارفع صورة في قسم البروفايل حتى تظهر الألوان المستخرجة تلقائيًا هنا.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Custom Color */}
