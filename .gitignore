@@ -9,5 +9,8 @@ node_modules/
 # build output
 dist/
 
+# npm config (local paths)
+.npmrc
+
 # vercel
 .vercel
