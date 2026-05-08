@@ -75,6 +75,18 @@ export function verifyCode(email: string, code: string) {
   });
 }
 
+export function loginWithPhone(phone: string, username?: string) {
+  return request<{
+    token: string;
+    isNewUser: boolean;
+    user: { id: string; phone: string };
+    pageData: any;
+  }>('/api/auth/phone-login', {
+    method: 'POST',
+    body: { phone, username },
+  });
+}
+
 export function fetchMyPage() {
   return request<{ pageData: any }>('/api/page/me', {
     authenticated: true,
