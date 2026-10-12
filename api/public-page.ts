@@ -22,6 +22,11 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    if (page.state === 'moved') {
+      sendJson(res, 200, { movedTo: page.username });
+      return;
+    }
+
     if (page.state === 'suspended') {
       sendJson(res, 200, { suspended: true, message: page.message });
       return;

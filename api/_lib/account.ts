@@ -62,7 +62,11 @@ export async function getAccountSummary(userId: string) {
     subscription: row.plan
       ? {
           plan: row.plan as Plan,
-          status: row.subscription_status as 'pending_payment' | 'active' | 'expired',
+          // Nothing flips the stored status when the paid period ends, so
+          // expiry is derived from the date.
+          status: (row.subscription_status === 'active' && row.expires_at && new Date(row.expires_at) < new Date()
+            ? 'expired'
+            : row.subscription_status) as 'pending_payment' | 'active' | 'expired',
           expiresAt: row.expires_at as string | null,
         }
       : null,
@@ -84,7 +88,7 @@ export async function getPlans() {
 // active subscription and never publishes anything.
 export async function requestSubscription(userId: string, plan: Plan) {
   const existing = await pool.query<{ status: string }>(
-    'select status from subscriptions where user_id = $1 limit 1',
+    "select status from subscriptions where user_id = $1 and expires_at > now() limit 1",
     [userId],
   );
 
@@ -98,6 +102,7 @@ export async function requestSubscription(userId: string, plan: Plan) {
       values ($1, $2, 'pending_payment')
       on conflict (user_id) do update
       set plan = excluded.plan, status = 'pending_payment', updated_at = now()
+      where subscriptions.status <> 'active' or subscriptions.expires_at <= now()
     `,
     [userId, plan],
   );

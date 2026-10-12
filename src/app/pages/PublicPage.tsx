@@ -208,6 +208,16 @@ export default function PublicPage() {
       .then((response) => {
         if (cancelled) return;
 
+        // DOMAIN-02: the old name forwards to the new one for 30 days.
+        if (response.movedTo) {
+          if (routeUsername) {
+            navigate(`/${response.movedTo}`, { replace: true });
+          } else {
+            window.location.replace(pageUrl(response.movedTo));
+          }
+          return;
+        }
+
         setRemote(
           response.suspended
             ? { status: 'suspended', message: response.message || '' }
@@ -221,7 +231,7 @@ export default function PublicPage() {
     return () => {
       cancelled = true;
     };
-  }, [username]);
+  }, [username, routeUsername, navigate]);
 
   usePageMeta(username && remote.status === 'ready' ? remote.pageData : null);
 

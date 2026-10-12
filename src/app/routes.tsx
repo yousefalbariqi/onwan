@@ -7,6 +7,7 @@ import ResetPassword from './pages/ResetPassword';
 import Builder from './pages/Builder';
 import PublicPage from './pages/PublicPage';
 import PlanSelection from './pages/PlanSelection';
+import AdminApp from './admin/AdminApp';
 import { getSubdomainUsername } from './lib/site';
 import { Home } from 'lucide-react';
 
@@ -113,6 +114,10 @@ export const router = createBrowserRouter([
       {
         path: 'plan-selection',
         element: <PlanSelection />,
+      },
+      {
+        path: 'admin',
+        element: <AdminApp />,
       },
       {
         path: ':username',

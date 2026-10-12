@@ -23,7 +23,7 @@ export function getBannedMessage() {
 export async function requireUser(req: any, res: any): Promise<SessionUser | null> {
   const session = verifySessionToken(getBearerToken(req));
 
-  if (!session) {
+  if (!session || session.kind) {
     sendJson(res, 401, { error: 'انتهت الجلسة. سجّل الدخول من جديد.' });
     return null;
   }

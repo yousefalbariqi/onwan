@@ -21,7 +21,10 @@ export function validateUsername(username: string) {
   return { valid: true, normalized };
 }
 
-export async function getUsernameAvailability(username: string) {
+// B2B-06: a partner's unpaid order holds its name for the payment window.
+export const PARTNER_ORDER_WINDOW_DAYS = 3;
+
+export async function getUsernameAvailability(username: string, options: { ignoreOrderId?: string } = {}) {
   const validation = validateUsername(username);
 
   if (!validation.valid) {
@@ -52,7 +55,22 @@ export async function getUsernameAvailability(username: string) {
     [validation.normalized],
   );
 
-  if (existingResult.rowCount) {
+  // DOMAIN-02: a renamed page's old name stays held while it redirects.
+  const redirectResult = await pool.query(
+    'select 1 from username_redirects where old_username = $1 and expires_at > now() limit 1',
+    [validation.normalized],
+  );
+
+  const heldResult = await pool.query(
+    `select 1 from partner_orders
+     where username = $1 and status = 'awaiting_payment'
+       and created_at > now() - make_interval(days => $2)
+       and ($3::uuid is null or id <> $3)
+     limit 1`,
+    [validation.normalized, PARTNER_ORDER_WINDOW_DAYS, options.ignoreOrderId ?? null],
+  );
+
+  if (existingResult.rowCount || redirectResult.rowCount || heldResult.rowCount) {
     return {
       available: false,
       normalized: validation.normalized,

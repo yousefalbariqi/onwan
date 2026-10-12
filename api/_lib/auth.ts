@@ -1,11 +1,17 @@
 import crypto from 'crypto';
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+const STAFF_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
+
+export type SessionKind = 'staff' | 'partner';
 
 type SessionPayload = {
   userId: string;
   email: string;
   exp: number;
+  // Staff and partner tokens are marked so they can never be used as a
+  // beneficiary session (or the other way round).
+  kind?: SessionKind;
 };
 
 function getSecret() {
@@ -30,11 +36,12 @@ function sign(value: string) {
   return crypto.createHmac('sha256', getSecret()).update(value).digest('base64url');
 }
 
-export function createSessionToken(userId: string, email: string) {
+export function createSessionToken(userId: string, email: string, kind?: SessionKind) {
   const payload: SessionPayload = {
     userId,
     email,
-    exp: Date.now() + SESSION_TTL_MS,
+    exp: Date.now() + (kind === 'staff' ? STAFF_SESSION_TTL_MS : SESSION_TTL_MS),
+    ...(kind ? { kind } : {}),
   };
 
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));

@@ -189,7 +189,8 @@ export async function getPageDataByUserId(userId: string) {
 
 export type PublicPageResult =
   | { state: 'published'; pageId: string; pageData: ReturnType<typeof mapPage> }
-  | { state: 'suspended'; pageId: string; message: string };
+  | { state: 'suspended'; pageId: string; message: string }
+  | { state: 'moved'; username: string };
 
 // Visitor view. A draft (unpaid) page and a banned account do not exist for the
 // public (ACCT-02, AC-01.03); a suspended page shows only the administration's
@@ -210,7 +211,15 @@ export async function getPublicPageByUsername(username: string): Promise<PublicP
   const page = pageResult.rows[0];
 
   if (!page) {
-    return null;
+    // DOMAIN-02: for 30 days the old name forwards to the new one.
+    const redirect = await pool.query<{ username: string }>(
+      `select u.username from username_redirects r
+       join usernames u on u.user_id = r.user_id
+       where r.old_username = $1 and r.expires_at > now() limit 1`,
+      [username],
+    );
+
+    return redirect.rows[0] ? { state: 'moved', username: redirect.rows[0].username } : null;
   }
 
   if (page.status === 'suspended') {

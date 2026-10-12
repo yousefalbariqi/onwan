@@ -112,14 +112,18 @@ export function confirmPasswordReset(email: string, code: string, password: stri
 }
 
 export function sendEmailCode() {
-  return request<{ message: string }>('/api/auth/send-code', { method: 'POST', authenticated: true });
+  return request<{ message: string }>('/api/auth/email-code', {
+    method: 'POST',
+    authenticated: true,
+    body: { action: 'send' },
+  });
 }
 
 export function verifyEmailCode(code: string) {
-  return request<{ account: Account }>('/api/auth/verify-code', {
+  return request<{ account: Account }>('/api/auth/email-code', {
     method: 'POST',
     authenticated: true,
-    body: { code },
+    body: { action: 'verify', code },
   });
 }
 
@@ -138,7 +142,7 @@ export function saveMyPage(pageData: any) {
 }
 
 export function fetchPublicPage(username: string) {
-  return request<{ pageData?: any; suspended?: boolean; message?: string }>(
+  return request<{ pageData?: any; suspended?: boolean; message?: string; movedTo?: string }>(
     `/api/public-page?username=${encodeURIComponent(username)}`,
   );
 }

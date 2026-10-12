@@ -28,7 +28,7 @@ export default async function handler(req: any, res: any) {
 
     const page = await getPublicPageByUsername(username);
 
-    if (!page) {
+    if (!page || page.state === 'moved') {
       throw new HttpError(404, 'الصفحة غير موجودة.');
     }
 

@@ -46,6 +46,30 @@ export async function sendOtpEmail(to: string, code: string, intro = 'رمز ا�
   }
 }
 
+// A plain notice to a beneficiary (e.g. MOD-04: why content was rejected).
+// Best-effort, like the admin copy below.
+export async function sendNoticeEmail(to: string, subject: string, lines: string[]): Promise<boolean> {
+  try {
+    const { error } = await getResend().emails.send({
+      from: getFromEmail(),
+      to: [to],
+      subject,
+      html: `<div dir="rtl" style="font-family: Arial, sans-serif;">${lines
+        .map((line) => `<p>${escapeHtml(line)}</p>`)
+        .join('')}</div>`,
+    });
+
+    if (error) {
+      console.error('Failed to send notice email:', error.message);
+    }
+
+    return !error;
+  } catch (error) {
+    console.error('Failed to send notice email:', error);
+    return false;
+  }
+}
+
 // Copy of reports/requests to the administration mailbox (PUB-03, REQ-01).
 // The record is already saved in the database, so a missing mailbox or a
 // failed send must not fail the visitor's request.
