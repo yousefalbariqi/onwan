@@ -1,11 +1,16 @@
+# عنوان (onwan)
 
-  # Landing page design
+صفحة واحدة لكل جهة على `name.onwan.link` تجمع التعريف والشعار والروابط والصور وملفات PDF.
 
-  This is a code bundle for Landing page design. The original project is available at https://www.figma.com/design/aeqWXAZm59KLC7VC8KbawK/Landing-page-design.
+المتطلبات المرجعية في المجلد الأعلى: `onwan_requirements_reference.docx` و `onwan_miro_cards.xlsx`.
+تفاصيل المعمارية وما بُني وما لم يُبنَ بعد في `CLAUDE.md`.
 
-  ## Running the code
+## التشغيل
 
-  Run `npm i` to install the dependencies.
+```bash
+npm i
+cp .env.example .env.local   # ثم عبّئ القيم
+npm run dev
+```
 
-  Run `npm run dev` to start the development server.
-  
+طبّق ملفات `database/` بالترتيب المذكور في `CLAUDE.md` قبل التشغيل.

@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
-import { fetchMyPage, saveMyPage } from '../lib/api';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import { Account, fetchMyPage, saveMyPage } from '../lib/api';
 import { clearSessionToken, getSessionToken } from '../lib/session';
+import { MAX_LINKS } from '../lib/site';
 
 export interface Link {
   id: string;
@@ -14,6 +15,7 @@ export interface Link {
   fileSize?: number;
   iconStyle?: 'color' | 'mono';
   textPosition?: 'center' | 'right';
+  hidden?: boolean; // مخفي عن الجمهور دون حذف
 }
 
 export interface Theme {
@@ -25,49 +27,79 @@ export interface Theme {
   textColor: string;
 }
 
+export const FONT_OPTIONS = [
+  { id: 'cairo', name: 'Cairo', family: 'Cairo, sans-serif' },
+  { id: 'tajawal', name: 'Tajawal', family: 'Tajawal, sans-serif' },
+  { id: 'almarai', name: 'Almarai', family: 'Almarai, sans-serif' },
+  { id: 'plex', name: 'IBM Plex Sans Arabic', family: "'IBM Plex Sans Arabic', sans-serif" },
+  { id: 'kufi', name: 'Noto Kufi Arabic', family: "'Noto Kufi Arabic', sans-serif" },
+] as const;
+
+export type FontId = (typeof FONT_OPTIONS)[number]['id'];
+
 export interface PageData {
   username: string;
   profileImage: string;
   name: string;
   bio: string;
+  contactPhone?: string; // يظهران في بطاقة جهة الاتصال VCF
+  contactEmail?: string;
   links: Link[];
   theme: Theme;
   wallpaper: {
     type: 'color' | 'gradient' | 'image';
     value: string;
+    position?: 'top' | 'center' | 'bottom';
+    dim?: number; // تعتيم الخلفية 0-80
   };
   buttonStyle: {
     shape: 'rounded' | 'square' | 'pill';
     border: boolean;
     shadow: boolean;
+    size?: 'small' | 'medium' | 'large';
+    opacity?: number; // 30-100
     customColor?: string;
     useCustomColor?: boolean;
   };
   profileStyle: {
-    type: 'circle' | 'rounded' | 'hero' | 'hero_safe' | 'premium';
+    type: 'circle' | 'rounded' | 'square' | 'hero' | 'hero_safe' | 'premium';
+  };
+  typography?: {
+    font?: FontId;
+    size?: 'small' | 'medium' | 'large';
   };
   customColors?: {
     nameColor?: string;
     bioColor?: string;
+    usernameColor?: string;
   };
   extractedColors?: string[]; // ألوان مستخرجة من الصورة الشخصية
 }
 
 interface PageContextType {
   pageData: PageData;
+  account: Account | null;
+  setAccount: (account: Account | null) => void;
   replacePageData: (nextPageData: PageData) => void;
   isAuthenticated: boolean;
   setAuthenticated: (value: boolean) => void;
   loadingPage: boolean;
+  isDirty: boolean;
+  saving: boolean;
+  save: () => Promise<void>;
+  logout: () => void;
+  resetDesign: () => void;
   updatePageData: (updates: Partial<PageData>) => void;
   updateTheme: (theme: Theme) => void;
   updateWallpaper: (wallpaper: PageData['wallpaper']) => void;
   updateButtonStyle: (style: Partial<PageData['buttonStyle']>) => void;
   updateProfileStyle: (style: Partial<PageData['profileStyle']>) => void;
+  updateTypography: (typography: Partial<NonNullable<PageData['typography']>>) => void;
   addLink: (link: Omit<Link, 'id'>) => void;
   removeLink: (id: string) => void;
   updateLink: (id: string, updates: Partial<Link>) => void;
   moveLink: (id: string, direction: 'up' | 'down') => void;
+  reorderLink: (id: string, targetId: string) => void;
 }
 
 const PageContext = createContext<PageContextType | undefined>(undefined);
@@ -239,16 +271,7 @@ export const themes = defaultThemes;
 
 const LOCAL_STORAGE_KEY = 'bio_page_data';
 
-const defaultPageData: PageData = {
-  username: '',
-  profileImage: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
-  name: 'أحمد محمد',
-  bio: 'مصمم جرافيك ومطور مواقع 🎨💻',
-  links: [
-    { id: '1', title: 'إنستقرام', url: 'https://instagram.com', platform: 'instagram', iconStyle: 'color', textPosition: 'center' },
-    { id: '2', title: 'تويتر X', url: 'https://twitter.com', platform: 'twitter', iconStyle: 'color', textPosition: 'center' },
-    { id: '3', title: 'موقعي الشخصي', url: 'https://example.com', platform: 'website', iconStyle: 'color', textPosition: 'center' },
-  ],
+const defaultDesign = {
   theme: defaultThemes[0],
   wallpaper: {
     type: 'color',
@@ -262,6 +285,18 @@ const defaultPageData: PageData = {
   profileStyle: {
     type: 'circle',
   },
+  typography: {},
+} satisfies Partial<PageData>;
+
+const defaultPageData: PageData = {
+  username: '',
+  profileImage: '',
+  name: '',
+  bio: '',
+  contactPhone: '',
+  contactEmail: '',
+  links: [],
+  ...defaultDesign,
 };
 
 function mergeWithDefaults(candidate?: Partial<PageData> | null): PageData {
@@ -285,6 +320,7 @@ function mergeWithDefaults(candidate?: Partial<PageData> | null): PageData {
       ...defaultPageData.profileStyle,
       ...(candidate?.profileStyle || {}),
     },
+    typography: candidate?.typography || {},
     customColors: candidate?.customColors || undefined,
     extractedColors: candidate?.extractedColors || [],
   };
@@ -311,13 +347,24 @@ function loadLocalPageData() {
 
 export function PageProvider({ children }: { children: ReactNode }) {
   const [pageData, setPageData] = useState<PageData>(() => loadLocalPageData());
+  const [account, setAccount] = useState<Account | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getSessionToken()));
   const [loadingPage, setLoadingPage] = useState(true);
-  const skipNextRemoteSave = useRef(true);
+  // PAGE-07: edits stay a local draft (live preview only) until «حفظ».
+  const [isDirty, setIsDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pageData));
+    } catch (error) {
+      // Uploaded images can exceed the localStorage quota; the draft still
+      // lives in memory until it is saved.
+      console.warn('Draft too large for local storage:', error);
     }
   }, [pageData]);
 
@@ -336,8 +383,9 @@ export function PageProvider({ children }: { children: ReactNode }) {
         const response = await fetchMyPage();
 
         if (!cancelled && response.pageData) {
-          skipNextRemoteSave.current = true;
           setPageData(mergeWithDefaults(response.pageData));
+          setAccount(response.account);
+          setIsDirty(false);
           setIsAuthenticated(true);
         }
       } catch (error) {
@@ -362,35 +410,64 @@ export function PageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (loadingPage || !isAuthenticated) {
+    if (!isDirty) {
       return;
     }
 
-    if (skipNextRemoteSave.current) {
-      skipNextRemoteSave.current = false;
-      return;
-    }
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
 
-    const timer = window.setTimeout(() => {
-      saveMyPage(pageData).catch((error) => {
-        console.error('Failed to save page data:', error);
-      });
-    }, 600);
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+  }, [isDirty]);
 
-    return () => window.clearTimeout(timer);
-  }, [pageData, isAuthenticated, loadingPage]);
+  // Every editor change goes through here so the draft is marked unsaved.
+  const edit = useCallback((updater: (prev: PageData) => PageData) => {
+    setPageData(updater);
+    setIsDirty(true);
+  }, []);
 
   const replacePageData = useCallback((nextPageData: PageData) => {
-    skipNextRemoteSave.current = true;
     setPageData(mergeWithDefaults(nextPageData));
+    setIsDirty(false);
   }, []);
+
+  const save = useCallback(async () => {
+    setSaving(true);
+
+    try {
+      const response = await saveMyPage(pageData);
+      setPageData(mergeWithDefaults(response.pageData));
+      setAccount(response.account);
+      setIsDirty(false);
+    } finally {
+      setSaving(false);
+    }
+  }, [pageData]);
+
+  const logout = useCallback(() => {
+    clearSessionToken();
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    setIsAuthenticated(false);
+    setAccount(null);
+    setPageData(defaultPageData);
+    setIsDirty(false);
+  }, []);
+
+  // PAGE-08: restores the default look only. Content (name, description,
+  // logo, contact details, buttons and files) is left untouched.
+  const resetDesign = useCallback(() => {
+    edit((prev) => ({ ...prev, ...defaultDesign, customColors: undefined }));
+  }, [edit]);
 
   const updatePageData = useCallback((updates: Partial<PageData>) => {
-    setPageData((prev) => mergeWithDefaults({ ...prev, ...updates }));
-  }, []);
+    edit((prev) => mergeWithDefaults({ ...prev, ...updates }));
+  }, [edit]);
 
   const updateTheme = useCallback((theme: Theme) => {
-    setPageData((prev) => ({
+    edit((prev) => ({
       ...prev,
       theme,
       wallpaper: { type: 'color', value: theme.background },
@@ -401,49 +478,56 @@ export function PageProvider({ children }: { children: ReactNode }) {
         customColor: undefined,
       },
     }));
-  }, []);
+  }, [edit]);
 
   const updateWallpaper = useCallback((wallpaper: PageData['wallpaper']) => {
-    setPageData((prev) => ({ ...prev, wallpaper }));
-  }, []);
+    edit((prev) => ({ ...prev, wallpaper }));
+  }, [edit]);
 
   const updateButtonStyle = useCallback((style: Partial<PageData['buttonStyle']>) => {
-    setPageData((prev) => ({
+    edit((prev) => ({
       ...prev,
       buttonStyle: { ...prev.buttonStyle, ...style },
     }));
-  }, []);
+  }, [edit]);
 
   const updateProfileStyle = useCallback((style: Partial<PageData['profileStyle']>) => {
-    setPageData((prev) => ({
+    edit((prev) => ({
       ...prev,
       profileStyle: { ...prev.profileStyle, ...style },
     }));
-  }, []);
+  }, [edit]);
+
+  const updateTypography = useCallback((typography: Partial<NonNullable<PageData['typography']>>) => {
+    edit((prev) => ({
+      ...prev,
+      typography: { ...prev.typography, ...typography },
+    }));
+  }, [edit]);
 
   const addLink = useCallback((link: Omit<Link, 'id'>) => {
     const newLink = { ...link, id: Date.now().toString() };
-    setPageData((prev) => ({ ...prev, links: [...prev.links, newLink] }));
-  }, []);
+    edit((prev) => (prev.links.length >= MAX_LINKS ? prev : { ...prev, links: [...prev.links, newLink] }));
+  }, [edit]);
 
   const removeLink = useCallback((id: string) => {
-    setPageData((prev) => ({
+    edit((prev) => ({
       ...prev,
       links: prev.links.filter((link) => link.id !== id),
     }));
-  }, []);
+  }, [edit]);
 
   const updateLink = useCallback((id: string, updates: Partial<Link>) => {
-    setPageData((prev) => ({
+    edit((prev) => ({
       ...prev,
       links: prev.links.map((link) =>
         link.id === id ? { ...link, ...updates } : link
       ),
     }));
-  }, []);
+  }, [edit]);
 
   const moveLink = useCallback((id: string, direction: 'up' | 'down') => {
-    setPageData((prev) => {
+    edit((prev) => {
       const links = [...prev.links];
       const index = links.findIndex((link) => link.id === id);
       
@@ -463,25 +547,50 @@ export function PageProvider({ children }: { children: ReactNode }) {
 
       return { ...prev, links };
     });
-  }, []);
+  }, [edit]);
+
+  // Drag and drop: put the dragged button in the dropped-on button's place.
+  const reorderLink = useCallback((id: string, targetId: string) => {
+    edit((prev) => {
+      const from = prev.links.findIndex((link) => link.id === id);
+      const to = prev.links.findIndex((link) => link.id === targetId);
+
+      if (from === -1 || to === -1 || from === to) return prev;
+
+      const links = [...prev.links];
+      const [moved] = links.splice(from, 1);
+      links.splice(to, 0, moved);
+
+      return { ...prev, links };
+    });
+  }, [edit]);
 
   return (
     <PageContext.Provider
       value={{
         pageData,
+        account,
+        setAccount,
         replacePageData,
         isAuthenticated,
         setAuthenticated: setIsAuthenticated,
         loadingPage,
+        isDirty,
+        saving,
+        save,
+        logout,
+        resetDesign,
         updatePageData,
         updateTheme,
         updateWallpaper,
         updateButtonStyle,
         updateProfileStyle,
+        updateTypography,
         addLink,
         removeLink,
         updateLink,
         moveLink,
+        reorderLink,
       }}
     >
       {children}

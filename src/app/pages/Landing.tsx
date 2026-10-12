@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Sparkles } from 'lucide-react';
 import { checkUsername } from '../lib/api';
+import { BRAND_NAME, ROOT_DOMAIN, USERNAME_PATTERN, pageHost } from '../lib/site';
 
 type UsernameStatus =
   | 'idle'
@@ -13,10 +14,8 @@ type UsernameStatus =
   | 'taken'
   | 'service_error';
 
-const LOCAL_USERNAME_PATTERN = /^(?=.{1,30}$)(?!.*[_-]{2})[a-z0-9_-]+$/;
-
 function isLocallyValidUsername(username: string) {
-  return LOCAL_USERNAME_PATTERN.test(username);
+  return USERNAME_PATTERN.test(username);
 }
 
 function getUsernameFeedback(status: UsernameStatus, normalizedUsername: string) {
@@ -30,23 +29,20 @@ function getUsernameFeedback(status: UsernameStatus, normalizedUsername: string)
     case 'available':
       return {
         tone: 'success' as const,
-        title: `ممتاز، ${normalizedUsername} متاح حاليًا.`,
-        details: ['سيتم تأكيد الحجز النهائي لاحقًا عند اكتمال خطوات الإطلاق/الدفع.'],
+        title: `ممتاز، ${pageHost(normalizedUsername)} متاح.`,
+        details: ['يُحجز الاسم لك عند إنشاء الحساب.'],
       };
     case 'available_unverified':
       return {
         tone: 'warning' as const,
-        title: `سنسمح لك بالمتابعة بالاسم ${normalizedUsername}.`,
-        details: [
-          'تعذر التحقق من قاعدة البيانات الآن، لذلك هذا قبول مبدئي فقط.',
-          'سيتم التأكد من توفر الاسم فعليًا عند اكتمال الربط مع الخدمة.',
-        ],
+        title: `يمكنك المتابعة بالاسم ${normalizedUsername}.`,
+        details: ['تعذر التحقق من التوفر الآن؛ سيُتحقق من الاسم نهائيًا عند إنشاء الحساب.'],
       };
     case 'taken':
       return {
         tone: 'error' as const,
         title: `الاسم ${normalizedUsername} مستخدم بالفعل.`,
-        details: ['جرّب إضافة رقم أو شرطة مثل: name1 أو my-name.'],
+        details: ['جرّب اسمًا قريبًا، مثل إضافة المدينة أو شرطة: name-riyadh.'],
       };
     case 'reserved':
       return {
@@ -60,23 +56,20 @@ function getUsernameFeedback(status: UsernameStatus, normalizedUsername: string)
         title: 'صيغة الاسم غير صحيحة.',
         details: [
           'يجب أن يكون بين 1 و30 حرفًا.',
-          'المسموح فقط: أحرف إنجليزية صغيرة، أرقام، - و _',
+          'المسموح فقط: أحرف إنجليزية صغيرة وأرقام وشرطة (-)، ولا يبدأ أو ينتهي بشرطة.',
         ],
       };
     case 'service_error':
       return {
         tone: 'error' as const,
         title: 'تعذر الوصول إلى خدمة التحقق.',
-        details: [
-          'الواجهة لم تستطع الاتصال بالـ API أو قاعدة البيانات.',
-          'إذا كنت تعمل محليًا فشغّل المشروع ببيئة تدعم مجلد api، أو تأكد من إعداد DATABASE_URL و SESSION_SECRET.',
-        ],
+        details: ['حاول مرة أخرى بعد قليل.'],
       };
     default:
       return {
         tone: 'hint' as const,
-        title: 'اكتب الاسم الذي تريد أن يظهر في رابط صفحتك.',
-        details: ['مثال: yaamur أو yaamur_store'],
+        title: 'اكتب الاسم الذي تريده في رابط صفحة جهتك.',
+        details: [`مثال: albir.${ROOT_DOMAIN}`],
       };
   }
 }
@@ -118,7 +111,7 @@ export default function Landing() {
 
   const handleStart = () => {
     if (canProceed) {
-      navigate(`/phone?username=${normalizedUsername}`);
+      navigate(`/signup?username=${normalizedUsername}`);
     }
   };
 
@@ -134,14 +127,14 @@ export default function Landing() {
         {/* Header */}
         <div className="flex justify-between items-center mb-16 px-4">
           <div className="text-white text-3xl font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            bio.sa
+            {BRAND_NAME}
           </div>
           <div className="flex gap-3">
             <button
-              onClick={() => navigate('/phone')}
+              onClick={() => navigate('/login')}
               className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition-all"
             >
-              دخول
+              تسجيل الدخول
             </button>
             <button
               onClick={handleStart}
@@ -156,38 +149,48 @@ export default function Landing() {
         <div className="text-center space-y-8">
           <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm mb-6">
             <Sparkles className="w-4 h-4" />
-            <span>صفحتك الشخصية في دقائق</span>
+            <span>للجمعيات والشركات</span>
           </div>
 
           <h1 
             className="text-5xl md:text-7xl font-black text-white leading-tight"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
-            رابطك... بشكل يليق فيك
+            عنوان واحد لكل ما يخص جهتك
           </h1>
 
           <p 
             className="text-xl md:text-2xl text-white/90 max-w-xl mx-auto leading-relaxed"
             style={{ fontFamily: 'Tajawal, sans-serif' }}
           >
-            تعب من توزيع روابطك؟
+            تعريف الجهة وشعارها وروابطها وملفاتها
             <br />
-            bio.sa يجمعها لك في صفحة وحدة بشكل أنيق وسهل
+            في صفحة واحدة سهلة المشاركة والرجوع إليها
           </p>
 
           {/* Input Section */}
           <div className="max-w-md mx-auto mt-12 space-y-4">
-            <div className="relative">
-              
+            <div
+              className="flex items-center rounded-2xl bg-white shadow-xl focus-within:ring-4 focus-within:ring-white/50 transition-all"
+              dir="ltr"
+            >
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value.replace(/\s+/g, '').toLowerCase())}
                 onKeyPress={handleKeyPress}
-                placeholder="bio.sa/ اسمك او اسم الشركة"
-                className="w-full px-4 pr-24 py-5 rounded-2xl text-lg text-left bg-white text-black focus:outline-none focus:ring-4 focus:ring-white/50 transition-all shadow-xl bg-[#ffffff00]"
-                style={{ fontFamily: 'Cairo, sans-serif', direction: 'ltr' }}
+                placeholder="name"
+                aria-label="اسم رابط الصفحة"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                maxLength={30}
+                className="min-w-0 flex-1 rounded-l-2xl bg-transparent py-5 pl-5 pr-1 text-lg text-right text-black focus:outline-none"
+                style={{ fontFamily: 'Cairo, sans-serif' }}
               />
+              <span className="py-5 pr-5 text-lg text-gray-500" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                .{ROOT_DOMAIN}
+              </span>
             </div>
 
             <div
@@ -230,23 +233,23 @@ export default function Landing() {
               className="w-full bg-gray-900 text-white py-5 rounded-2xl text-xl font-bold hover:bg-gray-800 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
-              ابدأ صفحتك الآن
+              احجز الاسم وابدأ
             </button>
           </div>
 
           {/* Features */}
           <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto mt-16 text-white/80">
             <div className="text-center">
-              <div className="text-3xl mb-2">⚡</div>
-              <div className="text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>سريع</div>
+              <div className="text-3xl mb-2">🔗</div>
+              <div className="text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>روابط وملفات PDF</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl mb-2">✨</div>
-              <div className="text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>بسيط</div>
+              <div className="text-3xl mb-2">📇</div>
+              <div className="text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>حفظ جهة الاتصال</div>
             </div>
             <div className="text-center">
               <div className="text-3xl mb-2">🎨</div>
-              <div className="text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>قابل للتخصيص</div>
+              <div className="text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>تصميم قابل للتخصيص</div>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Download, QrCode, X } from 'lucide-react';
 import QRCode from 'qrcode';
+import { pageHost, pageUrl } from '../lib/site';
 
 interface QRCodeDisplayProps {
   username: string;
@@ -11,12 +12,12 @@ export function QRCodeDisplay({ username }: QRCodeDisplayProps) {
   const [qrDataUrl, setQrDataUrl] = useState('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const pageUrl = `https://bio.sa/${username}`;
+  const url = pageUrl(username);
 
   useEffect(() => {
     if (!username) return;
 
-    QRCode.toDataURL(pageUrl, {
+    QRCode.toDataURL(url, {
       width: 800,
       margin: 2,
       color: {
@@ -25,13 +26,13 @@ export function QRCodeDisplay({ username }: QRCodeDisplayProps) {
       },
       errorCorrectionLevel: 'H',
     }).then(setQrDataUrl);
-  }, [username, pageUrl]);
+  }, [username, url]);
 
   const handleDownload = () => {
     if (!qrDataUrl) return;
 
     const link = document.createElement('a');
-    link.download = `bio-sa-${username}-qr.png`;
+    link.download = `onwan-${username}-qr.png`;
     link.href = qrDataUrl;
     link.click();
   };
@@ -85,8 +86,9 @@ export function QRCodeDisplay({ username }: QRCodeDisplayProps) {
               <p
                 className="text-sm font-bold text-emerald-600 mt-4"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
+                dir="ltr"
               >
-                bio.sa/{username}
+                {pageHost(username)}
               </p>
             </div>
 
@@ -97,7 +99,7 @@ export function QRCodeDisplay({ username }: QRCodeDisplayProps) {
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               <Download className="w-5 h-5" />
-              تحميل الباركود
+              تحميل الباركود للطباعة
             </button>
 
             <p className="text-center text-xs text-gray-400 mt-3" style={{ fontFamily: 'Tajawal, sans-serif' }}>

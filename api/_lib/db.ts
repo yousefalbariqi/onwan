@@ -68,8 +68,22 @@ function createPool() {
   });
 }
 
-export const pool = global.__bioSaPool ?? createPool();
+function getPool() {
+  if (!global.__bioSaPool) {
+    global.__bioSaPool = createPool();
+  }
 
-if (!global.__bioSaPool) {
-  global.__bioSaPool = pool;
+  return global.__bioSaPool;
 }
+
+// Lazily create the pool on first use. Creating it at module scope made a
+// missing DATABASE_URL crash the function during import, which Vercel reports
+// as an opaque FUNCTION_INVOCATION_FAILED instead of a readable JSON error.
+export const pool = new Proxy({} as Pool, {
+  get(_target, property) {
+    const realPool = getPool();
+    const value = Reflect.get(realPool, property, realPool);
+
+    return typeof value === 'function' ? value.bind(realPool) : value;
+  },
+});

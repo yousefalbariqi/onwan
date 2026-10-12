@@ -54,9 +54,15 @@ export function verifySessionToken(token: string | undefined) {
     return null;
   }
 
-  const expectedSignature = sign(encodedPayload);
+  const expectedSignature = Buffer.from(sign(encodedPayload));
+  const actualSignature = Buffer.from(providedSignature);
 
-  if (!crypto.timingSafeEqual(Buffer.from(providedSignature), Buffer.from(expectedSignature))) {
+  // timingSafeEqual throws on a length mismatch, so a malformed token must be
+  // rejected before the comparison.
+  if (
+    actualSignature.length !== expectedSignature.length ||
+    !crypto.timingSafeEqual(actualSignature, expectedSignature)
+  ) {
     return null;
   }
 

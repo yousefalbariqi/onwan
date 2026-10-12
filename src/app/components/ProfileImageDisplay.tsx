@@ -84,6 +84,15 @@ export function ProfileImageDisplay({
     );
   }
 
+  // مربع بزوايا حادة
+  if (profileStyle.type === 'square') {
+    return (
+      <div className={`${sizeClasses[size]} overflow-hidden bg-white/10 backdrop-blur-sm border-4 border-white/20 shadow-xl flex items-center justify-center`}>
+        {renderImage()}
+      </div>
+    );
+  }
+
   // صورة كاملة (Hero)
   if (isHeroFillStyle || isHeroSafeStyle) {
     // استخراج لون الخلفية للتدرج

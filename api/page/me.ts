@@ -1,17 +1,7 @@
-import { getBearerToken, verifySessionToken } from '../_lib/auth';
+import { getAccountSummary } from '../_lib/account';
 import { ensurePageForUser, getPageDataByUserId, savePageData } from '../_lib/page';
 import { allowMethods, handleApiError, readJsonBody, sendJson } from '../_lib/http';
-
-function requireSession(req: any, res: any) {
-  const session = verifySessionToken(getBearerToken(req));
-
-  if (!session) {
-    sendJson(res, 401, { error: 'Unauthorized' });
-    return null;
-  }
-
-  return session;
-}
+import { requireUser } from '../_lib/session';
 
 export default async function handler(req: any, res: any) {
   if (!allowMethods(req, res, ['GET', 'PATCH'])) {
@@ -19,23 +9,25 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const session = requireSession(req, res);
+    const user = await requireUser(req, res);
 
-    if (!session) {
+    if (!user) {
       return;
     }
 
     if (req.method === 'GET') {
-      await ensurePageForUser(session.userId);
-      const pageData = await getPageDataByUserId(session.userId);
-      sendJson(res, 200, { pageData });
+      await ensurePageForUser(user.id);
+      sendJson(res, 200, {
+        pageData: await getPageDataByUserId(user.id),
+        account: await getAccountSummary(user.id),
+      });
       return;
     }
 
     const body = await readJsonBody(req);
-    const pageData = await savePageData(session.userId, body.pageData ?? {});
+    const pageData = await savePageData(user.id, body.pageData ?? {});
 
-    sendJson(res, 200, { pageData });
+    sendJson(res, 200, { pageData, account: await getAccountSummary(user.id) });
   } catch (error) {
     handleApiError(res, error);
   }

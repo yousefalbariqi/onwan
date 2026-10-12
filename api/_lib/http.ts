@@ -1,3 +1,15 @@
+// An error whose message is safe to show to the client as-is.
+export class HttpError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(status: number, message: string, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export function sendJson(res: any, status: number, body: unknown) {
   res.status(status).setHeader('Content-Type', 'application/json; charset=utf-8');
   res.send(JSON.stringify(body));
@@ -31,8 +43,13 @@ export function allowMethods(req: any, res: any, methods: string[]) {
 }
 
 export function handleApiError(res: any, error: unknown) {
+  if (error instanceof HttpError) {
+    sendJson(res, error.status, { error: error.message, code: error.code });
+    return;
+  }
+
   console.error(error);
 
-  const message = error instanceof Error ? error.message : 'Unexpected error';
-  sendJson(res, 500, { error: message });
+  // Internal details (SQL, stack, config) stay in the server log.
+  sendJson(res, 500, { error: 'حدث خطأ غير متوقع في الخادم. حاول مرة أخرى.' });
 }

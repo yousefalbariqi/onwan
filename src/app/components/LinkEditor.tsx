@@ -13,8 +13,12 @@ import {
   FileText,
   Upload,
   AlertCircle,
+  Eye,
+  EyeOff,
+  GripVertical,
 } from 'lucide-react';
 import { SOCIAL_PLATFORMS, SocialIcon } from './SocialIcons';
+import { MAX_LINKS } from '../lib/site';
 
 type LinkType = 'url' | 'file';
 type IconStyle = 'color' | 'mono';
@@ -35,7 +39,10 @@ type LinkFormState = {
 };
 
 const QUICK_SOCIAL_IDS = ['instagram', 'twitter', 'tiktok', 'youtube', 'whatsapp'];
+// Files are stored inline for now; the final storage limits are pending (P-02).
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
+// FILE-01: صور وPDF فقط — must match ALLOWED_FILE_MIME_TYPES in api/_lib/page.ts.
+const ALLOWED_FILE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'];
 
 function createInitialFormState(): LinkFormState {
   return {
@@ -45,7 +52,7 @@ function createInitialFormState(): LinkFormState {
     iconStyle: 'color',
     textPosition: 'center',
     linkType: 'url',
-    fileCategory: 'cv',
+    fileCategory: 'other',
     fileName: '',
     fileMimeType: '',
   };
@@ -73,7 +80,7 @@ function detectPlatformFromUrl(rawUrl: string) {
 function getDefaultTitleByCategory(category: FileCategory) {
   if (category === 'cv') return 'السيرة الذاتية';
   if (category === 'menu') return 'قائمة الطعام';
-  return 'ملف مرفق';
+  return 'الملف التعريفي';
 }
 
 function getCategoryLabel(category?: FileCategory) {
@@ -107,7 +114,10 @@ function readFileAsDataUrl(file: File) {
 }
 
 export function LinkEditor() {
-  const { pageData, addLink, removeLink, updateLink, moveLink } = usePageContext();
+  const { pageData, addLink, removeLink, updateLink, moveLink, reorderLink } = usePageContext();
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const limitReached = pageData.links.length >= MAX_LINKS;
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newLink, setNewLink] = useState<LinkFormState>(createInitialFormState());
@@ -205,6 +215,11 @@ export function LinkEditor() {
     setForm: React.Dispatch<React.SetStateAction<LinkFormState>>,
     setError: (value: string) => void,
   ) => {
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      setError('نوع الملف غير مدعوم. المسموح: الصور (PNG, JPG, WebP, GIF) وملفات PDF فقط.');
+      return;
+    }
+
     if (file.size > MAX_FILE_SIZE) {
       setError('حجم الملف كبير. الحد الأقصى 3MB.');
       return;
@@ -396,9 +411,10 @@ export function LinkEditor() {
     <div className="space-y-2">
       <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-teal-300 bg-teal-50 py-4 text-sm font-semibold text-teal-700 transition-colors hover:bg-teal-100 hover:border-teal-400">
         <Upload className="h-5 w-5" />
-        تحميل ملف
+        تحميل صورة أو PDF
         <input
           type="file"
+          accept={ALLOWED_FILE_TYPES.join(',')}
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -449,7 +465,7 @@ export function LinkEditor() {
           {isFile && (
             <p className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-white border border-amber-200 px-3 py-2 text-xs text-amber-800" style={{ fontFamily: 'Tajawal, sans-serif' }}>
               <span className="mt-px text-amber-500 shrink-0">💡</span>
-              <span>هذا هو النص اللي يشوفه الزوار على الزر — اختار اسم يعكس محتوى الملف مثل <strong>"السيرة الذاتية"</strong> أو <strong>"قائمة الطعام"</strong>.</span>
+              <span>هذا هو النص الذي يراه الزوار على الزر — اختر اسمًا يعكس محتوى الملف مثل <strong>"التقرير السنوي"</strong> أو <strong>"الملف التعريفي"</strong>.</span>
             </p>
           )}
 
@@ -483,7 +499,7 @@ export function LinkEditor() {
           إدارة الروابط
         </h3>
         <div className="text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-          {pageData.links.length} روابط
+          {pageData.links.length} / {MAX_LINKS}
         </div>
       </div>
 
@@ -491,7 +507,7 @@ export function LinkEditor() {
         <div className="flex items-start gap-2">
           <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-indigo-700" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            اختر منصة من الأزرار، أو حمّل الملف اللي في بالك.
+            أضف رابطًا خارجيًا أو صورة أو ملف PDF. اسحب الأزرار لترتيبها، وأخفِ أي زر دون حذفه. الفيديو يُضاف كرابط.
           </p>
         </div>
       </div>
@@ -534,6 +550,10 @@ export function LinkEditor() {
               إلغاء
             </button>
           </div>
+        </div>
+      ) : limitReached ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          وصلت للحد الأقصى ({MAX_LINKS} زرًا). احذف زرًا لإضافة آخر.
         </div>
       ) : (
         <button
@@ -593,7 +613,33 @@ export function LinkEditor() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white border border-gray-200 rounded-lg p-3 flex items-center gap-2 hover:border-gray-300 transition-all">
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggedId(link.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={(e) => {
+                    if (!draggedId || draggedId === link.id) return;
+                    e.preventDefault();
+                    setDragOverId(link.id);
+                  }}
+                  onDragLeave={() => setDragOverId((current) => (current === link.id ? null : current))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedId) reorderLink(draggedId, link.id);
+                    setDraggedId(null);
+                    setDragOverId(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedId(null);
+                    setDragOverId(null);
+                  }}
+                  className={`bg-white border rounded-lg p-3 flex items-center gap-2 transition-all ${
+                    dragOverId === link.id ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-gray-200 hover:border-gray-300'
+                  } ${draggedId === link.id || link.hidden ? 'opacity-50' : ''}`}
+                >
+                  <GripVertical className="hidden lg:block w-4 h-4 text-gray-300 cursor-grab flex-shrink-0" />
                   <div className="flex flex-col gap-0.5">
                     <button
                       onClick={() => moveLink(link.id, 'up')}
@@ -624,6 +670,7 @@ export function LinkEditor() {
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm text-gray-900 truncate" style={{ fontFamily: 'Cairo, sans-serif' }}>
                       {link.title}
+                      {link.hidden && <span className="mr-2 text-xs font-normal text-gray-500">(مخفي)</span>}
                     </div>
                     {isFile ? (
                       <div className="text-xs text-teal-700 truncate" style={{ fontFamily: 'Tajawal, sans-serif' }}>
@@ -637,6 +684,13 @@ export function LinkEditor() {
                   </div>
 
                   <div className="flex gap-1">
+                    <button
+                      onClick={() => updateLink(link.id, { hidden: !link.hidden })}
+                      title={link.hidden ? 'إظهار الزر للجمهور' : 'إخفاء الزر دون حذفه'}
+                      className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                    >
+                      {link.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                     <button
                       onClick={() => startEdit(link.id)}
                       className="p-2 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"

@@ -1,4 +1,4 @@
-import { getPageDataByUsername } from './_lib/page';
+import { getPublicPageByUsername } from './_lib/page';
 import { allowMethods, handleApiError, sendJson } from './_lib/http';
 import { normalizeUsername } from './_lib/username';
 
@@ -15,14 +15,19 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const pageData = await getPageDataByUsername(username);
+    const page = await getPublicPageByUsername(username);
 
-    if (!pageData) {
+    if (!page) {
       sendJson(res, 404, { error: 'Page not found' });
       return;
     }
 
-    sendJson(res, 200, { pageData });
+    if (page.state === 'suspended') {
+      sendJson(res, 200, { suspended: true, message: page.message });
+      return;
+    }
+
+    sendJson(res, 200, { pageData: page.pageData });
   } catch (error) {
     handleApiError(res, error);
   }

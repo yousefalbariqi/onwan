@@ -75,7 +75,7 @@ export const SOCIAL_PLATFORMS = [
   },
   {
     id: 'file',
-    name: 'ملف PDF',
+    name: 'صورة / PDF',
     placeholder: 'https://example.com/file.pdf',
     color: '#0f766e',
   },

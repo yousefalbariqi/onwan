@@ -15,9 +15,15 @@ const profileStyles = [
     icon: Square,
   },
   {
+    id: 'square' as const,
+    name: 'مربع',
+    description: 'زوايا حادة',
+    icon: Square,
+  },
+  {
     id: 'hero' as const,
     name: 'مشهد ممتلئ',
-    description: 'أفضل للصور الشخصية',
+    description: 'أفضل للصور الفوتوغرافية',
     icon: ImageIcon,
   },
   {
@@ -48,7 +54,7 @@ export function ProfileStyleSelector() {
           تصميم الصورة
         </h3>
         <div className="text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-          5 تصاميم
+          {profileStyles.length} تصاميم
         </div>
       </div>
 
@@ -56,7 +62,7 @@ export function ProfileStyleSelector() {
         <div className="flex items-start gap-2">
           <Info className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-purple-700" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            جرب أشكال مختلفة للصورة الشخصية 🖼️
+            اختر شكل عرض الشعار أو الصورة: دائرة، مربع، زوايا ناعمة، أو بإطار.
           </p>
         </div>
       </div>

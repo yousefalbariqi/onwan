@@ -1,6 +1,7 @@
 import { pool } from './db';
 
-export const USERNAME_PATTERN = /^(?=.{1,30}$)(?!.*[_-]{2})[a-z0-9_-]+$/;
+// The name is a subdomain (name.onwan.link), so it must be a valid DNS label.
+export const USERNAME_PATTERN = /^(?=.{1,30}$)(?!.*--)[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
 export function normalizeUsername(value: string) {
   return value.trim().toLowerCase();
@@ -13,7 +14,7 @@ export function validateUsername(username: string) {
     return {
       valid: false,
       normalized,
-      reason: 'اسم المستخدم يجب أن يكون من 1 إلى 30 حرفًا ويتكون من أحرف إنجليزية صغيرة أو أرقام أو - أو _ فقط.',
+      reason: 'الاسم يجب أن يكون من 1 إلى 30 حرفًا من الأحرف الإنجليزية الصغيرة والأرقام والشرطة (-) فقط، ولا يبدأ أو ينتهي بشرطة.',
     };
   }
 
@@ -41,7 +42,7 @@ export async function getUsernameAvailability(username: string) {
     return {
       available: false,
       normalized: validation.normalized,
-      reason: 'اسم المستخدم محجوز.',
+      reason: 'هذا الاسم محجوز.',
       status: 'reserved' as const,
     };
   }
@@ -55,7 +56,7 @@ export async function getUsernameAvailability(username: string) {
     return {
       available: false,
       normalized: validation.normalized,
-      reason: 'اسم المستخدم مستخدم بالفعل.',
+      reason: 'هذا الاسم مستخدم بالفعل.',
       status: 'taken' as const,
     };
   }

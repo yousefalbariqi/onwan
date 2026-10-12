@@ -6,27 +6,35 @@ function getResend(): Resend {
 }
 
 function getFromEmail(): string {
-  return process.env.EMAIL_FROM || 'bio.sa <onboarding@resend.dev>';
+  return process.env.EMAIL_FROM || 'عنوان <onboarding@resend.dev>';
 }
 
 export function generateOtp(): string {
-  return crypto.randomInt(1000, 9999).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
-export async function sendOtpEmail(to: string, code: string): Promise<void> {
+export function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+export async function sendOtpEmail(to: string, code: string, intro = 'رمز التحقق الخاص بك:'): Promise<void> {
   const resend = getResend();
   const from = getFromEmail();
 
-  const { data, error } = await resend.emails.send({
+  const { error } = await resend.emails.send({
     from,
     to: [to],
-    subject: 'رمز التحقق - bio.sa',
+    subject: 'رمز التحقق - عنوان',
     html: `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #059669;">bio.sa</h2>
-        <p>رمز التحقق الخاص بك:</p>
+        <h2 style="color: #059669;">عنوان</h2>
+        <p>${escapeHtml(intro)}</p>
         <div style="background: #f0fdf4; border: 2px solid #059669; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
-          <span style="font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #059669;">${code}</span>
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #059669;">${code}</span>
         </div>
         <p style="color: #6b7280; font-size: 14px;">صالح لمدة 10 دقائق. لا تشاركه مع أحد.</p>
       </div>
@@ -35,5 +43,34 @@ export async function sendOtpEmail(to: string, code: string): Promise<void> {
 
   if (error) {
     throw new Error(`Failed to send email: ${error.message}`);
+  }
+}
+
+// Copy of reports/requests to the administration mailbox (PUB-03, REQ-01).
+// The record is already saved in the database, so a missing mailbox or a
+// failed send must not fail the visitor's request.
+export async function sendAdminEmail(subject: string, lines: string[]): Promise<void> {
+  const to = process.env.ADMIN_EMAIL;
+
+  if (!to) {
+    console.warn('ADMIN_EMAIL is not configured; admin notification skipped.');
+    return;
+  }
+
+  try {
+    const { error } = await getResend().emails.send({
+      from: getFromEmail(),
+      to: [to],
+      subject,
+      html: `<div dir="rtl" style="font-family: Arial, sans-serif;">${lines
+        .map((line) => `<p>${escapeHtml(line)}</p>`)
+        .join('')}</div>`,
+    });
+
+    if (error) {
+      console.error('Failed to send admin email:', error.message);
+    }
+  } catch (error) {
+    console.error('Failed to send admin email:', error);
   }
 }

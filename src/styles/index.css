@@ -2,7 +2,7 @@
 @import './tailwind.css';
 @import './theme.css';
 
-/* Custom animations for bio.sa */
+/* Custom animations */
 @keyframes fadeIn {
   from {
     opacity: 0;

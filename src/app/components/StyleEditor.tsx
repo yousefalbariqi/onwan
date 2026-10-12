@@ -18,6 +18,12 @@ const colorPresets = [
   { name: 'ذهبي', value: '#d97706' },
 ];
 
+const sizeOptions = [
+  { id: 'small', label: 'صغير' },
+  { id: 'medium', label: 'متوسط' },
+  { id: 'large', label: 'كبير' },
+] as const;
+
 export function StyleEditor() {
   const { pageData, updateButtonStyle } = usePageContext();
 
@@ -31,7 +37,7 @@ export function StyleEditor() {
         <div className="flex items-start gap-2">
           <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-amber-700" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            خصص شكل الأزرار حسب ذوقك - جرب الخيارات! ✨
+            خصص شكل الأزرار: الشكل والحجم واللون والشفافية والحواف والظل.
           </p>
         </div>
       </div>
@@ -69,6 +75,48 @@ export function StyleEditor() {
             );
           })}
         </div>
+      </div>
+
+      {/* Size */}
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 mb-3" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          الحجم
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {sizeOptions.map((option) => {
+            const isActive = (pageData.buttonStyle.size ?? 'medium') === option.id;
+            return (
+              <button
+                key={option.id}
+                onClick={() => updateButtonStyle({ size: option.id })}
+                className={`rounded-lg border-2 px-3 py-2 text-xs font-semibold transition-all ${
+                  isActive ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-600'
+                }`}
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Opacity */}
+      <div>
+        <div className="mb-2 flex items-center justify-between text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <span>شفافية لون الزر</span>
+          <span dir="ltr">{pageData.buttonStyle.opacity ?? 100}%</span>
+        </div>
+        <input
+          type="range"
+          min={30}
+          max={100}
+          step={5}
+          value={pageData.buttonStyle.opacity ?? 100}
+          onChange={(e) => updateButtonStyle({ opacity: Number(e.target.value) })}
+          disabled={pageData.buttonStyle.border}
+          className="w-full accent-emerald-500 disabled:opacity-40"
+        />
       </div>
 
       {/* Color Selection */}
@@ -153,7 +201,7 @@ export function StyleEditor() {
       {/* Border Toggle */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>خلفية شفافة</label>
+          <label className="text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>حواف فقط (بدون تعبئة)</label>
           <button
             onClick={() => updateButtonStyle({ border: !pageData.buttonStyle.border })}
             className={`relative w-14 h-7 rounded-full transition-all ${
@@ -193,51 +241,6 @@ export function StyleEditor() {
         </div>
         <p className="text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
           {pageData.buttonStyle.shadow ? 'ظل مفعّل' : 'ظل معطّل'}
-        </p>
-      </div>
-
-      {/* Preview */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-3" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          معاينة الزر
-        </label>
-        <div className="bg-gray-100 p-4 rounded-xl">
-          <button
-            className={`w-full px-6 py-4 transition-all ${
-              pageData.buttonStyle.shape === 'rounded'
-                ? 'rounded-xl'
-                : pageData.buttonStyle.shape === 'square'
-                ? 'rounded-none'
-                : 'rounded-full'
-            } ${pageData.buttonStyle.border ? 'border-2' : ''} ${
-              pageData.buttonStyle.shadow ? 'shadow-lg' : ''
-            }`}
-            style={{
-              backgroundColor: pageData.buttonStyle.border
-                ? 'transparent'
-                : (pageData.buttonStyle.useCustomColor && pageData.buttonStyle.customColor)
-                  ? pageData.buttonStyle.customColor
-                  : pageData.theme.buttonColor,
-              color: pageData.buttonStyle.border
-                ? (pageData.buttonStyle.useCustomColor && pageData.buttonStyle.customColor)
-                  ? pageData.buttonStyle.customColor
-                  : pageData.theme.buttonColor
-                : pageData.theme.buttonTextColor,
-              borderColor: (pageData.buttonStyle.useCustomColor && pageData.buttonStyle.customColor)
-                ? pageData.buttonStyle.customColor
-                : pageData.theme.buttonColor,
-            }}
-          >
-            <span className="font-semibold" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              زر تجريبي
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 p-3 bg-pink-50 rounded-lg">
-        <p className="text-xs text-pink-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-          ✨ جرب الأشكال المختلفة واختر الأنسب لك
         </p>
       </div>
     </div>

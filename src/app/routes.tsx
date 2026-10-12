@@ -1,14 +1,20 @@
-import { createBrowserRouter, Outlet, useRouteError, useNavigate } from 'react-router';
+import { createBrowserRouter, Navigate, Outlet, useRouteError, useNavigate } from 'react-router';
 import { PageProvider } from './context/PageContext';
 import Landing from './pages/Landing';
-import Phone from './pages/Phone';
+import Signup from './pages/Signup';
+import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Builder from './pages/Builder';
 import PublicPage from './pages/PublicPage';
 import PlanSelection from './pages/PlanSelection';
-import Payment from './pages/Payment';
-import Processing from './pages/Processing';
-import Success from './pages/Success';
+import { getSubdomainUsername } from './lib/site';
 import { Home } from 'lucide-react';
+
+// On name.onwan.link the root path is that entity's public page (ACCT-03);
+// on the main domain it is the product landing page.
+function RootPage() {
+  return getSubdomainUsername() ? <PublicPage /> : <Landing />;
+}
 
 function ErrorBoundary() {
   const error = useRouteError() as Error;
@@ -77,11 +83,24 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Landing />,
+        element: <RootPage />,
       },
       {
+        path: 'signup',
+        element: <Signup />,
+      },
+      {
+        path: 'login',
+        element: <Login />,
+      },
+      {
+        path: 'reset-password',
+        element: <ResetPassword />,
+      },
+      {
+        // Old entry point, kept so existing links do not 404.
         path: 'phone',
-        element: <Phone />,
+        element: <Navigate to="/login" replace />,
       },
       {
         path: 'builder',
@@ -94,18 +113,6 @@ export const router = createBrowserRouter([
       {
         path: 'plan-selection',
         element: <PlanSelection />,
-      },
-      {
-        path: 'payment',
-        element: <Payment />,
-      },
-      {
-        path: 'processing',
-        element: <Processing />,
-      },
-      {
-        path: 'success',
-        element: <Success />,
       },
       {
         path: ':username',

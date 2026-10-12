@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { usePageContext } from '../context/PageContext';
 import { PagePreview } from '../components/PagePreview';
 import { ThemeSelector } from '../components/ThemeSelector';
@@ -8,14 +8,14 @@ import { WallpaperEditor } from '../components/WallpaperEditor';
 import { StyleEditor } from '../components/StyleEditor';
 import { LinkEditor } from '../components/LinkEditor';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
-import { Palette, User, Image as ImageIcon, Sparkles, Link2, Eye, Home, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
+import { AccountPanel } from '../components/AccountPanel';
+import { BRAND_NAME, pageHost, pageUrl } from '../lib/site';
+import { Palette, User, Image as ImageIcon, Sparkles, Link2, Eye, Home, ChevronDown, ChevronUp, ArrowLeft, Save, ExternalLink, Settings } from 'lucide-react';
 
-type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links';
+type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account';
 
 export default function Builder() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const username = searchParams.get('username') || '';
   const [activeTab, setActiveTab] = useState<Tab>('theme');
   const [showSettings, setShowSettings] = useState(true);
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -23,20 +23,25 @@ export default function Builder() {
     localStorage.setItem('bio_sa_welcome_seen', '1');
     return true;
   });
-  const { pageData, updatePageData, isAuthenticated, loadingPage } = usePageContext();
-
-  useEffect(() => {
-    if (!pageData.username && username) {
-      updatePageData({ username });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [username]);
+  const { pageData, account, isAuthenticated, loadingPage, isDirty, saving, save } = usePageContext();
+  const [saveError, setSaveError] = useState('');
+  const isPublished = account?.pageStatus === 'published';
 
   useEffect(() => {
     if (!loadingPage && !isAuthenticated) {
-      navigate(username ? `/phone?username=${username}` : '/phone');
+      navigate('/login');
     }
-  }, [isAuthenticated, loadingPage, navigate, username]);
+  }, [isAuthenticated, loadingPage, navigate]);
+
+  // PAGE-07: nothing reaches the public page until this explicit save.
+  const handleSave = async () => {
+    try {
+      setSaveError('');
+      await save();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'تعذر حفظ التعديلات.');
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -52,10 +57,11 @@ export default function Builder() {
 
   const tabs = [
     { id: 'theme' as Tab, label: 'الثيمات', icon: Palette },
-    { id: 'header' as Tab, label: 'البروفايل', icon: User },
+    { id: 'header' as Tab, label: 'الهوية', icon: User },
     { id: 'links' as Tab, label: 'الروابط', icon: Link2 },
     { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon },
     { id: 'style' as Tab, label: 'الأزرار', icon: Sparkles },
+    { id: 'account' as Tab, label: 'الحساب', icon: Settings },
   ];
 
   const renderActivePanel = () => {
@@ -73,6 +79,10 @@ export default function Builder() {
 
     if (activeTab === 'wallpaper') {
       return <WallpaperEditor />;
+    }
+
+    if (activeTab === 'account') {
+      return <AccountPanel />;
     }
 
     return <StyleEditor />;
@@ -96,22 +106,22 @@ export default function Builder() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
+    <div className="h-screen flex flex-col bg-gray-50" dir="rtl">
       <div className="bg-white border-b border-gray-200 px-2 sm:px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => navigate('/')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-all"
+            className="hidden sm:block p-2 hover:bg-gray-100 rounded-lg transition-all"
             title="العودة للرئيسية"
           >
             <Home className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
           </button>
           <div className="text-lg sm:text-xl font-bold text-emerald-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            bio.sa
+            {BRAND_NAME}
           </div>
           <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
-          <div className="text-xs sm:text-sm text-gray-600 hidden sm:block" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            {pageData.username}
+          <div className="text-xs sm:text-sm text-gray-600 hidden sm:block" style={{ fontFamily: 'Tajawal, sans-serif' }} dir="ltr">
+            {pageData.username ? pageHost(pageData.username) : ''}
           </div>
         </div>
 
@@ -120,25 +130,68 @@ export default function Builder() {
           <button
             onClick={() => navigate('/preview')}
             className="flex items-center gap-1 sm:gap-2 bg-gray-100 text-gray-700 px-2 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-semibold hover:bg-gray-200 transition-all"
-            title="اعرض صفحتك في نافذة جديدة"
+            title="معاينة التعديلات قبل الحفظ"
           >
             <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline" style={{ fontFamily: 'Cairo, sans-serif' }}>
               معاينة
             </span>
           </button>
+          {isPublished && (
+            <a
+              href={pageUrl(pageData.username)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 sm:gap-2 bg-gray-100 text-gray-700 px-2 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-semibold hover:bg-gray-200 transition-all"
+              title="افتح الصفحة المنشورة كما يراها الجمهور"
+            >
+              <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                الصفحة المنشورة
+              </span>
+            </a>
+          )}
           <button
-            onClick={handleShare}
-            className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-lime-500 to-emerald-500 text-white px-4 sm:px-6 py-2.5 rounded-full text-sm sm:text-base font-bold hover:shadow-lg transition-all min-w-[100px] sm:min-w-[120px]"
-            title="المتابعة إلى الخطوة التالية"
+            onClick={handleSave}
+            disabled={!isDirty || saving}
+            className="flex items-center gap-1.5 sm:gap-2 bg-gray-900 text-white px-3 sm:px-5 py-2.5 rounded-full text-sm font-bold transition-all disabled:bg-gray-200 disabled:text-gray-500"
+            title={isPublished ? 'حفظ التعديلات ونشرها للجمهور' : 'حفظ التعديلات'}
           >
-            <span style={{ fontFamily: 'Cairo, sans-serif' }}>التالي</span>
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+            <Save className="w-4 h-4" />
+            <span style={{ fontFamily: 'Cairo, sans-serif' }}>
+              {saving ? 'جاري الحفظ...' : isDirty ? 'حفظ' : 'محفوظ'}
+            </span>
           </button>
+          {account?.pageStatus === 'draft' && (
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-lime-500 to-emerald-500 text-white px-3 sm:px-5 py-2.5 rounded-full text-sm font-bold hover:shadow-lg transition-all"
+              title="اشترك لنشر الصفحة للجمهور"
+            >
+              <span style={{ fontFamily: 'Cairo, sans-serif' }}>نشر</span>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="lg:hidden h-[calc(100vh-73px)] flex flex-col">
+      {(saveError || (account && !account.emailVerified) || account?.pageStatus === 'suspended') && (
+        <div className="space-y-1 border-b border-gray-200 bg-white px-4 py-2 text-xs sm:text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          {saveError && <div className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{saveError}</div>}
+          {account?.pageStatus === 'suspended' && (
+            <div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+              صفحتك موقوفة من الإدارة وغير ظاهرة للجمهور. التفاصيل في تبويب «الحساب».
+            </div>
+          )}
+          {account && !account.emailVerified && (
+            <button onClick={() => setActiveTab('account')} className="block w-full rounded-lg bg-amber-50 px-3 py-2 text-right text-amber-800">
+              بريدك الإلكتروني غير مؤكد — أكّده من تبويب «الحساب».
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="lg:hidden flex-1 min-h-0 flex flex-col">
         <div className={`flex-1 overflow-y-auto px-4 transition-all duration-300 ${showSettings ? 'pb-24' : 'pb-4'}`}>
           <div className="max-w-md mx-auto py-6">
             <PagePreview />
@@ -201,7 +254,7 @@ export default function Builder() {
         </div>
       </div>
 
-      <div className="hidden lg:block h-[calc(100vh-73px)] overflow-hidden">
+      <div className="hidden lg:block flex-1 min-h-0 overflow-hidden">
         <div className="mx-auto grid h-full max-w-[1440px] grid-cols-[minmax(360px,420px)_minmax(0,560px)] justify-center gap-8 px-6 py-6">
           <aside className="h-full overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm">
             <div className="flex h-full flex-col">
@@ -249,7 +302,7 @@ export default function Builder() {
                     معاينة مباشرة
                   </div>
                   <p className="mt-1 text-sm text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                    هذا هو شكل صفحتك على المقاس الحقيقي تقريبًا.
+                    تعرض تعديلاتك غير المحفوظة. الجمهور يرى آخر نسخة محفوظة فقط.
                   </p>
                 </div>
                 <button
@@ -286,10 +339,10 @@ export default function Builder() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-gray-900 mb-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  مرحباً بك في bio.sa! 👋
+                  مرحبًا بك في {BRAND_NAME} 👋
                 </h3>
                 <p className="text-sm text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                  أنشئ صفحتك الشخصية في دقائق
+                  جهّز صفحة جهتك في دقائق
                 </p>
               </div>
             </div>
@@ -302,7 +355,7 @@ export default function Builder() {
                     اختر الثيم المفضل
                   </p>
                   <p className="text-xs text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                    9 ثيمات جاهزة للاختيار من بينها
+                    ثيمات جاهزة مع تخصيص الألوان والخط والخلفية
                   </p>
                 </div>
               </div>
@@ -311,10 +364,10 @@ export default function Builder() {
                 <User className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    أضف معلوماتك
+                    أضف هوية الجهة
                   </p>
                   <p className="text-xs text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                    الصورة، الاسم، والوصف
+                    الشعار، الاسم، التعريف، والروابط والملفات
                   </p>
                 </div>
               </div>
@@ -323,10 +376,10 @@ export default function Builder() {
                 <Eye className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    المعاينة المباشرة
+                    معاينة ثم حفظ
                   </p>
                   <p className="text-xs text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                    كل تغيير يظهر مباشرة في الأعلى
+                    التغييرات تظهر في المعاينة فورًا، ولا تصل للجمهور إلا بعد «حفظ»
                   </p>
                 </div>
               </div>
@@ -335,10 +388,10 @@ export default function Builder() {
                 <ChevronDown className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    إخفاء الإعدادات
+                    النشر
                   </p>
                   <p className="text-xs text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                    اضغط "إخفاء الإعدادات" لرؤية أوضح
+                    تُنشر الصفحة للجمهور بعد إتمام الاشتراك
                   </p>
                 </div>
               </div>

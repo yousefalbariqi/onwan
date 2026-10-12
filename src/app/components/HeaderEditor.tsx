@@ -1,5 +1,6 @@
-import { usePageContext } from '../context/PageContext';
-import { Upload, Info, Palette } from 'lucide-react';
+import { useState } from 'react';
+import { FONT_OPTIONS, usePageContext } from '../context/PageContext';
+import { Upload, Info, Palette, Type } from 'lucide-react';
 import { ProfileStyleSelector } from './ProfileStyleSelector';
 import { extractColorsFromImage } from '../utils/colorExtractor';
 
@@ -14,20 +15,30 @@ const textColorPresets = [
   { name: 'بنفسجي', value: '#8b5cf6' },
 ];
 
+const textSizes = [
+  { id: 'small', label: 'صغير' },
+  { id: 'medium', label: 'متوسط' },
+  { id: 'large', label: 'كبير' },
+] as const;
+
+// Uploaded images are stored inline for now; final limits are pending (P-02).
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+
 export function HeaderEditor() {
-  const { pageData, updatePageData } = usePageContext();
+  const { pageData, updatePageData, updateTypography } = usePageContext();
+  const [imageError, setImageError] = useState('');
 
   return (
     <div className="p-4 space-y-4">
       <h3 className="text-sm font-bold text-gray-700 mb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
-        معلومات البروفايل
+        هوية الجهة
       </h3>
 
       <div className="p-3 bg-purple-50 rounded-lg mb-3">
         <div className="flex items-start gap-2">
           <Info className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-purple-700" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            أضف معلوماتك الشخصية - التحديثات تظهر فوراً! 🎨
+            اسم الجهة وتعريفها وشعارها. التغييرات تظهر في المعاينة فورًا، ولا تصل للجمهور إلا بعد «حفظ».
           </p>
         </div>
       </div>
@@ -35,13 +46,18 @@ export function HeaderEditor() {
       {/* Profile Image */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          صورة البروفايل
+          الشعار أو الصورة
         </label>
         <input
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/webp,image/gif"
           onChange={(e) => {
             const file = e.target.files?.[0];
+            if (file && file.size > MAX_IMAGE_SIZE) {
+              setImageError('حجم الصورة كبير. الحد الأقصى 2MB.');
+              return;
+            }
+            setImageError('');
             if (file) {
               const reader = new FileReader();
               reader.onloadend = async () => {
@@ -68,18 +84,33 @@ export function HeaderEditor() {
           <Upload className="w-5 h-5" />
           اختر صورة من جهازك
         </label>
+        <p className="mt-2 text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          للشعارات يُفضّل ملف PNG بخلفية شفافة مع شكل «مشهد متوازن» حتى لا يُقص الشعار.
+        </p>
+        {!!imageError && (
+          <p className="mt-1 text-xs text-red-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>{imageError}</p>
+        )}
+        {!!pageData.profileImage && (
+          <button
+            onClick={() => updatePageData({ profileImage: '', extractedColors: [] })}
+            className="mt-2 text-xs text-red-600 hover:underline"
+            style={{ fontFamily: 'Tajawal, sans-serif' }}
+          >
+            إزالة الصورة
+          </button>
+        )}
       </div>
 
       {/* Name */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          الاسم
+          اسم الجهة
         </label>
         <input
           type="text"
           value={pageData.name}
           onChange={(e) => updatePageData({ name: e.target.value })}
-          placeholder="مثال: أحمد محمد"
+          placeholder="مثال: جمعية البر الخيرية"
           className="w-full px-4 py-3 rounded-lg border border-gray-200 text-right focus:outline-none focus:border-emerald-500 transition-all"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         />
@@ -93,13 +124,89 @@ export function HeaderEditor() {
         <textarea
           value={pageData.bio}
           onChange={(e) => updatePageData({ bio: e.target.value })}
-          placeholder="اكتب نبذة عنك..."
+          placeholder="تعريف مختصر بالجهة ونشاطها..."
+          maxLength={150}
           rows={3}
           className="w-full px-4 py-3 rounded-lg border border-gray-200 text-right focus:outline-none focus:border-emerald-500 transition-all resize-none"
           style={{ fontFamily: 'Tajawal, sans-serif' }}
         />
         <div className="text-xs text-gray-500 text-left mt-1">
           {pageData.bio.length}/150
+        </div>
+      </div>
+
+      {/* Contact card (VCF) */}
+      <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+        <div>
+          <div className="text-xs font-bold text-gray-700" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            بيانات بطاقة جهة الاتصال
+          </div>
+          <p className="mt-1 text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+            تُضاف إلى ملف «حفظ جهة الاتصال» الذي ينزّله زوار صفحتك. اتركها فارغة إن لم ترغب بنشرها.
+          </p>
+        </div>
+        <input
+          type="tel"
+          value={pageData.contactPhone || ''}
+          onChange={(e) => updatePageData({ contactPhone: e.target.value.replace(/[^0-9+]/g, '') })}
+          placeholder="رقم التواصل — مثال: +966500000000"
+          maxLength={16}
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-left focus:outline-none focus:border-emerald-500"
+          dir="ltr"
+        />
+        <input
+          type="email"
+          value={pageData.contactEmail || ''}
+          onChange={(e) => updatePageData({ contactEmail: e.target.value.trim() })}
+          placeholder="info@example.org"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-left focus:outline-none focus:border-emerald-500"
+          dir="ltr"
+        />
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-gray-200 my-4"></div>
+
+      {/* Typography */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <Type className="w-4 h-4" />
+          الخط
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          {FONT_OPTIONS.map((font) => {
+            const isActive = (pageData.typography?.font ?? 'cairo') === font.id;
+            return (
+              <button
+                key={font.id}
+                onClick={() => updateTypography({ font: font.id })}
+                className={`rounded-lg border-2 px-3 py-2 text-sm transition-all ${
+                  isActive ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-700'
+                }`}
+                style={{ fontFamily: font.family }}
+              >
+                أبجد هوز
+                <span className="block text-[10px] text-gray-400" dir="ltr">{font.name}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {textSizes.map((size) => {
+            const isActive = (pageData.typography?.size ?? 'medium') === size.id;
+            return (
+              <button
+                key={size.id}
+                onClick={() => updateTypography({ size: size.id })}
+                className={`rounded-lg border-2 px-3 py-2 text-xs font-semibold transition-all ${
+                  isActive ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-600'
+                }`}
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                {size.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -341,11 +448,6 @@ export function HeaderEditor() {
         <ProfileStyleSelector />
       </div>
 
-      <div className="mt-4 p-3 bg-emerald-50 rounded-lg">
-        <p className="text-xs text-emerald-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-          ✨ كل التغييرات تحفظ تلقائياً
-        </p>
-      </div>
     </div>
   );
 }
