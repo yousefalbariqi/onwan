@@ -20,6 +20,12 @@ export async function readJsonBody(req: any) {
     return req.body;
   }
 
+  // Fetch adapter used by Cloudflare Workers; Node dev remains supported.
+  if (typeof req.text === 'function') {
+    const raw = await req.text();
+    return raw ? JSON.parse(raw) : {};
+  }
+
   const chunks: Uint8Array[] = [];
 
   await new Promise<void>((resolve, reject) => {

@@ -1,21 +1,28 @@
+import { getEnv, requestRuntime } from './_lib/runtime.js';
 import { escapeHtml } from './_lib/email.js';
 import { allowMethods, handleApiError, sendJson } from './_lib/http.js';
 import { getPublicPageByUsername, recordVisit } from './_lib/page.js';
 import { normalizeUsername } from './_lib/username.js';
 import { getUsernameByDomain } from './_lib/domains.js';
 
-const ROOT_DOMAIN = process.env.ROOT_DOMAIN || 'onwan.link';
+const rootDomain = () => getEnv('ROOT_DOMAIN') || 'onwan.link';
 
 // The built SPA shell, fetched once per warm function from the main domain
 // (a serverless function has no access to the static build output).
 let cachedShell: { html: string; at: number } | null = null;
 
 async function getShell() {
+  const assets = requestRuntime()?.env.ASSETS;
+  if (assets) {
+    const response = await assets.fetch(new Request(`https://${rootDomain()}/`, { headers: { 'Sec-Fetch-Mode': 'navigate' } }));
+    if (!response.ok) throw new Error('Static SPA shell is unavailable');
+    return response.text();
+  }
   if (cachedShell && Date.now() - cachedShell.at < 5 * 60 * 1000) {
     return cachedShell.html;
   }
 
-  const response = await fetch(process.env.SPA_SHELL_URL || `https://${ROOT_DOMAIN}/index.html`);
+  const response = await fetch(getEnv('SPA_SHELL_URL') || `https://${rootDomain()}/index.html`);
 
   if (!response.ok) {
     throw new Error(`Failed to load SPA shell: ${response.status}`);
@@ -36,7 +43,7 @@ async function sendHtml(res: any, username: string) {
     const { name, bio, profileImage } = page.pageData;
     const title = escapeHtml(name || username);
     const description = escapeHtml(bio || name || username);
-    const url = `https://${username}.${ROOT_DOMAIN}`;
+    const url = `https://${username}.${rootDomain()}`;
     const tags = [
       `<title>${title}</title>`,
       `<meta name="description" content="${description}" />`,

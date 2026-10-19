@@ -1,89 +1,32 @@
-import dns from 'dns';
-import fs from 'fs';
-import path from 'path';
 import { Pool } from 'pg';
+import { getEnv, requestRuntime } from './runtime.js';
 
-dns.setDefaultResultOrder('ipv4first');
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __bioSaPool: Pool | undefined;
-}
-
-function loadLocalEnvFiles() {
-  const rootDir = process.cwd();
-  const candidateFiles = ['.env.local', '.env'];
-
-  for (const fileName of candidateFiles) {
-    const filePath = path.join(rootDir, fileName);
-
-    if (!fs.existsSync(filePath)) {
-      continue;
-    }
-
-    const fileContents = fs.readFileSync(filePath, 'utf8');
-
-    for (const line of fileContents.split(/\r?\n/)) {
-      const trimmedLine = line.trim();
-
-      if (!trimmedLine || trimmedLine.startsWith('#')) {
-        continue;
-      }
-
-      const separatorIndex = trimmedLine.indexOf('=');
-
-      if (separatorIndex === -1) {
-        continue;
-      }
-
-      const key = trimmedLine.slice(0, separatorIndex).trim();
-      const value = trimmedLine.slice(separatorIndex + 1).trim();
-
-      if (key && process.env[key] === undefined) {
-        process.env[key] = value;
-      }
-    }
-  }
-}
-
-loadLocalEnvFiles();
-
+let localPool: Pool | undefined;
 function createPool() {
-  const connectionString =
-    process.env.DATABASE_URL ||
-    process.env.SUPABASE_DATABASE_URL ||
-    process.env.POSTGRES_URL;
-
-  if (!connectionString) {
-    throw new Error('DATABASE_URL or SUPABASE_DATABASE_URL is not configured');
-  }
-
+  const connectionString = getEnv('DATABASE_URL') || getEnv('SUPABASE_DATABASE_URL') || getEnv('POSTGRES_URL');
+  if (!connectionString) throw new Error('DATABASE_URL is not configured');
+  const url = new URL(connectionString);
+  if (url.hostname.toLowerCase() === 'host') throw new Error('Database hostname is still a placeholder');
   return new Pool({
     connectionString,
-    ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
-    // Force IPv4 to avoid ENETUNREACH on IPv6-only Supabase DNS
-    ...(connectionString.includes('localhost') ? {} : {
-      connectionTimeoutMillis: 10000,
-    }),
+    ssl: ['localhost', '127.0.0.1'].includes(url.hostname) ? false : { rejectUnauthorized: false },
+    connectionTimeoutMillis: 10000,
+    // reserveUsername checks availability while a transaction holds a client.
+    max: 3,
+    idleTimeoutMillis: 5000,
   });
 }
-
 function getPool() {
-  if (!global.__bioSaPool) {
-    global.__bioSaPool = createPool();
-  }
-
-  return global.__bioSaPool;
+  const scope = requestRuntime();
+  if (scope) return scope.pool ??= createPool();
+  return localPool ??= createPool();
 }
-
-// Lazily create the pool on first use. Creating it at module scope made a
-// missing DATABASE_URL crash the function during import, which Vercel reports
-// as an opaque FUNCTION_INVOCATION_FAILED instead of a readable JSON error.
+// Workers sockets must never be reused by a different request. The entrypoint
+// closes the request's pool after the handler finishes, including on errors.
 export const pool = new Proxy({} as Pool, {
   get(_target, property) {
     const realPool = getPool();
     const value = Reflect.get(realPool, property, realPool);
-
     return typeof value === 'function' ? value.bind(realPool) : value;
   },
 });

@@ -14,3 +14,16 @@ npm run dev
 ```
 
 طبّق ملفات `database/` بالترتيب المذكور في `CLAUDE.md` قبل التشغيل.
+
+## Cloudflare Workers
+
+دليل النشر والأسرار وDNS والاختبارات: [CLOUDFLARE_DEPLOY.md](./CLOUDFLARE_DEPLOY.md).
+
+```sh
+npm run dev:worker      # dist + محاكي Workers؛ الأسرار في .dev.vars
+npm run build:worker    # بناء وتجميع دون نشر
+npm run check:worker
+npm run test:content
+npm run test:worker
+npm run deploy:worker   # نشر Worker وStatic Assets
+```

@@ -1,3 +1,4 @@
+import { getEnv } from './runtime.js';
 import { pool } from './db.js';
 
 // Manager-entered numbers (see the `settings` table). None has a default.
@@ -28,7 +29,7 @@ export async function getSettings() {
 // DES-01: the «صمّم لي» price is fixed in the deployment, not editable from
 // the panel. Unset until the price is decided (P-03).
 export function getDesignPrice() {
-  const price = Number(process.env.DESIGN_SERVICE_PRICE_SAR);
+  const price = Number(getEnv('DESIGN_SERVICE_PRICE_SAR'));
 
   return Number.isFinite(price) && price > 0 ? price : null;
 }

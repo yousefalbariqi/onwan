@@ -356,7 +356,7 @@ function DomainRow({ item, hostingConfigured, onOpen, onChanged }: { item: any; 
             onClick={() =>
               hostingConfigured
                 ? call('domains.activate')
-                : window.confirm(`هل أضفت ${item.domain} في لوحة Vercel (Project → Domains)؟ الصفحة لن تعمل على الدومين قبل ذلك.`) && call('domains.activate', { addedManually: true })
+                : window.confirm(`هل أضفت ${item.domain} إلى الاستضافة وفعّلت شهادة HTTPS له؟ الصفحة لن تعمل على الدومين قبل ذلك.`) && call('domains.activate', { addedManually: true })
             }
           >
             تفعيل
@@ -387,7 +387,7 @@ export function CustomDomains({ onOpen }: { onOpen: OpenCustomer }) {
       <ErrorNote message={error} />
       {data && !data.hostingConfigured && (
         <p className="mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-          الربط الآلي بالاستضافة غير مهيأ (VERCEL_TOKEN و VERCEL_PROJECT_ID). عند التفعيل أضف الدومين يدويًا في لوحة Vercel أولًا.
+          الربط الآلي بالاستضافة غير مهيأ. أضف الدومين إلى الاستضافة وفعّل شهادة HTTPS له قبل تأكيد التفعيل هنا.
         </p>
       )}
       {data?.domains.length === 0 && <Empty>لا توجد طلبات.</Empty>}

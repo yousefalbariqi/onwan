@@ -1,4 +1,5 @@
-import crypto from 'crypto';
+import { getEnv } from './runtime.js';
+import crypto from 'node:crypto';
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const STAFF_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
@@ -15,7 +16,7 @@ type SessionPayload = {
 };
 
 function getSecret() {
-  const secret = process.env.SESSION_SECRET;
+  const secret = getEnv('SESSION_SECRET');
 
   if (!secret) {
     throw new Error('SESSION_SECRET is not configured');

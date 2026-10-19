@@ -1,3 +1,4 @@
+import { getEnv } from './runtime.js';
 import { getAccountSummary, getPlans, isPlan, pricePlan, isValidEmail, isValidPhone, normalizeEmail, normalizePhone, requestSubscription } from './account.js';
 import { pool } from './db.js';
 import { sendAdminEmail } from './email.js';
@@ -185,7 +186,7 @@ const handlers: Record<string, Handler> = {
         phone,
         city,
         address,
-        `https://${username.rows[0].username}.${process.env.ROOT_DOMAIN || 'onwan.link'}`,
+        `https://${username.rows[0].username}.${getEnv('ROOT_DOMAIN') || 'onwan.link'}`,
       ],
     );
 

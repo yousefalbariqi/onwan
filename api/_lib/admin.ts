@@ -1,4 +1,5 @@
-import crypto from 'crypto';
+import { getEnv } from './runtime.js';
+import crypto from 'node:crypto';
 import { activateSubscription, getPlans, isPlan, isValidEmail, normalizeDiscountCode, normalizeEmail } from './account.js';
 import { createSessionToken, getBearerToken, verifySessionToken } from './auth.js';
 import { pool } from './db.js';
@@ -105,7 +106,7 @@ const handlers: Record<string, Handler> = {
   bootstrap: {
     access: 'public',
     run: async (params) => {
-      const expected = process.env.ADMIN_SETUP_TOKEN ?? '';
+      const expected = getEnv('ADMIN_SETUP_TOKEN') ?? '';
       const provided = Buffer.from(String(params.setupToken ?? ''));
 
       if (
@@ -926,7 +927,7 @@ const handlers: Record<string, Handler> = {
 export function getOrigin(req: any) {
   const origin = String(req.headers?.origin ?? '');
 
-  return /^https?:\/\/[^\s/]+$/.test(origin) ? origin : `https://${process.env.ROOT_DOMAIN || 'onwan.link'}`;
+  return /^https?:\/\/[^\s/]+$/.test(origin) ? origin : `https://${getEnv('ROOT_DOMAIN') || 'onwan.link'}`;
 }
 
 // Loads the employee on every request so deactivation is immediate.

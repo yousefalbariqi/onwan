@@ -1,3 +1,4 @@
+import { getEnv } from './_lib/runtime.js';
 import { pool } from './_lib/db.js';
 import { sendAdminEmail } from './_lib/email.js';
 import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from './_lib/http.js';
@@ -48,7 +49,7 @@ export default async function handler(req: any, res: any) {
       message,
     ]);
 
-    const rootDomain = process.env.ROOT_DOMAIN || 'onwan.link';
+    const rootDomain = getEnv('ROOT_DOMAIN') || 'onwan.link';
 
     await sendAdminEmail(`بلاغ عن صفحة: ${username}`, [
       `رابط الصفحة: https://${username}.${rootDomain}`,

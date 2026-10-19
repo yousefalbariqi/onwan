@@ -1,0 +1,9 @@
+{
+  "extends": "../api/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "noEmit": true
+  },
+  "include": ["./**/*.ts", "../api/**/*.ts", "../shared/**/*.ts"]
+}

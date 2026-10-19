@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { pool } from './db.js';
 import { generateOtp, sendOtpEmail } from './email.js';
 import { HttpError } from './http.js';

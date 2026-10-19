@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin, type ViteDevServer } from 'vite'
+import { defineConfig, loadEnv, type Plugin, type ViteDevServer } from 'vite'
 import fs from 'fs'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
@@ -13,6 +13,9 @@ function vercelApiDevPlugin(): Plugin {
     name: 'vercel-api-dev',
     apply: 'serve',
     configureServer(server: ViteDevServer) {
+      for (const [key, value] of Object.entries(loadEnv('development', process.cwd(), ''))) {
+        if (process.env[key] === undefined) process.env[key] = value;
+      }
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url ?? '/', 'http://localhost')
 

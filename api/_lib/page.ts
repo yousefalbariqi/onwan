@@ -1,3 +1,4 @@
+import { getEnv } from './runtime.js';
 import { BACKGROUND_VIDEO_TYPES, MAX_BACKGROUND_VIDEO_BYTES, parseVideoSource, parseYouTubeVideoSource } from '../../shared/videoSources.js';
 import { arrangeSections, visibleSectionItems } from '../../shared/linkSections.js';
 import { PoolClient } from 'pg';
@@ -443,7 +444,7 @@ export async function savePageData(userId: string, pageData: any, options: { sta
       const url = new URL(String(wallpaper.value));
       if (!url.hostname.endsWith('.public.blob.vercel-storage.com') || !url.pathname.startsWith(`/wallpapers/${userId}/`)) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
       const { head } = await import('@vercel/blob');
-      const file = await head(url.href);
+      const file = await head(url.href, { token: getEnv('BLOB_READ_WRITE_TOKEN') });
       if (file.size > MAX_BACKGROUND_VIDEO_BYTES || !BACKGROUND_VIDEO_TYPES.includes(file.contentType)) throw new HttpError(400, 'فيديو الخلفية يجب أن يكون MP4 أو WebM بحجم لا يتجاوز 20 MB.');
       wallpaper.fileSize = file.size;
     }

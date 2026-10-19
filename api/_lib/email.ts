@@ -1,12 +1,13 @@
-import crypto from 'crypto';
+import { getEnv } from './runtime.js';
+import crypto from 'node:crypto';
 import { Resend } from 'resend';
 
 function getResend(): Resend {
-  return new Resend(process.env.RESEND_API_KEY);
+  return new Resend(getEnv('RESEND_API_KEY'));
 }
 
 function getFromEmail(): string {
-  return process.env.EMAIL_FROM || 'عنوان <onboarding@resend.dev>';
+  return getEnv('EMAIL_FROM') || 'عنوان <onboarding@resend.dev>';
 }
 
 export function generateOtp(): string {
@@ -74,7 +75,7 @@ export async function sendNoticeEmail(to: string, subject: string, lines: string
 // The record is already saved in the database, so a missing mailbox or a
 // failed send must not fail the visitor's request.
 export async function sendAdminEmail(subject: string, lines: string[]): Promise<void> {
-  const to = process.env.ADMIN_EMAIL;
+  const to = getEnv('ADMIN_EMAIL');
 
   if (!to) {
     console.warn('ADMIN_EMAIL is not configured; admin notification skipped.');

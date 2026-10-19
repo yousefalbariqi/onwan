@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Cloudflare runtime (19 Oct 2026)
+
+The primary deployment is now Cloudflare Workers + Static Assets (`wrangler.jsonc`, `worker/index.ts`), with the original API business handlers reused through a Fetch adapter. See `CLOUDFLARE_DEPLOY.md` for deployment, variables, DNS, and verification. Supabase/schema are unchanged. `api/_lib/runtime.ts` provides request-scoped env; do not read secrets from process.env in business code or mutate process.env in Workers. `db.ts` owns a lazy per-request Pool, closed by the Worker entrypoint. Vite loads .env.local for local Node development only. Legacy Vercel deployment config remains available. Custom customer domains use the existing manual hosting-confirmation path on Workers, never Vercel API automation. The old deployment section below describes legacy Vercel behavior.
+
+Validation: `npm run check:worker`, `npm run build:worker`, `npm run test:content`, `npm run test:worker` (build dist first). Tests mock database writes and external mail; runtime tests run the bundle/crypto/static assets in workerd. Never run schema migrations or production signup in tests. Password hashing remains scrypt; provision sufficient Worker CPU (Paid) rather than weakening existing hashes.
+
 ## Product and source of truth
 
 This is **«عنوان» (onwan)** — an Arabic platform where an entity (association, then company) gets one public page on `name.onwan.link` with its identity, links, images and PDF files. The repo folder is still called `bio.sa` (the earlier name).
@@ -28,7 +34,7 @@ npm run dev        # Vite dev server; also serves api/ in-process (see vite.conf
 npm run build      # production build to dist/
 ```
 
-There is no test suite. `npm run build` does not type-check; check the API with `npx tsc -p api/tsconfig.json --noEmit --ignoreDeprecations 6.0`.
+`npm run build` does not type-check; run `npm run check:worker`. Content and Worker suites are listed above.
 
 ## Environment setup
 
@@ -45,7 +51,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `VITE_SUPPORT_WHATSAPP` | Administration WhatsApp number; the button is hidden if unset |
 | `ADMIN_SETUP_TOKEN` | One-time secret (16+ chars) that lets the «إعداد أول مرة» form at `/admin` create the first manager while the `staff` table is empty |
 
-The API reads `.env.local` directly via a custom loader in `api/_lib/db.ts` (it does not override variables already set in the environment).
+Vite loads `.env.local` for local development. Workers use request env bindings; see the Cloudflare deployment guide.
 
 ## Database
 

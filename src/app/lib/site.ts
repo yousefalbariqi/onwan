@@ -46,7 +46,7 @@ export function getCustomHost() {
   }
 
   const host = window.location.hostname.toLowerCase();
-  const ours = host === ROOT_DOMAIN || host.endsWith(`.${ROOT_DOMAIN}`) || host.endsWith('.vercel.app');
+  const ours = host === ROOT_DOMAIN || host.endsWith(`.${ROOT_DOMAIN}`) || host.endsWith('.vercel.app') || host.endsWith('.workers.dev');
   const local = host === 'localhost' || /^[0-9.]+$/.test(host) || host.endsWith('.local');
 
   return ours || local ? null : host;

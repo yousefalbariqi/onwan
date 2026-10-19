@@ -1,13 +1,14 @@
-import dns from 'dns/promises';
+import { getEnv, requestRuntime } from './runtime.js';
+import dns from 'node:dns/promises';
 import { pool } from './db.js';
 import { HttpError } from './http.js';
 
-const ROOT_DOMAIN = process.env.ROOT_DOMAIN || 'onwan.link';
+const rootDomain = () => getEnv('ROOT_DOMAIN') || 'onwan.link';
 
 // Where a customer's domain must point. These are the hosting provider's
 // (Vercel) published targets; override them if the hosting changes.
-export const CNAME_TARGET = (process.env.CUSTOM_DOMAIN_CNAME_TARGET || 'cname.vercel-dns.com').toLowerCase();
-export const APEX_IP = process.env.CUSTOM_DOMAIN_APEX_IP || '76.76.21.21';
+const cnameTarget = () => (getEnv('CUSTOM_DOMAIN_CNAME_TARGET') || (requestRuntime() ? rootDomain() : 'cname.vercel-dns.com')).toLowerCase();
+const apexIp = () => getEnv('CUSTOM_DOMAIN_APEX_IP') || (requestRuntime() ? '' : '76.76.21.21');
 
 export function normalizeDomain(value: unknown) {
   const domain = String(value ?? '')
@@ -23,7 +24,7 @@ export function normalizeDomain(value: unknown) {
     throw new HttpError(400, 'اكتب الدومين بهذا الشكل: link.example.org');
   }
 
-  if (domain === ROOT_DOMAIN || domain.endsWith(`.${ROOT_DOMAIN}`) || domain.endsWith('.vercel.app')) {
+  if (domain === rootDomain() || domain.endsWith(`.${rootDomain()}`) || domain.endsWith('.vercel.app')) {
     throw new HttpError(400, 'هذا الدومين غير مسموح. اكتب دومينًا تملكه جهتك.');
   }
 
@@ -42,9 +43,10 @@ export function isApexDomain(domain: string) {
 
 // The record the customer has to add at their DNS provider.
 export function dnsInstruction(domain: string) {
+  if (isApexDomain(domain) && !apexIp()) throw new HttpError(503, 'ربط الدومين الرئيسي يحتاج إعداد CUSTOM_DOMAIN_APEX_IP أو إعداد الدومين يدويًا لدى الاستضافة.');
   return isApexDomain(domain)
-    ? { type: 'A', name: '@', value: APEX_IP }
-    : { type: 'CNAME', name: domain.split('.')[0], value: CNAME_TARGET };
+    ? { type: 'A', name: '@', value: apexIp() }
+    : { type: 'CNAME', name: domain.split('.')[0], value: cnameTarget() };
 }
 
 // DOMAIN-03: pointing the domain at us is the proof that the customer
@@ -52,11 +54,11 @@ export function dnsInstruction(domain: string) {
 export async function checkDns(domain: string) {
   try {
     if (isApexDomain(domain)) {
-      return (await dns.resolve4(domain)).includes(APEX_IP);
+      return (await dns.resolve4(domain)).includes(apexIp());
     }
 
     const records = await dns.resolveCname(domain);
-    return records.some((record) => record.toLowerCase().replace(/\.$/, '') === CNAME_TARGET);
+    return records.some((record) => record.toLowerCase().replace(/\.$/, '') === cnameTarget());
   } catch {
     return false;
   }
@@ -66,14 +68,17 @@ export async function checkDns(domain: string) {
 // certificate. Needs VERCEL_TOKEN and VERCEL_PROJECT_ID; without them the
 // employee adds the domain in the hosting dashboard by hand.
 export async function attachToHosting(domain: string): Promise<'attached' | 'not_configured'> {
-  const token = process.env.VERCEL_TOKEN;
-  const projectId = process.env.VERCEL_PROJECT_ID;
+  // Workers custom hostnames need Cloudflare for SaaS or manual provisioning.
+  // Do not attach new customer domains to the former Vercel project.
+  if (requestRuntime()) return 'not_configured';
+  const token = getEnv('VERCEL_TOKEN');
+  const projectId = getEnv('VERCEL_PROJECT_ID');
 
   if (!token || !projectId) {
     return 'not_configured';
   }
 
-  const team = process.env.VERCEL_TEAM_ID ? `?teamId=${process.env.VERCEL_TEAM_ID}` : '';
+  const team = getEnv('VERCEL_TEAM_ID') ? `?teamId=${getEnv('VERCEL_TEAM_ID')}` : '';
   const response = await fetch(`https://api.vercel.com/v10/projects/${projectId}/domains${team}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

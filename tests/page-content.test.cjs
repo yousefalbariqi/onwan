@@ -43,9 +43,11 @@ function api() {
   const source = fs.readFileSync('api/_lib/page.ts', 'utf8') + '\nexport { normalizeLinks as testNormalize };';
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   new Function('require', 'module', 'exports', code)(name => {
+    name = name.replace(/\.js$/, '');
     if (name === '../../shared/videoSources') return loadVideos();
     if (name === '../../shared/linkSections') return loadSections();
     if (name === '@vercel/blob') return { head: async () => db.blobHead };
+    if (name === './runtime') return { getEnv: name => process.env[name] };
     if (name === './db') return { pool };
     if (name === './http') return { HttpError: class extends Error { constructor(status, message) { super(message); this.status = status; } } };
     throw new Error(name);
@@ -234,8 +236,10 @@ test('upload token endpoint authenticates, scopes paths and sets the 20 MB stora
     handleApiError: (res, error) => { res.status = error.status || 500; res.body = { error: error.message }; },
   };
   new Function('require', 'module', 'exports', code)(name => {
+    name = name.replace(/\.js$/, '');
     if (name === '@vercel/blob/client') return { handleUpload: async options => { issued = await options.onBeforeGenerateToken(options.body.pathname); return { ok: true }; } };
     if (name === '../shared/videoSources') return loadVideos();
+    if (name === './_lib/runtime') return { getEnv: name => process.env[name] };
     if (name === './_lib/http') return http;
     if (name === './_lib/session') return { requireUser: async (req, res) => { if (signedIn) return { id: 'owner' }; http.sendJson(res, 401, {}); return null; } };
     throw new Error(name);

@@ -1,0 +1,12 @@
+# Copy to .dev.vars for wrangler dev only. Never commit real values.
+DATABASE_URL="postgresql://USER:PASSWORD@POOLER_HOST:6543/postgres"
+SESSION_SECRET="replace-with-a-long-random-secret"
+RESEND_API_KEY=""
+EMAIL_FROM="عنوان <no-reply@onwan.link>"
+ADMIN_EMAIL=""
+SUPPORT_EMAIL=""
+ADMIN_SETUP_TOKEN=""
+DESIGN_SERVICE_PRICE_SAR=""
+BLOB_READ_WRITE_TOKEN=""
+CUSTOM_DOMAIN_CNAME_TARGET="onwan.link"
+CUSTOM_DOMAIN_APEX_IP=""

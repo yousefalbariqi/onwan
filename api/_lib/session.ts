@@ -1,3 +1,4 @@
+import { getEnv } from './runtime.js';
 import { getBearerToken, verifySessionToken } from './auth.js';
 import { pool } from './db.js';
 import { sendJson } from './http.js';
@@ -12,7 +13,7 @@ export type SessionUser = {
 
 // MOD-06: a banned account sees a ban message and a contact channel.
 export function getBannedMessage() {
-  const contact = process.env.SUPPORT_EMAIL;
+  const contact = getEnv('SUPPORT_EMAIL');
 
   return contact
     ? `تم إيقاف هذا الحساب لمخالفة شروط الاستخدام. للتواصل مع الإدارة: ${contact}`

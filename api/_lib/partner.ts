@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { getAccountSummary, isPlan, isValidEmail, isValidPhone, normalizeEmail, normalizePhone } from './account.js';
 import { createSessionToken, getBearerToken, verifySessionToken } from './auth.js';
 import { pool } from './db.js';

@@ -1,3 +1,4 @@
+import { getEnv, requestRuntime } from './runtime.js';
 import { activateSubscription } from './account.js';
 import type { Handler } from './admin.js';
 import { audit, getCustomerLabel, requireText } from './admin.js';
@@ -418,7 +419,7 @@ export const serviceAdminHandlers: Record<string, Handler> = {
               cart.nfc_recipient_phone,
               cart.nfc_city,
               cart.nfc_address,
-              process.env.ROOT_DOMAIN || 'onwan.link',
+              getEnv('ROOT_DOMAIN') || 'onwan.link',
               reference,
             ],
           );
@@ -483,7 +484,7 @@ export const serviceAdminHandlers: Record<string, Handler> = {
 
       return {
         domains: result.rows.map((row) => ({ ...row, instruction: dnsInstruction(row.domain) })),
-        hostingConfigured: Boolean(process.env.VERCEL_TOKEN && process.env.VERCEL_PROJECT_ID),
+        hostingConfigured: !requestRuntime() && Boolean(getEnv('VERCEL_TOKEN') && getEnv('VERCEL_PROJECT_ID')),
       };
     },
   },
@@ -547,7 +548,7 @@ export const serviceAdminHandlers: Record<string, Handler> = {
       const hosting = await attachToHosting(row.domain);
 
       if (hosting === 'not_configured' && params.addedManually !== true) {
-        throw new HttpError(409, 'الربط الآلي بالاستضافة غير مهيأ. أضف الدومين في لوحة Vercel ثم أكّد ذلك هنا.');
+        throw new HttpError(409, 'الربط الآلي بالاستضافة غير مهيأ. أضف الدومين إلى الاستضافة وفعّل شهادة HTTPS له ثم أكّد ذلك هنا.');
       }
 
       await pool.query("update custom_domains set status = 'active', activated_at = now() where id = $1", [String(params.id)]);
