@@ -1,7 +1,7 @@
 import crypto from 'crypto';
-import { pool } from './db';
-import { generateOtp, sendOtpEmail } from './email';
-import { HttpError } from './http';
+import { pool } from './db.js';
+import { generateOtp, sendOtpEmail } from './email.js';
+import { HttpError } from './http.js';
 
 export type OtpPurpose = 'verify_email' | 'reset_password' | 'account_change' | 'new_email';
 

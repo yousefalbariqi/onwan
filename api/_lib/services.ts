@@ -1,4 +1,4 @@
-import { pool } from './db';
+import { pool } from './db.js';
 
 // Manager-entered numbers (see the `settings` table). None has a default.
 //   nfc_unit_price / nfc_shipping_price → NFC pricing (SAR)

@@ -1,8 +1,8 @@
-import { escapeHtml } from './_lib/email';
-import { allowMethods, handleApiError, sendJson } from './_lib/http';
-import { getPublicPageByUsername, recordVisit } from './_lib/page';
-import { normalizeUsername } from './_lib/username';
-import { getUsernameByDomain } from './_lib/domains';
+import { escapeHtml } from './_lib/email.js';
+import { allowMethods, handleApiError, sendJson } from './_lib/http.js';
+import { getPublicPageByUsername, recordVisit } from './_lib/page.js';
+import { normalizeUsername } from './_lib/username.js';
+import { getUsernameByDomain } from './_lib/domains.js';
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || 'onwan.link';
 

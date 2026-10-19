@@ -1,5 +1,5 @@
-import { getUsernameAvailability } from '../_lib/username';
-import { allowMethods, handleApiError, sendJson } from '../_lib/http';
+import { getUsernameAvailability } from '../_lib/username.js';
+import { allowMethods, handleApiError, sendJson } from '../_lib/http.js';
 
 export default async function handler(req: any, res: any) {
   if (!allowMethods(req, res, ['GET'])) {

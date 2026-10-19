@@ -1,8 +1,8 @@
-import { pool } from './_lib/db';
-import { sendAdminEmail } from './_lib/email';
-import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from './_lib/http';
-import { getPublicPageByUsername } from './_lib/page';
-import { normalizeUsername } from './_lib/username';
+import { pool } from './_lib/db.js';
+import { sendAdminEmail } from './_lib/email.js';
+import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from './_lib/http.js';
+import { getPublicPageByUsername } from './_lib/page.js';
+import { normalizeUsername } from './_lib/username.js';
 
 const MAX_REPORTS_PER_PAGE_PER_HOUR = 10;
 

@@ -1,6 +1,6 @@
 import dns from 'dns/promises';
-import { pool } from './db';
-import { HttpError } from './http';
+import { pool } from './db.js';
+import { HttpError } from './http.js';
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN || 'onwan.link';
 

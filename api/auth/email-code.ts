@@ -1,8 +1,8 @@
-import { getAccountSummary } from '../_lib/account';
-import { pool } from '../_lib/db';
-import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http';
-import { consumeCode, issueCode } from '../_lib/otp';
-import { requireUser } from '../_lib/session';
+import { getAccountSummary } from '../_lib/account.js';
+import { pool } from '../_lib/db.js';
+import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http.js';
+import { consumeCode, issueCode } from '../_lib/otp.js';
+import { requireUser } from '../_lib/session.js';
 
 // ACCT-04: confirm the signed-in account's email.
 //   { action: 'send' }          → (re)send the code

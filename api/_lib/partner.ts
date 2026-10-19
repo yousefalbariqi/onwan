@@ -1,12 +1,12 @@
 import crypto from 'crypto';
-import { getAccountSummary, isPlan, isValidEmail, isValidPhone, normalizeEmail, normalizePhone } from './account';
-import { createSessionToken, getBearerToken, verifySessionToken } from './auth';
-import { pool } from './db';
-import { sendAdminEmail, sendNoticeEmail } from './email';
-import { HttpError } from './http';
-import { getPageDataByUserId } from './page';
-import { hashPassword, validatePassword, verifyPassword } from './password';
-import { PARTNER_ORDER_WINDOW_DAYS, getUsernameAvailability } from './username';
+import { getAccountSummary, isPlan, isValidEmail, isValidPhone, normalizeEmail, normalizePhone } from './account.js';
+import { createSessionToken, getBearerToken, verifySessionToken } from './auth.js';
+import { pool } from './db.js';
+import { sendAdminEmail, sendNoticeEmail } from './email.js';
+import { HttpError } from './http.js';
+import { getPageDataByUserId } from './page.js';
+import { hashPassword, validatePassword, verifyPassword } from './password.js';
+import { PARTNER_ORDER_WINDOW_DAYS, getUsernameAvailability } from './username.js';
 
 export type Partner = {
   id: string;

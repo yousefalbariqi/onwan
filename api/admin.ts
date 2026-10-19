@@ -1,5 +1,5 @@
-import { runAdminAction } from './_lib/admin';
-import { allowMethods, handleApiError, readJsonBody, sendJson } from './_lib/http';
+import { runAdminAction } from './_lib/admin.js';
+import { allowMethods, handleApiError, readJsonBody, sendJson } from './_lib/http.js';
 
 // One function for the whole administration panel (the Vercel plan caps the
 // number of functions): POST { action, ...params }. Access rules live in

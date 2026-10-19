@@ -1,14 +1,14 @@
-import { getAccountSummary, getPlans, isPlan, pricePlan, isValidEmail, isValidPhone, normalizeEmail, normalizePhone, requestSubscription } from './account';
-import { pool } from './db';
-import { sendAdminEmail } from './email';
-import { HttpError } from './http';
-import { consumeCode, issueCode } from './otp';
-import { getVisitStats } from './page';
-import { hashPassword, validatePassword } from './password';
-import { getDesignPrice, getLatestDesignPackage, getSettings, isPackageOpen } from './services';
-import { reserveUsername } from './username';
-import { checkDns, dnsInstruction, normalizeDomain } from './domains';
-import type { SessionUser } from './session';
+import { getAccountSummary, getPlans, isPlan, pricePlan, isValidEmail, isValidPhone, normalizeEmail, normalizePhone, requestSubscription } from './account.js';
+import { pool } from './db.js';
+import { sendAdminEmail } from './email.js';
+import { HttpError } from './http.js';
+import { consumeCode, issueCode } from './otp.js';
+import { getVisitStats } from './page.js';
+import { hashPassword, validatePassword } from './password.js';
+import { getDesignPrice, getLatestDesignPackage, getSettings, isPackageOpen } from './services.js';
+import { reserveUsername } from './username.js';
+import { checkDns, dnsInstruction, normalizeDomain } from './domains.js';
+import type { SessionUser } from './session.js';
 
 type Handler = (params: any, user: SessionUser) => Promise<unknown>;
 

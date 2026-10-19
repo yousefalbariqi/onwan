@@ -1,7 +1,7 @@
-import { getAccountSummary } from '../_lib/account';
-import { ensurePageForUser, getPageDataByUserId, savePageData } from '../_lib/page';
-import { allowMethods, handleApiError, readJsonBody, sendJson } from '../_lib/http';
-import { requireUser } from '../_lib/session';
+import { getAccountSummary } from '../_lib/account.js';
+import { ensurePageForUser, getPageDataByUserId, savePageData } from '../_lib/page.js';
+import { allowMethods, handleApiError, readJsonBody, sendJson } from '../_lib/http.js';
+import { requireUser } from '../_lib/session.js';
 
 export default async function handler(req: any, res: any) {
   if (!allowMethods(req, res, ['GET', 'PATCH'])) {

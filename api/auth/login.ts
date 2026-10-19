@@ -1,10 +1,10 @@
-import { getAccountSummary, isValidPhone, normalizeEmail, normalizePhone } from '../_lib/account';
-import { createSessionToken } from '../_lib/auth';
-import { pool } from '../_lib/db';
-import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http';
-import { ensurePageForUser, getPageDataByUserId } from '../_lib/page';
-import { verifyPassword } from '../_lib/password';
-import { getBannedMessage } from '../_lib/session';
+import { getAccountSummary, isValidPhone, normalizeEmail, normalizePhone } from '../_lib/account.js';
+import { createSessionToken } from '../_lib/auth.js';
+import { pool } from '../_lib/db.js';
+import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http.js';
+import { ensurePageForUser, getPageDataByUserId } from '../_lib/page.js';
+import { verifyPassword } from '../_lib/password.js';
+import { getBannedMessage } from '../_lib/session.js';
 
 // Existing beneficiaries can use either their email or their registered phone.
 export default async function handler(req: any, res: any) {

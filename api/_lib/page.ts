@@ -1,8 +1,8 @@
-import { BACKGROUND_VIDEO_TYPES, MAX_BACKGROUND_VIDEO_BYTES, parseVideoSource, parseYouTubeVideoSource } from '../../shared/videoSources';
-import { arrangeSections, visibleSectionItems } from '../../shared/linkSections';
+import { BACKGROUND_VIDEO_TYPES, MAX_BACKGROUND_VIDEO_BYTES, parseVideoSource, parseYouTubeVideoSource } from '../../shared/videoSources.js';
+import { arrangeSections, visibleSectionItems } from '../../shared/linkSections.js';
 import { PoolClient } from 'pg';
-import { pool } from './db';
-import { HttpError } from './http';
+import { pool } from './db.js';
+import { HttpError } from './http.js';
 
 type PageRecord = {
   id: string;

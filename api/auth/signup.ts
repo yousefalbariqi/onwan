@@ -1,11 +1,11 @@
-import { getAccountSummary, isValidEmail, isValidPhone, normalizeEmail, normalizePhone } from '../_lib/account';
-import { createSessionToken } from '../_lib/auth';
-import { pool } from '../_lib/db';
-import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http';
-import { issueCode } from '../_lib/otp';
-import { ensurePageForUser, getPageDataByUserId } from '../_lib/page';
-import { hashPassword, validatePassword } from '../_lib/password';
-import { getUsernameAvailability, reserveUsername } from '../_lib/username';
+import { getAccountSummary, isValidEmail, isValidPhone, normalizeEmail, normalizePhone } from '../_lib/account.js';
+import { createSessionToken } from '../_lib/auth.js';
+import { pool } from '../_lib/db.js';
+import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http.js';
+import { issueCode } from '../_lib/otp.js';
+import { ensurePageForUser, getPageDataByUserId } from '../_lib/page.js';
+import { hashPassword, validatePassword } from '../_lib/password.js';
+import { getUsernameAvailability, reserveUsername } from '../_lib/username.js';
 
 // ACCT-01 / ACCT-02 / ACCT-03: name + mandatory phone + email + password.
 // The account and its draft page are created immediately, with no prior

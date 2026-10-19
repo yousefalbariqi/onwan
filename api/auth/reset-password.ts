@@ -1,11 +1,11 @@
-import { getAccountSummary, normalizeEmail } from '../_lib/account';
-import { createSessionToken } from '../_lib/auth';
-import { pool } from '../_lib/db';
-import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http';
-import { consumeCode, issueCode } from '../_lib/otp';
-import { ensurePageForUser, getPageDataByUserId } from '../_lib/page';
-import { hashPassword, validatePassword } from '../_lib/password';
-import { getBannedMessage } from '../_lib/session';
+import { getAccountSummary, normalizeEmail } from '../_lib/account.js';
+import { createSessionToken } from '../_lib/auth.js';
+import { pool } from '../_lib/db.js';
+import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http.js';
+import { consumeCode, issueCode } from '../_lib/otp.js';
+import { ensurePageForUser, getPageDataByUserId } from '../_lib/page.js';
+import { hashPassword, validatePassword } from '../_lib/password.js';
+import { getBannedMessage } from '../_lib/session.js';
 
 // ACCT-06: one-time code to the registered email, then a new password.
 //   { action: 'request', email }

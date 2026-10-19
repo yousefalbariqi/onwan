@@ -1,6 +1,6 @@
 import { PoolClient } from 'pg';
-import { pool } from './db';
-import { HttpError } from './http';
+import { pool } from './db.js';
+import { HttpError } from './http.js';
 
 export type Plan = 'monthly' | 'annual';
 

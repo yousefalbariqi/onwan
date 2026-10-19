@@ -1,16 +1,16 @@
 import crypto from 'crypto';
-import { activateSubscription, getPlans, isPlan, isValidEmail, normalizeDiscountCode, normalizeEmail } from './account';
-import { createSessionToken, getBearerToken, verifySessionToken } from './auth';
-import { pool } from './db';
-import { sendNoticeEmail } from './email';
-import { HttpError } from './http';
-import { getPageDataByUserId } from './page';
-import { hashPassword, validatePassword, verifyPassword } from './password';
-import { getUsernameAvailability } from './username';
-import { partnerAdminHandlers, recordPartnerRenewal } from './adminPartners';
-import { serviceAdminHandlers } from './adminServices';
-import { archiveLinks } from './page';
-import { recordPayment } from './services';
+import { activateSubscription, getPlans, isPlan, isValidEmail, normalizeDiscountCode, normalizeEmail } from './account.js';
+import { createSessionToken, getBearerToken, verifySessionToken } from './auth.js';
+import { pool } from './db.js';
+import { sendNoticeEmail } from './email.js';
+import { HttpError } from './http.js';
+import { getPageDataByUserId } from './page.js';
+import { hashPassword, validatePassword, verifyPassword } from './password.js';
+import { getUsernameAvailability } from './username.js';
+import { partnerAdminHandlers, recordPartnerRenewal } from './adminPartners.js';
+import { serviceAdminHandlers } from './adminServices.js';
+import { archiveLinks } from './page.js';
+import { recordPayment } from './services.js';
 
 export type Staff = {
   id: string;

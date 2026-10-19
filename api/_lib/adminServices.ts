@@ -1,11 +1,11 @@
-import { activateSubscription } from './account';
-import type { Handler } from './admin';
-import { audit, getCustomerLabel, requireText } from './admin';
-import { pool } from './db';
-import { HttpError } from './http';
-import { MAX_LINKS, archiveLinks, getPageDataByUserId, savePageData } from './page';
-import { attachToHosting, checkDns, dnsInstruction } from './domains';
-import { DesignPackage, SETTING_KEYS, getDesignPrice, getSettings, recordPayment } from './services';
+import { activateSubscription } from './account.js';
+import type { Handler } from './admin.js';
+import { audit, getCustomerLabel, requireText } from './admin.js';
+import { pool } from './db.js';
+import { HttpError } from './http.js';
+import { MAX_LINKS, archiveLinks, getPageDataByUserId, savePageData } from './page.js';
+import { attachToHosting, checkDns, dnsInstruction } from './domains.js';
+import { DesignPackage, SETTING_KEYS, getDesignPrice, getSettings, recordPayment } from './services.js';
 
 async function customer(userId: string | null) {
   return userId ? { type: 'customer', id: userId, label: await getCustomerLabel(userId) } : null;

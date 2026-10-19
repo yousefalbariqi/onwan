@@ -1,6 +1,6 @@
-import { getOrigin } from './_lib/admin';
-import { allowMethods, handleApiError, readJsonBody, sendJson } from './_lib/http';
-import { runPartnerAction } from './_lib/partner';
+import { getOrigin } from './_lib/admin.js';
+import { allowMethods, handleApiError, readJsonBody, sendJson } from './_lib/http.js';
+import { runPartnerAction } from './_lib/partner.js';
 
 // Print-partner portal, plus the two customer-facing links a partner sale
 // produces (payment link, set-password link): POST { action, ...params }.

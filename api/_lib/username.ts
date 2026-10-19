@@ -1,5 +1,5 @@
-import { pool } from './db';
-import { HttpError } from './http';
+import { pool } from './db.js';
+import { HttpError } from './http.js';
 
 // The name is a subdomain (name.onwan.link), so it must be a valid DNS label.
 export const USERNAME_PATTERN = /^(?=.{1,30}$)(?!.*--)[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;

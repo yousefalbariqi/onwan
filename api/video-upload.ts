@@ -1,7 +1,7 @@
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
-import { BACKGROUND_VIDEO_TYPES, MAX_BACKGROUND_VIDEO_BYTES } from '../shared/videoSources';
-import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from './_lib/http';
-import { requireUser } from './_lib/session';
+import { BACKGROUND_VIDEO_TYPES, MAX_BACKGROUND_VIDEO_BYTES } from '../shared/videoSources.js';
+import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from './_lib/http.js';
+import { requireUser } from './_lib/session.js';
 
 export default async function handler(req: any, res: any) {
   if (!allowMethods(req, res, ['GET', 'POST'])) return;

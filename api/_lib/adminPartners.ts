@@ -1,14 +1,14 @@
-import { activateSubscription, isValidEmail, isValidPhone, normalizeEmail, normalizePhone } from './account';
-import type { Handler, Staff } from './admin';
-import { audit, requireText } from './admin';
-import { pool } from './db';
-import { sendNoticeEmail } from './email';
-import { HttpError } from './http';
-import { ensurePageForUser } from './page';
-import { createSetupLink, getPartnerTotals } from './partner';
-import { hashPassword, validatePassword } from './password';
-import { recordPayment } from './services';
-import { getUsernameAvailability } from './username';
+import { activateSubscription, isValidEmail, isValidPhone, normalizeEmail, normalizePhone } from './account.js';
+import type { Handler, Staff } from './admin.js';
+import { audit, requireText } from './admin.js';
+import { pool } from './db.js';
+import { sendNoticeEmail } from './email.js';
+import { HttpError } from './http.js';
+import { ensurePageForUser } from './page.js';
+import { createSetupLink, getPartnerTotals } from './partner.js';
+import { hashPassword, validatePassword } from './password.js';
+import { recordPayment } from './services.js';
+import { getUsernameAvailability } from './username.js';
 
 // B2B-12: renewal commission is owed for the first three years.
 const RENEWAL_COMMISSION_YEARS = 3;

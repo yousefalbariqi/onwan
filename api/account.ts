@@ -1,6 +1,6 @@
-import { runAccountAction } from './_lib/accountActions';
-import { allowMethods, handleApiError, readJsonBody, sendJson } from './_lib/http';
-import { requireUser } from './_lib/session';
+import { runAccountAction } from './_lib/accountActions.js';
+import { allowMethods, handleApiError, readJsonBody, sendJson } from './_lib/http.js';
+import { requireUser } from './_lib/session.js';
 
 // Everything the signed-in beneficiary does besides editing the page:
 // requests, «صمّم لي», NFC orders, account changes. POST { action, ...params }.

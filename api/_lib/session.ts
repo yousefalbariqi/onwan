@@ -1,6 +1,6 @@
-import { getBearerToken, verifySessionToken } from './auth';
-import { pool } from './db';
-import { sendJson } from './http';
+import { getBearerToken, verifySessionToken } from './auth.js';
+import { pool } from './db.js';
+import { sendJson } from './http.js';
 
 export type SessionUser = {
   id: string;
