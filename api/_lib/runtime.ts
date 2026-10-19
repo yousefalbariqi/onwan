@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Pool } from 'pg';
 
 export interface RuntimeEnv {
+  HYPERDRIVE?: { connectionString: string };
   ASSETS?: { fetch(request: Request): Promise<Response> };
   [key: string]: unknown;
 }

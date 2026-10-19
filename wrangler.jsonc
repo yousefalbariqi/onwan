@@ -3,17 +3,35 @@
   "name": "onwan",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-19",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": true
   },
-  "vars": { "ROOT_DOMAIN": "onwan.link" },
-  "observability": { "enabled": true },
+  "vars": {
+    "ROOT_DOMAIN": "onwan.link"
+  },
+  "observability": {
+    "enabled": true
+  },
   "routes": [
-    { "pattern": "onwan.link", "custom_domain": true },
-    { "pattern": "*.onwan.link/*", "zone_name": "onwan.link" }
+    {
+      "pattern": "onwan.link",
+      "custom_domain": true
+    },
+    {
+      "pattern": "*.onwan.link/*",
+      "zone_name": "onwan.link"
+    }
+  ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "7b20b70925bf477da8d97a47cc387570"
+    }
   ]
 }

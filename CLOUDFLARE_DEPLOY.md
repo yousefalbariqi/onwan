@@ -2,6 +2,18 @@
 
 المشروع جاهز للتجميع والاختبار محليًا. لم يُنشر بهذه المهمة، ولم تتغير قاعدة Supabase أو جداولها أو بياناتها. يحتاج اختبارًا نهائيًا على حساب Cloudflare بعد إدخال الأسرار وربط DNS.
 
+## ربط Hyperdrive الموجود
+
+الكود يفضّل `env.HYPERDRIVE.connectionString` عند وجود binding اسمه `HYPERDRIVE`؛ لا يفرض TLS إضافيًا على هذا المسار، وHyperdrive يدير اتصال Supabase. بدون binding يستعمل DATABASE_URL كالسابق.
+
+أضف معرّف اتصال Hyperdrive الموجود في `wrangler.jsonc` قبل النشر من CLI، حتى يبقى الربط ضمن إعداد المشروع:
+
+```json
+"hyperdrive": [{ "binding": "HYPERDRIVE", "id": "YOUR_EXISTING_HYPERDRIVE_ID" }]
+```
+
+المعرّف ليس كلمة مرور. عطّل Query caching لاتصال Hyperdrive لهذا التطبيق حتى تكون فحوص الأسماء والجلسات والصلاحيات مباشرة. ثم أعد النشر. ربط لوحة Cloudflare وحده لا يحدّث الكود المنشور. راجع [pg مع Hyperdrive](https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/node-postgres/).
+
 ## المتطلبات
 
 - Node.js حديث مدعوم من Wrangler (يفضل Node 22 أو أحدث)، و`npm ci` من مجلد `bio.sa`.

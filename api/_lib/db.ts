@@ -3,13 +3,17 @@ import { getEnv, requestRuntime } from './runtime.js';
 
 let localPool: Pool | undefined;
 function createPool() {
-  const connectionString = getEnv('DATABASE_URL') || getEnv('SUPABASE_DATABASE_URL') || getEnv('POSTGRES_URL');
+  const hyperdrive = requestRuntime()?.env.HYPERDRIVE;
+  if (hyperdrive && !hyperdrive.connectionString) throw new Error('HYPERDRIVE binding is missing connectionString');
+  const connectionString = hyperdrive?.connectionString || getEnv('DATABASE_URL') || getEnv('SUPABASE_DATABASE_URL') || getEnv('POSTGRES_URL');
   if (!connectionString) throw new Error('DATABASE_URL is not configured');
   const url = new URL(connectionString);
   if (url.hostname.toLowerCase() === 'host') throw new Error('Database hostname is still a placeholder');
   return new Pool({
     connectionString,
-    ssl: ['localhost', '127.0.0.1'].includes(url.hostname) ? false : { rejectUnauthorized: false },
+    // Hyperdrive manages origin TLS. Do not force a second TLS upgrade on
+    // the Worker-to-Hyperdrive connection; honor its supplied connection URL.
+    ...(hyperdrive ? {} : { ssl: ['localhost', '127.0.0.1'].includes(url.hostname) ? false : { rejectUnauthorized: false } }),
     connectionTimeoutMillis: 10000,
     // reserveUsername checks availability while a transaction holds a client.
     max: 3,

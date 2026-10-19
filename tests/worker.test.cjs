@@ -153,3 +153,13 @@ test('published wildcard SEO escapes content and binary logo retains bytes', asy
   assert.equal(logo.headers.get('Content-Type'), 'image/png');
   assert.deepEqual([...new Uint8Array(await logo.arrayBuffer())], [0, 255, 10]);
 });
+
+
+test('Hyperdrive takes priority over legacy URL and does not force origin TLS', async () => {
+  const url = 'postgres://test:test@hyperdrive.invalid/postgres';
+  const response = await call('/api/username/check?username=df', {}, { ...env, DATABASE_URL: 'postgres://test:test@HOST/postgres', HYPERDRIVE: { connectionString: url } });
+  assert.equal(response.status, 200);
+  assert.equal(pools[0].options.connectionString, url);
+  assert.equal(Object.hasOwn(pools[0].options, 'ssl'), false);
+  assert.equal(pools[0].closed, true);
+});
