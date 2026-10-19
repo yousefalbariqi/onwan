@@ -43,10 +43,10 @@ export function QRCodeDisplay({ username }: QRCodeDisplayProps) {
     <>
       <button
         onClick={() => setShowModal(true)}
-        className="flex items-center gap-2 bg-white border-2 border-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-semibold hover:bg-gray-50 hover:border-emerald-300 transition-all"
+        className="flex h-10 min-w-10 items-center justify-center gap-2 bg-white border-2 border-gray-200 text-gray-700 px-2 sm:px-4 rounded-full text-sm font-semibold hover:bg-gray-50 hover:border-emerald-300 transition-all"
         title="عرض باركود الصفحة"
       >
-        <QrCode className="w-3 h-3 sm:w-4 sm:h-4" />
+        <QrCode className="h-5 w-5" />
         <span className="hidden sm:inline" style={{ fontFamily: 'Cairo, sans-serif' }}>
           باركود
         </span>

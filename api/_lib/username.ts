@@ -1,4 +1,5 @@
 import { pool } from './db';
+import { HttpError } from './http';
 
 // The name is a subdomain (name.onwan.link), so it must be a valid DNS label.
 export const USERNAME_PATTERN = /^(?=.{1,30}$)(?!.*--)[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
@@ -24,7 +25,10 @@ export function validateUsername(username: string) {
 // B2B-06: a partner's unpaid order holds its name for the payment window.
 export const PARTNER_ORDER_WINDOW_DAYS = 3;
 
-export async function getUsernameAvailability(username: string, options: { ignoreOrderId?: string } = {}) {
+export async function getUsernameAvailability(
+  username: string,
+  options: { ignoreOrderId?: string; ignoreUserId?: string } = {},
+) {
   const validation = validateUsername(username);
 
   if (!validation.valid) {
@@ -70,7 +74,17 @@ export async function getUsernameAvailability(username: string, options: { ignor
     [validation.normalized, PARTNER_ORDER_WINDOW_DAYS, options.ignoreOrderId ?? null],
   );
 
-  if (existingResult.rowCount || redirectResult.rowCount || heldResult.rowCount) {
+  // NEW-01 / AC-01.02: a name another beneficiary holds cannot be taken
+  // during the hold. (A hold without an expiry lasts until payment or change.)
+  const nameHoldResult = await pool.query(
+    `select 1 from username_reservations
+     where username = $1 and (expires_at is null or expires_at > now())
+       and ($2::uuid is null or user_id <> $2)
+     limit 1`,
+    [validation.normalized, options.ignoreUserId ?? null],
+  );
+
+  if (existingResult.rowCount || redirectResult.rowCount || heldResult.rowCount || nameHoldResult.rowCount) {
     return {
       available: false,
       normalized: validation.normalized,
@@ -85,4 +99,39 @@ export async function getUsernameAvailability(username: string, options: { ignor
     reason: null,
     status: 'available' as const,
   };
+}
+
+// NEW-01 (amended): hold a name for a beneficiary who has not paid yet. Any
+// earlier hold of theirs is released, and an expired hold of someone else's
+// on this name is cleared. Throws 409 when the name is not available.
+export async function reserveUsername(queryable: { query: (text: string, values?: unknown[]) => Promise<any> }, userId: string, username: string) {
+  const availability = await getUsernameAvailability(username, { ignoreUserId: userId });
+
+  if (!availability.available) {
+    throw new HttpError(409, availability.reason ?? 'الاسم غير متاح.', `username_${availability.status}`);
+  }
+
+  const setting = await queryable.query("select value from settings where key = 'name_hold_days'");
+  const holdDays = typeof setting.rows[0]?.value === 'number' ? setting.rows[0].value : null;
+
+  await queryable.query(
+    'delete from username_reservations where user_id = $1 or (username = $2 and expires_at <= now())',
+    [userId, availability.normalized],
+  );
+
+  try {
+    await queryable.query(
+      `insert into username_reservations (username, user_id, expires_at)
+       values ($1, $2, case when $3::int is null then null else now() + make_interval(days => $3::int) end)`,
+      [availability.normalized, userId, holdDays],
+    );
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      throw new HttpError(409, 'هذا الاسم حُجز للتو. اختر اسمًا آخر.', 'username_taken');
+    }
+
+    throw error;
+  }
+
+  return availability.normalized;
 }

@@ -1,6 +1,9 @@
-import { usePageContext } from '../context/PageContext';
-import { useState } from 'react';
-import { Check, Info, Upload } from 'lucide-react';
+import { themes, usePageContext } from '../context/PageContext';
+import { useState, type CSSProperties, type ReactNode } from 'react';
+import { Check, Upload } from 'lucide-react';
+import { ColorDots, Group, Panel, Row, Segmented } from './ios';
+import { ImageCropper } from './ImageCropper';
+import { VideoWallpaperEditor } from './VideoWallpaperEditor';
 
 const colors = [
   { name: 'أبيض', value: '#ffffff' },
@@ -28,229 +31,174 @@ const positions = [
   { id: 'bottom', label: 'أسفل' },
 ] as const;
 
-// Stored inline for now; final storage limits are pending (P-02).
-const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+// Stored inline for now; final storage limits are pending (P-02). The source
+// may be larger: cropping re-encodes it to a phone-sized JPEG.
+const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
 
-export function WallpaperEditor() {
-  const { pageData, updateWallpaper } = usePageContext();
+export type WallpaperSegment = 'themes' | 'colors' | 'gradients' | 'photo' | 'video';
+
+const SEGMENTS = [
+  { id: 'themes', label: 'ثيمات' },
+  { id: 'colors', label: 'ألوان' },
+  { id: 'gradients', label: 'تدرجات' },
+  { id: 'photo', label: 'صورة' },
+  { id: 'video', label: 'فيديو' },
+] as const;
+
+// A phone-shaped card, as in Apple's wallpaper picker.
+function PhoneCard({ name, style, active, onClick, children }: { name: string; style: CSSProperties; active: boolean; onClick: () => void; children?: ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={active} className="min-w-0 text-right transition-transform active:scale-[0.97]">
+      <span className={`relative block aspect-[9/19] overflow-hidden rounded-[22px] border shadow-[0_8px_18px_rgba(15,23,42,0.14)] transition-all ${active ? 'border-[#0a84ff] ring-2 ring-[#0a84ff]/60 ring-offset-2' : 'border-black/5'}`} style={style}>
+        {children}
+        {active && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0a84ff] text-white shadow"><Check className="h-3.5 w-3.5" /></span>}
+      </span>
+      <span className="mt-2 block truncate text-center text-xs font-bold text-[#3a3a3c]" style={{ fontFamily: 'Cairo, sans-serif' }}>{name}</span>
+    </button>
+  );
+}
+
+// «الخلفية» now also holds the themes: one place for the page's overall look.
+export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected }: { initialSegment?: WallpaperSegment; onThemeSelected?: (themeName: string) => void }) {
+  const { pageData, updateWallpaper, updateTheme } = usePageContext();
   const [imageError, setImageError] = useState('');
+  const [cropSource, setCropSource] = useState('');
+  const [segment, setSegment] = useState<WallpaperSegment>(initialSegment);
   const isImage = pageData.wallpaper.type === 'image';
   const extractedColors = Array.from(
     new Set((pageData.extractedColors || []).filter((color) => /^#([A-Fa-f0-9]{6})$/.test(color))),
   ).slice(0, 8);
+  const solid = pageData.wallpaper.type === 'color' ? pageData.wallpaper.value : undefined;
 
   return (
-    <div className="p-4 space-y-4">
-      <h3 className="text-sm font-bold text-gray-700 mb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
-        تخصيص الخلفية
-      </h3>
+    <Panel>
+      <Segmented options={SEGMENTS} value={segment} onChange={(id) => setSegment(id as WallpaperSegment)} />
 
-      {/* Colors */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          ألوان سادة
-        </label>
-        <div className="grid grid-cols-4 gap-2">
-          {colors.map((color) => {
-            const isActive = pageData.wallpaper.type === 'color' && pageData.wallpaper.value === color.value;
-            return (
-              <button
-                key={color.value}
-                onClick={() => updateWallpaper({ type: 'color', value: color.value })}
-                className={`relative aspect-square rounded-lg border-2 transition-all hover:scale-105 ${
-                  isActive ? 'border-emerald-500 shadow-lg' : 'border-gray-200'
-                }`}
-                style={{ backgroundColor: color.value }}
+      {segment === 'video' && <VideoWallpaperEditor />}
+
+      {segment === 'themes' && (
+        <Group title={`${themes.length} ثيمًا`} footer="الثيم يغيّر الخلفية ولون الأزرار والنص معًا، ثم تقدر تعدّل كل جزء من «الأسلوب».">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-4 p-3">
+            {themes.map((theme) => (
+              <PhoneCard
+                key={theme.id}
+                name={theme.name}
+                style={{ background: theme.background }}
+                active={pageData.theme.id === theme.id}
+                onClick={() => {
+                  if (pageData.theme.id === theme.id) return;
+                  onThemeSelected?.(theme.name);
+                  updateTheme(theme);
+                }}
               >
-                {isActive && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Extracted Colors */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          ألوان من الصورة المرفوعة
-        </label>
-
-        {extractedColors.length > 0 ? (
-          <div className="grid grid-cols-4 gap-2">
-            {extractedColors.map((color) => {
-              const isActive = pageData.wallpaper.type === 'color' && pageData.wallpaper.value === color;
-
-              return (
-                <button
-                  key={color}
-                  onClick={() => updateWallpaper({ type: 'color', value: color })}
-                  className={`relative aspect-square rounded-lg border-2 transition-all hover:scale-105 ${
-                    isActive ? 'border-emerald-500 shadow-lg' : 'border-gray-200'
-                  }`}
-                  style={{ backgroundColor: color }}
-                  title={color}
-                >
-                  {isActive && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
-                        <Check className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
+                <span className="absolute inset-x-0 top-3 text-center text-base font-bold" style={{ color: theme.textColor }} dir="ltr">9:41</span>
+                <span className="absolute left-1/2 top-10 h-6 w-6 -translate-x-1/2 rounded-full opacity-30" style={{ backgroundColor: theme.textColor }} />
+                {[0, 1, 2].map((row) => (
+                  <span key={row} className="absolute inset-x-3 h-3.5 rounded-md" style={{ top: `${50 + row * 13}%`, backgroundColor: theme.buttonColor }} />
+                ))}
+              </PhoneCard>
+            ))}
           </div>
-        ) : (
-          <div className="p-3 bg-blue-50 rounded-lg">
-            <div className="flex items-start gap-2">
-              <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-blue-700" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                ارفع صورة في قسم البروفايل حتى تظهر الألوان المستخرجة تلقائيًا هنا.
-              </p>
+        </Group>
+      )}
+
+      {segment === 'colors' && (
+        <>
+          <Group title="لون سادة">
+            <div className="grid grid-cols-4 gap-x-3 gap-y-4 p-3">
+              {colors.map((color) => (
+                <PhoneCard key={color.value} name={color.name} style={{ backgroundColor: color.value }} active={solid === color.value} onClick={() => updateWallpaper({ type: 'color', value: color.value })} />
+              ))}
             </div>
+            <Row label="لون آخر" stacked>
+              <ColorDots value={solid} onChange={(color) => color && updateWallpaper({ type: 'color', value: color })} />
+            </Row>
+          </Group>
+          {extractedColors.length > 0 ? (
+            <Group title="من شعارك" footer="ألوان مأخوذة تلقائيًا من الصورة التي رفعتها في «الهوية».">
+              <div className="flex flex-wrap gap-3 p-4">
+                {extractedColors.map((color) => (
+                  <button key={color} onClick={() => updateWallpaper({ type: 'color', value: color })} aria-label={color} className={`h-10 w-10 rounded-full ring-1 ring-black/10 ${solid === color ? 'outline outline-2 outline-offset-2 outline-[#0a84ff]' : ''}`} style={{ backgroundColor: color }} />
+                ))}
+              </div>
+            </Group>
+          ) : (
+            <p className="px-4 text-xs text-[#8e8e93]">ارفع شعارك في «الهوية» لتظهر هنا ألوان مأخوذة منه.</p>
+          )}
+        </>
+      )}
+
+      {segment === 'gradients' && (
+        <Group title="تدرجات">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-4 p-3">
+            {gradients.map((gradient) => (
+              <PhoneCard key={gradient.value} name={gradient.name} style={{ background: gradient.value }} active={pageData.wallpaper.type === 'gradient' && pageData.wallpaper.value === gradient.value} onClick={() => updateWallpaper({ type: 'gradient', value: gradient.value })}>
+                <span className="absolute inset-x-0 top-3 text-center text-base font-bold text-white/90 drop-shadow-sm" dir="ltr">9:41</span>
+              </PhoneCard>
+            ))}
           </div>
-        )}
-      </div>
+        </Group>
+      )}
 
-      {/* Custom Color */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          لون مخصص
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="color"
-            value={pageData.wallpaper.type === 'color' ? pageData.wallpaper.value : '#ffffff'}
-            onChange={(e) => updateWallpaper({ type: 'color', value: e.target.value })}
-            className="w-16 h-12 rounded-lg border-2 border-gray-200 cursor-pointer"
-          />
-          <input
-            type="text"
-            value={pageData.wallpaper.type === 'color' ? pageData.wallpaper.value : '#ffffff'}
-            onChange={(e) => updateWallpaper({ type: 'color', value: e.target.value })}
-            placeholder="#000000"
-            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-center focus:outline-none focus:border-emerald-500"
-            style={{ fontFamily: 'monospace' }}
-          />
-        </div>
-      </div>
-
-      {/* Gradients */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          تدرجات
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          {gradients.map((gradient) => {
-            const isActive = pageData.wallpaper.type === 'gradient' && pageData.wallpaper.value === gradient.value;
-            return (
-              <button
-                key={gradient.value}
-                onClick={() => updateWallpaper({ type: 'gradient', value: gradient.value })}
-                className={`relative h-14 rounded-lg border-2 transition-all hover:scale-105 ${
-                  isActive ? 'border-emerald-500 shadow-lg' : 'border-gray-200'
-                }`}
-                style={{ background: gradient.value }}
-                title={gradient.name}
-              >
-                {isActive && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Image */}
-      <div className="space-y-3">
-        <label className="block text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          صورة خلفية
-        </label>
-        <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-white py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-emerald-500 hover:text-emerald-600">
-          <Upload className="h-4 w-4" />
-          {isImage ? 'تغيير الصورة' : 'رفع صورة'}
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              if (file.size > MAX_IMAGE_SIZE) {
-                setImageError('حجم الصورة كبير. الحد الأقصى 2MB.');
-                return;
-              }
-              setImageError('');
-              const reader = new FileReader();
-              reader.onloadend = () =>
-                updateWallpaper({
-                  type: 'image',
-                  value: String(reader.result || ''),
-                  position: pageData.wallpaper.position ?? 'center',
-                  dim: pageData.wallpaper.dim ?? 0,
-                });
-              reader.readAsDataURL(file);
-            }}
-          />
-        </label>
-        {!!imageError && (
-          <p className="text-xs text-red-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>{imageError}</p>
-        )}
-
-        {isImage && (
-          <>
-            <div>
-              <div className="mb-2 text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                موضع الصورة
+      {segment === 'photo' && (
+        <>
+          <Group title="صورة خلفية" footer="الحد الأقصى 8MB. تُقص الصورة بمقاس الجوال.">
+            {isImage && (
+              <div className="flex justify-center p-4">
+                <span className="block aspect-[9/19] w-28 rounded-[20px] shadow-[0_8px_18px_rgba(15,23,42,0.18)]" style={{ backgroundImage: `url(${pageData.wallpaper.value})`, backgroundPosition: pageData.wallpaper.position ?? 'center', backgroundSize: 'cover' }} />
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {positions.map((position) => {
-                  const isActive = (pageData.wallpaper.position ?? 'center') === position.id;
-                  return (
-                    <button
-                      key={position.id}
-                      onClick={() => updateWallpaper({ ...pageData.wallpaper, position: position.id })}
-                      className={`rounded-lg border-2 px-3 py-2 text-xs font-semibold transition-all ${
-                        isActive ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-600'
-                      }`}
-                      style={{ fontFamily: 'Cairo, sans-serif' }}
-                    >
-                      {position.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div>
-              <div className="mb-2 flex items-center justify-between text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                <span>تعتيم الخلفية</span>
-                <span dir="ltr">{pageData.wallpaper.dim ?? 0}%</span>
-              </div>
+            )}
+            <label className="flex min-h-[48px] cursor-pointer items-center justify-center gap-2 px-4 text-[15px] text-[#0a84ff]">
+              <Upload className="h-4 w-4" />
+              {isImage ? 'تغيير الصورة' : 'اختيار صورة'}
               <input
-                type="range"
-                min={0}
-                max={80}
-                step={5}
-                value={pageData.wallpaper.dim ?? 0}
-                onChange={(e) => updateWallpaper({ ...pageData.wallpaper, dim: Number(e.target.value) })}
-                className="w-full accent-emerald-500"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  e.target.value = '';
+                  if (file.size > MAX_IMAGE_SIZE) {
+                    setImageError('حجم الصورة كبير جدًا. الحد الأقصى 8MB.');
+                    return;
+                  }
+                  setImageError('');
+                  const reader = new FileReader();
+                  reader.onloadend = () => setCropSource(String(reader.result || ''));
+                  reader.readAsDataURL(file);
+                }}
               />
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+            </label>
+          </Group>
+          {!!imageError && <p className="px-4 text-xs text-[#ff3b30]">{imageError}</p>}
+          {isImage && (
+            <Group title="ضبط الصورة">
+              <Row label="الموضع" stacked>
+                <Segmented options={positions} value={pageData.wallpaper.position ?? 'center'} onChange={(position) => updateWallpaper({ ...pageData.wallpaper, position })} />
+              </Row>
+              <Row label="التعتيم" stacked>
+                <div className="flex items-center gap-3">
+                  <input type="range" min={0} max={80} step={5} value={pageData.wallpaper.dim ?? 0} onChange={(e) => updateWallpaper({ ...pageData.wallpaper, dim: Number(e.target.value) })} className="flex-1 accent-[#0a84ff]" />
+                  <span className="w-10 text-left text-sm text-[#8e8e93]" dir="ltr">{pageData.wallpaper.dim ?? 0}%</span>
+                </div>
+              </Row>
+            </Group>
+          )}
+          {!!cropSource && (
+            <ImageCropper
+              src={cropSource}
+              aspect={9 / 16}
+              outputWidth={1080}
+              onCancel={() => setCropSource('')}
+              onConfirm={(value) => {
+                setCropSource('');
+                updateWallpaper({ type: 'image', value, position: pageData.wallpaper.position ?? 'center', dim: pageData.wallpaper.dim ?? 0 });
+              }}
+            />
+          )}
+        </>
+      )}
+    </Panel>
   );
 }

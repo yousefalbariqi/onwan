@@ -1,7 +1,7 @@
 import { usePageContext, themes } from '../context/PageContext';
 import { Check, Info } from 'lucide-react';
 
-export function ThemeSelector() {
+export function ThemeSelector({ onThemeSelected }: { onThemeSelected?: (themeName: string) => void }) {
   const { pageData, updateTheme } = usePageContext();
 
   return (
@@ -32,7 +32,10 @@ export function ThemeSelector() {
             return (
               <button
                 key={theme.id}
-                onClick={() => updateTheme(theme)}
+                onClick={() => {
+                  onThemeSelected?.(theme.name);
+                  updateTheme(theme);
+                }}
                 className={`relative p-2 sm:p-3 rounded-xl border-2 transition-all hover:scale-105 active:scale-95 ${
                   isActive
                     ? 'border-emerald-500 shadow-lg'

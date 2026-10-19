@@ -5,7 +5,7 @@ import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from 
 import { issueCode } from '../_lib/otp';
 import { ensurePageForUser, getPageDataByUserId } from '../_lib/page';
 import { hashPassword, validatePassword } from '../_lib/password';
-import { getUsernameAvailability } from '../_lib/username';
+import { getUsernameAvailability, reserveUsername } from '../_lib/username';
 
 // ACCT-01 / ACCT-02 / ACCT-03: name + mandatory phone + email + password.
 // The account and its draft page are created immediately, with no prior
@@ -54,17 +54,18 @@ export default async function handler(req: any, res: any) {
 
       userId = userResult.rows[0].id;
 
-      // The unique index is the final word on name uniqueness; the earlier
-      // availability check is only a fast answer for the UI.
-      await client.query('insert into usernames (user_id, username) values ($1, $2)', [
-        userId,
-        availability.normalized,
-      ]);
+      // NEW-01 (amended): the name is held, not fixed — it becomes the
+      // beneficiary's for good when the payment is confirmed.
+      await reserveUsername(client, userId, availability.normalized);
 
       await ensurePageForUser(userId, client);
       await client.query('commit');
     } catch (error: any) {
       await client.query('rollback');
+
+      if (error instanceof HttpError) {
+        throw error;
+      }
 
       if (error?.code === '23505') {
         const constraint = String(error.constraint ?? '');

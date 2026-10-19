@@ -3,7 +3,7 @@ import { pool } from './db';
 import { generateOtp, sendOtpEmail } from './email';
 import { HttpError } from './http';
 
-export type OtpPurpose = 'verify_email' | 'reset_password';
+export type OtpPurpose = 'verify_email' | 'reset_password' | 'account_change' | 'new_email';
 
 const OTP_EXPIRY_MINUTES = 10;
 const OTP_COOLDOWN_SECONDS = 60;

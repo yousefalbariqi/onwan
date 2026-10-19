@@ -1,6 +1,16 @@
 {
   "rewrites": [
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?<name>(?!www\\.)[a-z0-9-]+)\\.onwan\\.link"
+        }
+      ],
+      "destination": "/api/public-page?render=html&username=:name"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },

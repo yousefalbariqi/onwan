@@ -7,14 +7,19 @@ import ResetPassword from './pages/ResetPassword';
 import Builder from './pages/Builder';
 import PublicPage from './pages/PublicPage';
 import PlanSelection from './pages/PlanSelection';
+import { DemoPayment, DemoPaymentSuccess } from './pages/DemoPayment';
+import Renewal from './pages/Renewal';
 import AdminApp from './admin/AdminApp';
-import { getSubdomainUsername } from './lib/site';
+import StaffPageEditor from './admin/StaffPageEditor';
+import PartnerPortal from './partner/PartnerPortal';
+import { PartnerApply, PayOrder, Welcome } from './partner/PartnerPublic';
+import { getCustomHost, getSubdomainUsername } from './lib/site';
 import { Home } from 'lucide-react';
 
-// On name.onwan.link the root path is that entity's public page (ACCT-03);
-// on the main domain it is the product landing page.
+// On name.onwan.link — or on the entity's own domain (DOMAIN-03) — the root
+// path is that entity's public page; on the main domain it is the landing page.
 function RootPage() {
-  return getSubdomainUsername() ? <PublicPage /> : <Landing />;
+  return getSubdomainUsername() || getCustomHost() ? <PublicPage /> : <Landing />;
 }
 
 function ErrorBoundary() {
@@ -116,8 +121,40 @@ export const router = createBrowserRouter([
         element: <PlanSelection />,
       },
       {
+        path: 'payment/demo',
+        element: <DemoPayment />,
+      },
+      {
+        path: 'payment/success',
+        element: <DemoPaymentSuccess />,
+      },
+      {
+        path: 'renewal',
+        element: <Renewal />,
+      },
+      {
         path: 'admin',
         element: <AdminApp />,
+      },
+      {
+        path: 'admin/edit/:userId',
+        element: <StaffPageEditor />,
+      },
+      {
+        path: 'partners',
+        element: <PartnerApply />,
+      },
+      {
+        path: 'partner',
+        element: <PartnerPortal />,
+      },
+      {
+        path: 'pay/:token',
+        element: <PayOrder />,
+      },
+      {
+        path: 'welcome/:token',
+        element: <Welcome />,
       },
       {
         path: ':username',

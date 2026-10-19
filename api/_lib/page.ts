@@ -1,3 +1,5 @@
+import { BACKGROUND_VIDEO_TYPES, MAX_BACKGROUND_VIDEO_BYTES, parseVideoSource, parseYouTubeVideoSource } from '../../shared/videoSources';
+import { arrangeSections, visibleSectionItems } from '../../shared/linkSections';
 import { PoolClient } from 'pg';
 import { pool } from './db';
 import { HttpError } from './http';
@@ -17,6 +19,7 @@ type PageRecord = {
   typography_json: Record<string, unknown> | null;
   contact_phone: string | null;
   contact_email: string | null;
+  translations_json: Record<string, any> | null;
   status: 'draft' | 'published' | 'suspended';
   suspension_message: string | null;
   username: string | null;
@@ -36,6 +39,9 @@ type LinkRecord = {
   icon_style: 'color' | 'mono' | null;
   text_position: 'center' | 'right' | null;
   is_hidden: boolean;
+  title_en: string | null;
+  custom_icon: string | null;
+  display_json: Record<string, any> | null;
 };
 
 // PAGE-04 / AC-02.03
@@ -45,6 +51,8 @@ export const MAX_LINKS = 20;
 // data URLs; the real storage backend and its limits are pending decision P-02.
 const ALLOWED_FILE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'];
 
+// The contact card (VCF, SHARE-02) carries the phone and email the account
+// signed up with (owner decision, 15 Oct 2026); pages.contact_* are no longer read.
 const PAGE_COLUMNS = `
   p.id,
   p.user_id,
@@ -58,8 +66,9 @@ const PAGE_COLUMNS = `
   p.custom_colors_json,
   p.extracted_colors_json,
   p.typography_json,
-  p.contact_phone,
-  p.contact_email,
+  owner.phone as contact_phone,
+  owner.email as contact_email,
+  p.translations_json,
   p.status,
   p.suspension_message,
   u.username
@@ -78,7 +87,10 @@ const LINK_COLUMNS = `
   sort_order,
   icon_style,
   text_position,
-  is_hidden
+  is_hidden,
+  title_en,
+  custom_icon,
+  display_json
 `;
 
 const DEFAULT_THEME = {
@@ -171,7 +183,8 @@ export async function getPageDataByUserId(userId: string) {
     `
       select ${PAGE_COLUMNS}
       from pages p
-      left join usernames u on u.user_id = p.user_id
+      join users owner on owner.id = p.user_id
+      left join customer_names u on u.user_id = p.user_id
       where p.user_id = $1
       limit 1
     `,
@@ -233,7 +246,7 @@ export async function getPublicPageByUsername(username: string): Promise<PublicP
   return {
     state: 'published',
     pageId: page.id,
-    pageData: mapPage(page, await loadLinks(page.id, false)),
+    pageData: mapPage(page, await loadLinks(page.id, true), false),
   };
 }
 
@@ -262,6 +275,40 @@ function validateImageValue(value: unknown, label: string) {
   return image;
 }
 
+// A link's own icon: a library id, or a small uploaded image (cropped to a
+// square in the editor, so 200 KB is generous).
+const MAX_CUSTOM_ICON_LENGTH = 200_000;
+
+function normalizeCustomIcon(value: unknown, title: string) {
+  const icon = String(value ?? '').trim();
+  if (!icon) return null;
+  if (/^icon:[a-z0-9-]{1,30}$/.test(icon)) return icon;
+  if (/^data:image\/(png|jpeg|webp);base64,/i.test(icon) && icon.length <= MAX_CUSTOM_ICON_LENGTH) return icon;
+  throw new HttpError(400, `أيقونة الزر «${title}» غير صالحة. استخدم صورة صغيرة (PNG أو JPG أو WebP).`);
+}
+
+function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | 'video' | 'text'; body?: string; bodyEn?: string; sectionLayout?: 'list' | 'grid' | 'carousel'; sectionId?: string; layout?: 'card'; image?: string; imageFit?: 'cover' | 'contain'; positionX?: number; positionY?: number } {
+  const sectionId = typeof value?.sectionId === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(value.sectionId) ? value.sectionId : undefined;
+  if (value?.kind === 'text') {
+    const body = String(value.body ?? '').trim();
+    const bodyEn = String(value.bodyEn ?? '').trim();
+    if (!body || body.length > 2000 || bodyEn.length > 2000) throw new HttpError(400, 'اكتب نص الفقرة بما لا يتجاوز 2000 حرف لكل لغة.');
+    return { kind: 'text', body, ...(bodyEn ? { bodyEn } : {}), ...(sectionId ? { sectionId } : {}) };
+  }
+  if (value?.kind === 'video') return { kind: 'video', ...(sectionId ? { sectionId } : {}) };
+  if (value?.kind === 'heading') return { kind: 'heading', ...(sectionId ? { sectionId, sectionLayout: value.sectionLayout === 'grid' || value.sectionLayout === 'carousel' ? value.sectionLayout : 'list' } : {}) };
+  if (!value || typeof value !== 'object') return {};
+  const image = validateImageValue(value.image, `صورة بطاقة «${title}»`);
+  if (image.length > 2_000_000) throw new HttpError(400, 'صورة البطاقة كبيرة جدًا. استخدم صورة أصغر.');
+  if (value.layout === 'card' && !image) throw new HttpError(400, `أرفق صورة للبطاقة «${title}».`);
+  const position = (input: unknown) => typeof input === 'number' && Number.isFinite(input) ? Math.min(100, Math.max(0, input)) : 50;
+  return {
+    ...(sectionId ? { sectionId } : {}),
+    ...(value.layout === 'card' ? { layout: 'card' } : {}),
+    ...(image ? { image, imageFit: value.imageFit === 'contain' ? 'contain' : 'cover', positionX: position(value.positionX), positionY: position(value.positionY) } : {}),
+  };
+}
+
 function normalizeLinks(rawLinks: unknown) {
   const links = Array.isArray(rawLinks) ? rawLinks : [];
 
@@ -269,15 +316,28 @@ function normalizeLinks(rawLinks: unknown) {
     throw new HttpError(400, `الحد الأقصى ${MAX_LINKS} زرًا في الصفحة.`);
   }
 
-  return links.map((link: any) => {
+  return arrangeSections(links.map((link: any) => {
     const title = String(link.title ?? '').trim();
     const url = String(link.url ?? '').trim();
     const isFile = link.linkType === 'file';
+    const common = {
+      id: String(link.id ?? ''),
+      titleEn: String(link.titleEn ?? '').trim().slice(0, 255) || null,
+      customIcon: normalizeCustomIcon(link.customIcon, title),
+      display: normalizeLinkDisplay(link.display, title),
+    };
 
-    if (!title || !url) {
+    if (!title || title.length > 120) throw new HttpError(400, 'اكتب عنوانًا لا يتجاوز 120 حرفًا.');
+    if (common.display.kind === 'heading' || common.display.kind === 'text') return {
+      ...common, title, url: '', linkType: 'url', fileCategory: null, fileName: null, fileMimeType: null,
+      fileSize: null, platform: 'custom', iconStyle: 'color', textPosition: 'right', hidden: Boolean(link.hidden), customIcon: null,
+    };
+    if (!url) {
       throw new HttpError(400, 'كل زر يحتاج عنوانًا ورابطًا أو ملفًا.');
     }
 
+    if (common.display.kind === 'video' && !parseYouTubeVideoSource(url)) throw new HttpError(400, `رابط الفيديو «${title}» غير مدعوم. استخدم رابط فيديو يوتيوب محددًا.`);
+    if (isFile && common.display.kind === 'video') throw new HttpError(400, 'أضف الفيديو برابط تشغيل، وليس كملف مرفق.');
     if (isFile) {
       const mimeType = /^data:([^;,]+);base64,/i.exec(url)?.[1]?.toLowerCase() ?? '';
 
@@ -286,6 +346,7 @@ function normalizeLinks(rawLinks: unknown) {
       }
 
       return {
+        ...common,
         title,
         url,
         linkType: 'file',
@@ -301,6 +362,7 @@ function normalizeLinks(rawLinks: unknown) {
     }
 
     return {
+      ...common,
       title,
       url: normalizeLinkUrl(url, title),
       linkType: 'url',
@@ -313,27 +375,7 @@ function normalizeLinks(rawLinks: unknown) {
       textPosition: link.textPosition ?? 'center',
       hidden: Boolean(link.hidden),
     };
-  });
-}
-
-function normalizeContactEmail(value: unknown) {
-  const email = String(value ?? '').trim().toLowerCase();
-
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new HttpError(400, 'بريد التواصل غير صالح.');
-  }
-
-  return email || null;
-}
-
-function normalizeContactPhone(value: unknown) {
-  const phone = String(value ?? '').replace(/[^\d+]/g, '');
-
-  if (phone && !/^\+?[0-9]{8,15}$/.test(phone)) {
-    throw new HttpError(400, 'رقم التواصل غير صالح.');
-  }
-
-  return phone || null;
+  }));
 }
 
 // The review queue keeps what was published, without megabytes of inline
@@ -348,33 +390,68 @@ function buildReviewSnapshot(pageData: any, links: ReturnType<typeof normalizeLi
     name: pageData.name ?? '',
     bio: pageData.bio ?? '',
     profileImage: trim(pageData.profileImage),
-    wallpaper: { ...(pageData.wallpaper ?? {}), value: trim(pageData.wallpaper?.value) },
+    wallpaper: { ...(pageData.wallpaper ?? {}), value: trim(pageData.wallpaper?.value), ...(pageData.wallpaper?.poster ? { poster: trim(pageData.wallpaper.poster) } : {}) },
     contactPhone: pageData.contactPhone ?? '',
     contactEmail: pageData.contactEmail ?? '',
+    translations: pageData.translations ?? {},
     links: links.map((link) => ({
       title: link.title,
+      titleEn: link.titleEn,
       url: trim(link.url),
       linkType: link.linkType,
       fileName: link.fileName,
       fileSize: link.fileSize,
+      customIcon: link.customIcon ? trim(link.customIcon) : undefined,
+      display: { ...link.display, ...('image' in link.display ? { image: trim(link.display.image) } : {}) },
       hidden: link.hidden,
     })),
   };
 }
 
+// PAGE-16: a manually entered English name and description.
+function normalizeTranslations(value: any) {
+  const en = value?.en ?? {};
+  const name = String(en.name ?? '').trim().slice(0, 255);
+  const bio = String(en.bio ?? '').trim().slice(0, 500);
+
+  return name || bio ? { en: { name, bio } } : {};
+}
+
+// FILE-02 / PERM-19: what leaves the page is archived, not destroyed.
+export async function archiveLinks(client: PoolClient | typeof pool, pageId: string, linkIds: string[] | null, deletedBy: string) {
+  await client.query(
+    `insert into deleted_links (page_id, link_json, deleted_by)
+     select page_id, to_jsonb(l) - 'page_id', $3
+     from page_links l
+     where l.page_id = $1 and ($2::uuid[] is null or l.id = any($2::uuid[]))`,
+    [pageId, linkIds, deletedBy],
+  );
+}
+
 // PAGE-07: this is the explicit «حفظ». It publishes the edit and (PAGE-01,
-// MOD-01) queues it for the administration's later review.
-export async function savePageData(userId: string, pageData: any) {
+// MOD-01) queues it for the administration's later review. A save made by an
+// employee on the customer's behalf (PERM-01) is recorded as already reviewed.
+export async function savePageData(userId: string, pageData: any, options: { staffName?: string } = {}) {
   const links = normalizeLinks(pageData.links);
   const profileImage = validateImageValue(pageData.profileImage, 'الصورة / الشعار');
-  const wallpaper = pageData.wallpaper ?? DEFAULT_PAGE_DATA.wallpaper;
+  const wallpaper = { ...(pageData.wallpaper ?? DEFAULT_PAGE_DATA.wallpaper) };
 
+  if (wallpaper.type === 'video') {
+    if (!parseVideoSource(String(wallpaper.value ?? ''), true)) throw new HttpError(400, 'خلفية الفيديو تحتاج رابط HTTPS مباشرًا لملف MP4 أو WebM.');
+    if (wallpaper.poster) validateImageValue(wallpaper.poster, 'الصورة البديلة للفيديو');
+    if (wallpaper.uploaded) {
+      const url = new URL(String(wallpaper.value));
+      if (!url.hostname.endsWith('.public.blob.vercel-storage.com') || !url.pathname.startsWith(`/wallpapers/${userId}/`)) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
+      const { head } = await import('@vercel/blob');
+      const file = await head(url.href);
+      if (file.size > MAX_BACKGROUND_VIDEO_BYTES || !BACKGROUND_VIDEO_TYPES.includes(file.contentType)) throw new HttpError(400, 'فيديو الخلفية يجب أن يكون MP4 أو WebM بحجم لا يتجاوز 20 MB.');
+      wallpaper.fileSize = file.size;
+    }
+
+  }
   if (wallpaper.type === 'image') {
     validateImageValue(wallpaper.value, 'صورة الخلفية');
   }
-
-  const contactPhone = normalizeContactPhone(pageData.contactPhone);
-  const contactEmail = normalizeContactEmail(pageData.contactEmail);
 
   const client = await pool.connect();
 
@@ -396,8 +473,7 @@ export async function savePageData(userId: string, pageData: any) {
           custom_colors_json = $9::jsonb,
           extracted_colors_json = $10::jsonb,
           typography_json = $11::jsonb,
-          contact_phone = $12,
-          contact_email = $13,
+          translations_json = $12::jsonb,
           updated_at = now()
         where user_id = $1
         returning id
@@ -414,8 +490,7 @@ export async function savePageData(userId: string, pageData: any) {
         JSON.stringify(pageData.customColors ?? {}),
         JSON.stringify(pageData.extractedColors ?? []),
         JSON.stringify(pageData.typography ?? {}),
-        contactPhone,
-        contactEmail,
+        JSON.stringify(normalizeTranslations(pageData.translations)),
       ],
     );
 
@@ -423,6 +498,17 @@ export async function savePageData(userId: string, pageData: any) {
 
     if (!pageId) {
       throw new Error('Page not found');
+    }
+
+    // Buttons the editor no longer sends were deleted by this save.
+    const keptIds = links.map((link) => link.id).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    const removed = await client.query<{ id: string }>(
+      'select id from page_links where page_id = $1 and not (id = any($2::uuid[]))',
+      [pageId, keptIds],
+    );
+
+    if (removed.rowCount) {
+      await archiveLinks(client, pageId, removed.rows.map((row) => row.id), options.staffName ?? 'العميل');
     }
 
     await client.query('delete from page_links where page_id = $1', [pageId]);
@@ -443,9 +529,12 @@ export async function savePageData(userId: string, pageData: any) {
             sort_order,
             icon_style,
             text_position,
-            is_hidden
+            is_hidden,
+            title_en,
+            custom_icon,
+            display_json
           )
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)
         `,
         [
           pageId,
@@ -461,13 +550,23 @@ export async function savePageData(userId: string, pageData: any) {
           link.iconStyle,
           link.textPosition,
           link.hidden,
+          link.titleEn,
+          link.customIcon,
+          JSON.stringify(link.display),
         ],
       );
     }
 
     await client.query(
-      'insert into content_reviews (page_id, snapshot_json) values ($1, $2::jsonb)',
-      [pageId, JSON.stringify(buildReviewSnapshot(pageData, links))],
+      `insert into content_reviews (page_id, snapshot_json, status, reviewed_by, reviewed_at)
+       values ($1, $2::jsonb, $3, $4, $5)`,
+      [
+        pageId,
+        JSON.stringify(buildReviewSnapshot(pageData, links)),
+        options.staffName ? 'accepted' : 'pending',
+        options.staffName ?? null,
+        options.staffName ? new Date() : null,
+      ],
     );
 
     await client.query('commit');
@@ -481,7 +580,7 @@ export async function savePageData(userId: string, pageData: any) {
   return getPageDataByUserId(userId);
 }
 
-function mapPage(page: PageRecord, links: LinkRecord[]) {
+function mapPage(page: PageRecord, links: LinkRecord[], includeHidden = true) {
   return {
     username: page.username ?? '',
     profileImage: page.profile_image_url || '',
@@ -489,7 +588,8 @@ function mapPage(page: PageRecord, links: LinkRecord[]) {
     bio: page.bio || '',
     contactPhone: page.contact_phone || '',
     contactEmail: page.contact_email || '',
-    links: links.map((link) => ({
+    translations: page.translations_json || {},
+    links: (includeHidden ? arrangeSections : visibleSectionItems)(links.map((link) => ({
       id: link.id,
       title: link.title,
       url: link.url,
@@ -502,7 +602,10 @@ function mapPage(page: PageRecord, links: LinkRecord[]) {
       iconStyle: link.icon_style || 'color',
       textPosition: link.text_position || 'center',
       hidden: link.is_hidden,
-    })),
+      titleEn: link.title_en || undefined,
+      customIcon: link.custom_icon || undefined,
+      display: link.display_json || {},
+    }))),
     theme: page.theme_json || DEFAULT_PAGE_DATA.theme,
     wallpaper: page.wallpaper_json || DEFAULT_PAGE_DATA.wallpaper,
     buttonStyle: page.button_style_json || DEFAULT_PAGE_DATA.buttonStyle,
@@ -514,4 +617,25 @@ function mapPage(page: PageRecord, links: LinkRecord[]) {
         : undefined,
     extractedColors: page.extracted_colors_json || [],
   };
+}
+
+// PAGE-15: one visit per public load of a published page.
+export async function recordVisit(pageId: string) {
+  await pool.query(
+    `insert into page_visits_daily (page_id, day, views) values ($1, current_date, 1)
+     on conflict (page_id, day) do update set views = page_visits_daily.views + 1`,
+    [pageId],
+  );
+}
+
+export async function getVisitStats(userId: string) {
+  const result = await pool.query<{ total: number; last30: number }>(
+    `select coalesce(sum(v.views), 0)::int as total,
+            coalesce(sum(v.views) filter (where v.day > current_date - 30), 0)::int as last30
+     from page_visits_daily v join pages p on p.id = v.page_id
+     where p.user_id = $1`,
+    [userId],
+  );
+
+  return result.rows[0];
 }

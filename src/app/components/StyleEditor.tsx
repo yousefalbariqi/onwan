@@ -1,247 +1,164 @@
-import { usePageContext } from '../context/PageContext';
-import { Circle, Square, Pill, Check, Info, Palette } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ColorDots, Segmented, Toggle } from './ios';
+import { FONT_OPTIONS, PageData, usePageContext } from '../context/PageContext';
+import { loadFont } from '../lib/fonts';
+import { PhonePreview } from './PhonePreview';
+import { ProfileImageControls } from './ProfileImageControls';
 
-const shapeOptions = [
-  { id: 'rounded', label: 'دائري', icon: Circle, preview: 'rounded-xl' },
-  { id: 'square', label: 'مربع', icon: Square, preview: 'rounded-none' },
-  { id: 'pill', label: 'بيضاوي', icon: Pill, preview: 'rounded-full' },
-];
+// «الأسلوب»: profile-image shape, buttons, text and colours. Laid out like
+// Apple's Lock Screen / photo editor: the real page large on top, and below it
+// a tray that shows the tools of one tab at a time — no scrolling.
 
-const colorPresets = [
-  { name: 'أسود', value: '#000000' },
-  { name: 'أزرق', value: '#0066cc' },
-  { name: 'أخضر', value: '#059669' },
-  { name: 'أحمر', value: '#dc2626' },
-  { name: 'برتقالي', value: '#ff6b35' },
-  { name: 'وردي', value: '#e91e63' },
-  { name: 'بنفسجي', value: '#9c27b0' },
-  { name: 'ذهبي', value: '#d97706' },
-];
-
-const sizeOptions = [
+const SIZES = [
   { id: 'small', label: 'صغير' },
   { id: 'medium', label: 'متوسط' },
   { id: 'large', label: 'كبير' },
 ] as const;
 
+const BUTTON_SHAPES = [
+  { id: 'rounded', label: 'دائري' },
+  { id: 'square', label: 'مربع' },
+  { id: 'pill', label: 'بيضاوي' },
+] as const;
+
+const TOOL_TABS = [
+  { id: 'image', label: 'الصورة' },
+  { id: 'buttons', label: 'الأزرار' },
+  { id: 'text', label: 'النص' },
+  { id: 'colors', label: 'الألوان' },
+] as const;
+type ToolTab = (typeof TOOL_TABS)[number]['id'];
+
+function ToolLabel({ children }: { children: string }) {
+  return <p className="mb-2 text-[13px] font-bold text-[#6e6e73]" style={{ fontFamily: 'Cairo, sans-serif' }}>{children}</p>;
+}
+
+function Scroller({ children }: { children: React.ReactNode }) {
+  return <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{children}</div>;
+}
+
 export function StyleEditor() {
-  const { pageData, updateButtonStyle } = usePageContext();
+  const { pageData, updateButtonStyle, updateTypography, updateProfileStyle, updatePageData } = usePageContext();
+  const [tab, setTab] = useState<ToolTab>('image');
+  const currentFont = pageData.typography?.font ?? 'cairo';
+
+  // The fonts load only once the «النص» tab is opened.
+  useEffect(() => {
+    if (tab === 'text') FONT_OPTIONS.forEach((font) => loadFont(font.id));
+  }, [tab]);
+  const { buttonStyle } = pageData;
+  const colors = pageData.customColors ?? {};
+  const setColors = (next: Partial<NonNullable<PageData['customColors']>>) => updatePageData({ customColors: { ...colors, ...next } });
 
   return (
-    <div className="p-4 space-y-4">
-      <h3 className="text-sm font-bold text-gray-700 mb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
-        تصميم الأزرار
-      </h3>
-
-      <div className="p-3 bg-amber-50 rounded-lg mb-3">
-        <div className="flex items-start gap-2">
-          <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-700" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            خصص شكل الأزرار: الشكل والحجم واللون والشفافية والحواف والظل.
-          </p>
-        </div>
+    <div className="flex h-full min-h-[560px] flex-col bg-[#f2f2f7]" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+      {/* On desktop the big preview already sits beside the panel. */}
+      <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-4 lg:hidden">
+        <div className="w-full max-w-[230px]"><PhonePreview /></div>
       </div>
 
-      {/* Shape */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-3" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          الشكل
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          {shapeOptions.map((option) => {
-            const isActive = pageData.buttonStyle.shape === option.id;
-            return (
-              <button
-                key={option.id}
-                onClick={() => updateButtonStyle({ shape: option.id as any })}
-                className={`relative py-3 border-2 transition-all hover:scale-105 ${
-                  option.preview
-                } ${
-                  isActive
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                <span className="text-sm font-semibold" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  {option.label}
-                </span>
-                {isActive && (
-                  <div className="absolute top-1 right-1">
-                    <Check className="w-4 h-4 text-emerald-600" />
-                  </div>
-                )}
-                <option.icon className="absolute top-1 left-1 w-4 h-4 text-gray-400" />
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <div className="shrink-0 rounded-t-[24px] bg-white px-4 pb-5 pt-3 shadow-[0_-6px_20px_rgba(0,0,0,0.06)]">
+        <Segmented options={TOOL_TABS} value={tab} onChange={(id) => setTab(id as ToolTab)} />
 
-      {/* Size */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-3" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          الحجم
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          {sizeOptions.map((option) => {
-            const isActive = (pageData.buttonStyle.size ?? 'medium') === option.id;
-            return (
-              <button
-                key={option.id}
-                onClick={() => updateButtonStyle({ size: option.id })}
-                className={`rounded-lg border-2 px-3 py-2 text-xs font-semibold transition-all ${
-                  isActive ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-600'
-                }`}
-                style={{ fontFamily: 'Cairo, sans-serif' }}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+        <div className="mt-4 min-h-[150px] space-y-4">
+          {tab === 'image' && (
+            <ProfileImageControls />
+          )}
 
-      {/* Opacity */}
-      <div>
-        <div className="mb-2 flex items-center justify-between text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          <span>شفافية لون الزر</span>
-          <span dir="ltr">{pageData.buttonStyle.opacity ?? 100}%</span>
-        </div>
-        <input
-          type="range"
-          min={30}
-          max={100}
-          step={5}
-          value={pageData.buttonStyle.opacity ?? 100}
-          onChange={(e) => updateButtonStyle({ opacity: Number(e.target.value) })}
-          disabled={pageData.buttonStyle.border}
-          className="w-full accent-emerald-500 disabled:opacity-40"
-        />
-      </div>
-
-      {/* Color Selection */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <label className="text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            لون الأزرار
-          </label>
-          <button
-            onClick={() => updateButtonStyle({ useCustomColor: !pageData.buttonStyle.useCustomColor })}
-            className={`relative w-14 h-7 rounded-full transition-all ${
-              pageData.buttonStyle.useCustomColor ? 'bg-emerald-500' : 'bg-gray-300'
-            }`}
-          >
-            <div
-              className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all ${
-                pageData.buttonStyle.useCustomColor ? 'left-1' : 'right-1'
-              }`}
-            ></div>
-          </button>
-        </div>
-        
-        {pageData.buttonStyle.useCustomColor ? (
-          <div className="space-y-3">
-            {/* Preset Colors */}
-            <div className="grid grid-cols-4 gap-2">
-              {colorPresets.map((color) => {
-                const isActive = pageData.buttonStyle.customColor === color.value;
-                return (
-                  <button
-                    key={color.value}
-                    onClick={() => updateButtonStyle({ customColor: color.value })}
-                    className={`relative h-12 rounded-lg transition-all hover:scale-105 border-2 ${
-                      isActive
-                        ? 'border-emerald-500 shadow-md'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    style={{ backgroundColor: color.value }}
-                    title={color.name}
-                  >
-                    {isActive && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Check className="w-5 h-5 text-white drop-shadow-lg" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Custom Color Picker */}
-            <div className="flex gap-2 items-center">
-              <div className="flex-1 relative">
-                <input
-                  type="color"
-                  value={pageData.buttonStyle.customColor || '#000000'}
-                  onChange={(e) => updateButtonStyle({ customColor: e.target.value })}
-                  className="w-full h-12 rounded-lg cursor-pointer border-2 border-gray-200"
-                  style={{ colorScheme: 'light' }}
+          {tab === 'buttons' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div><ToolLabel>الشكل</ToolLabel><Segmented options={BUTTON_SHAPES} value={buttonStyle.shape as (typeof BUTTON_SHAPES)[number]['id']} onChange={(shape) => updateButtonStyle({ shape: shape as (typeof BUTTON_SHAPES)[number]['id'] })} /></div>
+                <div><ToolLabel>الحجم</ToolLabel><Segmented options={SIZES} value={buttonStyle.size ?? 'medium'} onChange={(size) => updateButtonStyle({ size: size as (typeof SIZES)[number]['id'] })} /></div>
+              </div>
+              <div>
+                <ToolLabel>لون الشعارات</ToolLabel>
+                <Segmented
+                  options={[{ id: 'brand', label: 'ملوّنة' }, { id: 'text', label: 'بلون النص' }] as const}
+                  value={buttonStyle.iconColor ?? 'brand'}
+                  onChange={(iconColor) => updateButtonStyle({ iconColor: iconColor as 'brand' | 'text' })}
                 />
               </div>
-              <div className="flex-1 bg-gray-100 rounded-lg px-3 py-3 text-center">
-                <div className="text-xs font-mono text-gray-700" dir="ltr">
-                  {pageData.buttonStyle.customColor || '#000000'}
+              <div>
+                <ToolLabel>اللون</ToolLabel>
+                <ColorDots value={buttonStyle.useCustomColor ? buttonStyle.customColor : undefined} onChange={(color) => updateButtonStyle(color ? { useCustomColor: true, customColor: color } : { useCustomColor: false })} />
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex flex-1 items-center justify-between rounded-xl bg-[#f2f2f7] px-3 py-2 text-sm text-[#1d1d1f]">حواف فقط<Toggle label="حواف فقط" on={!!buttonStyle.border} onChange={() => updateButtonStyle({ border: !buttonStyle.border })} /></label>
+                <label className="flex flex-1 items-center justify-between rounded-xl bg-[#f2f2f7] px-3 py-2 text-sm text-[#1d1d1f]">الظل<Toggle label="الظل" on={!!buttonStyle.shadow} onChange={() => updateButtonStyle({ shadow: !buttonStyle.shadow })} /></label>
+              </div>
+              {!buttonStyle.border && (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-[#1d1d1f]">الشفافية</span>
+                  <input type="range" min="30" max="100" step="5" value={buttonStyle.opacity ?? 100} onChange={(e) => updateButtonStyle({ opacity: Number(e.target.value) })} className="flex-1 accent-[#0a84ff]" />
+                  <span className="w-10 text-left text-sm text-[#8e8e93]" dir="ltr">{buttonStyle.opacity ?? 100}%</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === 'text' && (
+            <>
+              <div>
+                <ToolLabel>الخط</ToolLabel>
+                <div>
+                  <Scroller>
+                    {FONT_OPTIONS.map((font) => {
+                      const active = currentFont === font.id;
+                      return (
+                        <button key={font.id} onClick={() => updateTypography({ font: font.id })} className={`w-[104px] shrink-0 rounded-2xl border-2 px-2 py-2.5 text-center transition-all ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
+                          {/* the entity's own name, so they see their name in each font */}
+                          <span className="block truncate text-lg font-bold text-[#1d1d1f]" style={{ fontFamily: font.family }}>{pageData.name.trim() || 'اسم الجهة'}</span>
+                          <span className="block text-[10px] text-[#8e8e93]" dir="ltr">{font.name}</span>
+                        </button>
+                      );
+                    })}
+                  </Scroller>
                 </div>
               </div>
-            </div>
+              <div>
+                <ToolLabel>الحجم</ToolLabel>
+                <div className="space-y-2">
+                  {([
+                    { key: 'nameSize', px: 'namePx', label: 'الاسم', min: 16, max: 56, presets: { small: 24, medium: 30, large: 36 } },
+                    { key: 'bioSize', px: 'bioPx', label: 'الوصف', min: 11, max: 24, presets: { small: 14, medium: 16, large: 18 } },
+                  ] as const).map((text) => {
+                    const preset = pageData.typography?.[text.key] ?? pageData.typography?.size ?? 'medium';
+                    const exact = pageData.typography?.[text.px];
+                    // The public page's pixel size for the chosen preset, so − / + start from what is shown.
+                    const current = exact ?? text.presets[preset];
+                    const step = (delta: number) => updateTypography({ [text.px]: Math.min(text.max, Math.max(text.min, current + delta)) });
+                    return (
+                      <div key={text.key} className="flex items-center gap-2">
+                        <span className="w-11 shrink-0 text-sm text-[#1d1d1f]">{text.label}</span>
+                        <div className="min-w-0 flex-1">
+                          <Segmented
+                            options={SIZES}
+                            value={exact ? ('' as never) : preset}
+                            onChange={(size) => updateTypography({ [text.key]: size as (typeof SIZES)[number]['id'], [text.px]: undefined })}
+                          />
+                        </div>
+                        <div className="flex shrink-0 items-center rounded-[10px] bg-[#e9e9ee] p-0.5" dir="ltr">
+                          <button onClick={() => step(-1)} disabled={current <= text.min} aria-label={`تصغير ${text.label}`} className="h-7 w-7 rounded-[8px] text-lg leading-none text-[#1d1d1f] active:bg-white disabled:text-[#c7c7cc]">−</button>
+                          <span className={`w-9 text-center text-xs font-bold ${exact ? 'text-[#0a84ff]' : 'text-[#6e6e73]'}`}>{current}</span>
+                          <button onClick={() => step(1)} disabled={current >= text.max} aria-label={`تكبير ${text.label}`} className="h-7 w-7 rounded-[8px] text-lg leading-none text-[#1d1d1f] active:bg-white disabled:text-[#c7c7cc]">+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
 
-            <p className="text-xs text-emerald-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-              🎨 اختر اللون المفضل لديك
-            </p>
-          </div>
-        ) : (
-          <div className="bg-gray-100 rounded-lg p-3">
-            <p className="text-xs text-gray-600 text-center" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-              اللون من الثيم المختار
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Border Toggle */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>حواف فقط (بدون تعبئة)</label>
-          <button
-            onClick={() => updateButtonStyle({ border: !pageData.buttonStyle.border })}
-            className={`relative w-14 h-7 rounded-full transition-all ${
-              pageData.buttonStyle.border ? 'bg-emerald-500' : 'bg-gray-300'
-            }`}
-          >
-            <div
-              className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all ${
-                pageData.buttonStyle.border ? 'left-1' : 'right-1'
-              }`}
-            ></div>
-          </button>
+          {tab === 'colors' && (
+            <>
+              <div><ToolLabel>الاسم والوصف معًا</ToolLabel><ColorDots value={colors.nameColor === colors.bioColor ? colors.nameColor : undefined} onChange={(color) => setColors({ nameColor: color, bioColor: color })} /></div>
+              <div><ToolLabel>الاسم</ToolLabel><ColorDots value={colors.nameColor} onChange={(color) => setColors({ nameColor: color })} /></div>
+              <div><ToolLabel>الوصف</ToolLabel><ColorDots value={colors.bioColor} onChange={(color) => setColors({ bioColor: color })} /></div>
+            </>
+          )}
         </div>
-        <p className="text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-          {pageData.buttonStyle.border ? 'الأزرار بدون خلفية' : 'الأزرار مع خلفية'}
-        </p>
-      </div>
-
-      {/* Shadow Toggle */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-semibold text-gray-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            ظل الأزرار
-          </label>
-          <button
-            onClick={() => updateButtonStyle({ shadow: !pageData.buttonStyle.shadow })}
-            className={`relative w-14 h-7 rounded-full transition-all ${
-              pageData.buttonStyle.shadow ? 'bg-emerald-500' : 'bg-gray-300'
-            }`}
-          >
-            <div
-              className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all ${
-                pageData.buttonStyle.shadow ? 'left-1' : 'right-1'
-              }`}
-            ></div>
-          </button>
-        </div>
-        <p className="text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-          {pageData.buttonStyle.shadow ? 'ظل مفعّل' : 'ظل معطّل'}
-        </p>
       </div>
     </div>
   );

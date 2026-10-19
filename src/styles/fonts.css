@@ -1,1 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@300;400;600;700;900&family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Noto+Kufi+Arabic:wght@400;600;800&family=Tajawal:wght@300;400;500;700;900&display=swap');
+/* Fonts are self-hosted (@fontsource) so ad blockers, in-app browsers and
+   blocked networks cannot strip them. Only the interface fonts load here; a
+   page's chosen font loads on demand through loadFont() in app/lib/fonts.ts. */
+@import '@fontsource/cairo/300.css';
+@import '@fontsource/cairo/400.css';
+@import '@fontsource/cairo/600.css';
+@import '@fontsource/cairo/700.css';
+@import '@fontsource/cairo/900.css';
+@import '@fontsource/tajawal/300.css';
+@import '@fontsource/tajawal/400.css';
+@import '@fontsource/tajawal/500.css';
+@import '@fontsource/tajawal/700.css';
+@import '@fontsource/tajawal/900.css';

@@ -19,6 +19,13 @@ export function ProfileImageDisplay({
   size = 'medium',
   backgroundColor,
 }: ProfileImageDisplayProps) {
+  const fit = profileStyle.fit ?? (profileStyle.type === 'hero_safe' ? 'contain' : 'cover');
+  const imageStyle = {
+    objectFit: fit,
+    objectPosition: `${profileStyle.positionX ?? 50}% ${profileStyle.positionY ?? 50}%`,
+    transform: fit === 'cover' ? `scale(${Math.min(3, Math.max(1, profileStyle.zoom ?? 1))})` : undefined,
+    transformOrigin: `${profileStyle.positionX ?? 50}% ${profileStyle.positionY ?? 50}%`,
+  };
   const isHeroFillStyle = profileStyle.type === 'hero';
   const isHeroSafeStyle = profileStyle.type === 'hero_safe';
   const [heroImagePosition, setHeroImagePosition] = useState('center center');
@@ -58,7 +65,8 @@ export function ProfileImageDisplay({
         <img 
           src={profileImage} 
           alt={name}
-          className="w-full h-full object-cover"
+          className="w-full h-full"
+          style={imageStyle}
         />
       );
     } else {
@@ -172,7 +180,7 @@ export function ProfileImageDisplay({
       >
         {profileImage ? (
           <>
-            {isHeroFillStyle && (
+            {isHeroFillStyle && fit === 'cover' && (
               <div
                 className="absolute inset-0 scale-110 opacity-45 blur-2xl"
                 style={{
@@ -188,7 +196,7 @@ export function ProfileImageDisplay({
                 src={profileImage}
                 alt={name}
                 className="absolute inset-0 h-full w-full object-cover"
-                style={{ objectPosition: heroImagePosition }}
+                style={{ ...imageStyle, objectPosition: profileStyle.positionX === undefined && profileStyle.positionY === undefined ? heroImagePosition : imageStyle.objectPosition }}
                 onLoad={handleHeroImageLoad}
               />
             ) : (
@@ -197,11 +205,11 @@ export function ProfileImageDisplay({
                   src={profileImage}
                   alt={name}
                   className="h-full w-full object-contain"
-                  style={{ objectPosition: 'center center' }}
+                  style={imageStyle}
                 />
               </div>
             )}
-            {isHeroFillStyle && (
+            {isHeroFillStyle && fit === 'cover' && (
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{

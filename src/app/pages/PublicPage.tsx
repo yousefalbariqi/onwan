@@ -1,11 +1,44 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Check, Copy, Flag, MessageCircle, Share2, UserPlus, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router';
-import { PageData, usePageContext } from '../context/PageContext';
+import { PageData, mergeWithDefaults, usePageContext } from '../context/PageContext';
 import { PageView } from '../components/PageView';
 import { fetchPublicPage, reportPage } from '../lib/api';
-import { getSubdomainUsername, pageUrl } from '../lib/site';
+import { getCustomHost, getSubdomainUsername, pageUrl } from '../lib/site';
 import { downloadVCard } from '../lib/vcard';
+
+type Lang = 'ar' | 'en';
+
+// Visitor-facing interface text (PUB-04). Page content itself comes from the
+// entity's own Arabic text and its optional English version.
+const TEXT = {
+  ar: {
+    saveContact: 'حفظ جهة الاتصال',
+    share: 'مشاركة',
+    whatsapp: 'واتساب',
+    copy: 'نسخ الرابط',
+    copied: 'تم النسخ',
+    report: 'الإبلاغ عن الصفحة',
+    reportPlaceholder: 'اكتب سبب البلاغ...',
+    send: 'إرسال البلاغ',
+    sending: 'جاري الإرسال...',
+    close: 'إغلاق',
+    switchTo: 'English',
+  },
+  en: {
+    saveContact: 'Save contact',
+    share: 'Share',
+    whatsapp: 'WhatsApp',
+    copy: 'Copy link',
+    copied: 'Copied',
+    report: 'Report this page',
+    reportPlaceholder: 'Why are you reporting this page?',
+    send: 'Send report',
+    sending: 'Sending...',
+    close: 'Close',
+    switchTo: 'العربية',
+  },
+};
 
 type RemoteState =
   | { status: 'loading' }
@@ -40,7 +73,8 @@ function usePageMeta(page: PageData | null) {
   }, [page]);
 }
 
-function ReportDialog({ username, onClose }: { username: string; onClose: () => void }) {
+function ReportDialog({ username, lang, onClose }: { username: string; lang: Lang; onClose: () => void }) {
+  const t = TEXT[lang];
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -62,14 +96,14 @@ function ReportDialog({ username, onClose }: { username: string; onClose: () => 
       <div
         className="w-full max-w-md rounded-2xl bg-white p-6 text-gray-900 shadow-2xl"
         style={{ fontFamily: 'Tajawal, sans-serif' }}
-        dir="rtl"
+        dir={lang === 'en' ? 'ltr' : 'rtl'}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            الإبلاغ عن الصفحة
+            {t.report}
           </h2>
-          <button onClick={onClose} className="rounded-full p-2 hover:bg-gray-100" aria-label="إغلاق">
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-gray-100" aria-label={t.close}>
             <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
@@ -83,8 +117,8 @@ function ReportDialog({ username, onClose }: { username: string; onClose: () => 
               onChange={(e) => setMessage(e.target.value)}
               rows={4}
               maxLength={2000}
-              placeholder="اكتب سبب البلاغ..."
-              className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-right text-sm focus:border-emerald-500 focus:outline-none"
+              placeholder={t.reportPlaceholder}
+              className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-start text-sm focus:border-emerald-500 focus:outline-none"
               autoFocus
             />
             {result && <p className="mt-2 text-sm text-red-600">{result.text}</p>}
@@ -94,7 +128,7 @@ function ReportDialog({ username, onClose }: { username: string; onClose: () => 
               className="mt-4 w-full rounded-xl bg-gray-900 py-3 text-sm font-bold text-white disabled:opacity-50"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
-              {busy ? 'جاري الإرسال...' : 'إرسال البلاغ'}
+              {busy ? t.sending : t.send}
             </button>
           </>
         )}
@@ -105,10 +139,12 @@ function ReportDialog({ username, onClose }: { username: string; onClose: () => 
 
 // Visitor actions (SHARE-01, SHARE-02, PUB-03). No account, no QR download,
 // and no «عنوان» branding on the entity's page (DEF-06, DEF-09).
-function VisitorActions({ page }: { page: PageData }) {
+function VisitorActions({ page, lang, onSwitchLang }: { page: PageData; lang: Lang; onSwitchLang?: () => void }) {
+  const t = TEXT[lang];
   const [copied, setCopied] = useState(false);
   const [reporting, setReporting] = useState(false);
-  const url = pageUrl(page.username);
+  // On the entity's own domain, that is the address visitors share.
+  const url = getCustomHost() ? window.location.origin : pageUrl(page.username);
   const textColor = page.theme.textColor;
 
   const handleCopy = async () => {
@@ -136,11 +172,11 @@ function VisitorActions({ page }: { page: PageData }) {
       <div className="flex gap-2">
         <button onClick={() => downloadVCard(page)} className={actionClass} style={actionStyle}>
           <UserPlus className="h-5 w-5" />
-          حفظ جهة الاتصال
+          {t.saveContact}
         </button>
         <button onClick={handleShare} className={actionClass} style={actionStyle}>
           <Share2 className="h-5 w-5" />
-          مشاركة
+          {t.share}
         </button>
         <a
           href={`https://wa.me/?text=${encodeURIComponent(`${page.name} ${url}`)}`}
@@ -150,26 +186,35 @@ function VisitorActions({ page }: { page: PageData }) {
           style={actionStyle}
         >
           <MessageCircle className="h-5 w-5" />
-          واتساب
+          {t.whatsapp}
         </a>
         <button onClick={handleCopy} className={actionClass} style={actionStyle}>
           {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
-          {copied ? 'تم النسخ' : 'نسخ الرابط'}
+          {copied ? t.copied : t.copy}
         </button>
       </div>
 
-      <div className="mt-8 text-center">
+      <div className="mt-8 flex items-center justify-center gap-4">
+        {onSwitchLang && (
+          <button
+            onClick={onSwitchLang}
+            className="text-xs font-semibold opacity-70 transition-opacity hover:opacity-100"
+            style={{ color: textColor }}
+          >
+            {t.switchTo}
+          </button>
+        )}
         <button
           onClick={() => setReporting(true)}
           className="inline-flex items-center gap-1 text-xs opacity-50 transition-opacity hover:opacity-100"
           style={{ color: textColor }}
         >
           <Flag className="h-3 w-3" />
-          الإبلاغ عن الصفحة
+          {t.report}
         </button>
       </div>
 
-      {reporting && <ReportDialog username={page.username} onClose={() => setReporting(false)} />}
+      {reporting && <ReportDialog username={page.username} lang={lang} onClose={() => setReporting(false)} />}
     </div>
   );
 }
@@ -195,16 +240,22 @@ export default function PublicPage() {
   // name.onwan.link is the real address; /:name on the main domain is kept as
   // a fallback for local development and preview deployments.
   const username = routeUsername || getSubdomainUsername();
+  // DOMAIN-03: on the entity's own domain the page is found by host. Only the
+  // root path is the page; /preview there is still the editor's draft.
+  const customHost = !username && window.location.pathname === '/' ? getCustomHost() : null;
   const { pageData } = usePageContext();
   const [remote, setRemote] = useState<RemoteState>({ status: 'loading' });
+  // PAGE-16 / PUB-04: the device language when the page has that version,
+  // otherwise Arabic; the visitor can switch by hand.
+  const [chosenLang, setChosenLang] = useState<Lang | null>(null);
 
   useEffect(() => {
-    if (!username) return;
+    if (!username && !customHost) return;
 
     let cancelled = false;
     setRemote({ status: 'loading' });
 
-    fetchPublicPage(username)
+    fetchPublicPage(username ? { username } : { host: customHost as string })
       .then((response) => {
         if (cancelled) return;
 
@@ -221,7 +272,7 @@ export default function PublicPage() {
         setRemote(
           response.suspended
             ? { status: 'suspended', message: response.message || '' }
-            : { status: 'ready', pageData: response.pageData },
+            : { status: 'ready', pageData: mergeWithDefaults(response.pageData) },
         );
       })
       .catch(() => {
@@ -231,12 +282,12 @@ export default function PublicPage() {
     return () => {
       cancelled = true;
     };
-  }, [username, routeUsername, navigate]);
+  }, [username, customHost, routeUsername, navigate]);
 
-  usePageMeta(username && remote.status === 'ready' ? remote.pageData : null);
+  usePageMeta((username || customHost) && remote.status === 'ready' ? remote.pageData : null);
 
   // /preview: the editor's unsaved draft, never the published page (PAGE-07).
-  if (!username) {
+  if (!username && !customHost) {
     return (
       <>
         <button
@@ -268,9 +319,17 @@ export default function PublicPage() {
     return <Notice title="الصفحة غير موجودة" text="هذا الرابط غير مرتبط بصفحة منشورة حاليًا." />;
   }
 
+  const english = remote.pageData.translations?.en;
+  const hasEnglish = Boolean(english?.name || english?.bio);
+  const lang: Lang = hasEnglish ? chosenLang ?? (navigator.language.toLowerCase().startsWith('en') ? 'en' : 'ar') : 'ar';
+
   return (
-    <PageView data={remote.pageData} variant="public">
-      <VisitorActions page={remote.pageData} />
+    <PageView data={remote.pageData} variant="public" lang={lang}>
+      <VisitorActions
+        page={remote.pageData}
+        lang={lang}
+        onSwitchLang={hasEnglish ? () => setChosenLang(lang === 'en' ? 'ar' : 'en') : undefined}
+      />
     </PageView>
   );
 }

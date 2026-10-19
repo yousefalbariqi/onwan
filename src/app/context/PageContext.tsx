@@ -1,7 +1,21 @@
+import { arrangeSections, moveSectionItem, reorderSectionItem, saveSectionItem } from '../../../shared/linkSections';
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { Account, fetchMyPage, saveMyPage } from '../lib/api';
 import { clearSessionToken, getSessionToken } from '../lib/session';
 import { MAX_LINKS } from '../lib/site';
+
+export interface LinkDisplay {
+  kind?: 'heading' | 'video' | 'text';
+  sectionLayout?: 'list' | 'grid' | 'carousel';
+  body?: string;
+  bodyEn?: string;
+  sectionId?: string;
+  layout?: 'card';
+  image?: string;
+  imageFit?: 'cover' | 'contain';
+  positionX?: number;
+  positionY?: number;
+}
 
 export interface Link {
   id: string;
@@ -16,6 +30,10 @@ export interface Link {
   iconStyle?: 'color' | 'mono';
   textPosition?: 'center' | 'right';
   hidden?: boolean; // مخفي عن الجمهور دون حذف
+  titleEn?: string; // عنوان الزر في النسخة الإنجليزية
+  // 'icon:<id>' from lib/linkIcons.tsx, or an uploaded image (data URL).
+  customIcon?: string;
+  display?: LinkDisplay;
 }
 
 export interface Theme {
@@ -27,12 +45,33 @@ export interface Theme {
   textColor: string;
 }
 
+export const FONT_CATEGORIES = [
+  { id: 'modern', label: 'حديث' },
+  { id: 'classic', label: 'كلاسيكي' },
+  { id: 'kufi', label: 'كوفي' },
+  { id: 'elegant', label: 'أنيق' },
+  { id: 'display', label: 'عناوين' },
+] as const;
+
+// Ids are stored in pages.typography_json — never rename an existing one.
+// Each font must also have a loader in lib/fonts.ts.
 export const FONT_OPTIONS = [
-  { id: 'cairo', name: 'Cairo', family: 'Cairo, sans-serif' },
-  { id: 'tajawal', name: 'Tajawal', family: 'Tajawal, sans-serif' },
-  { id: 'almarai', name: 'Almarai', family: 'Almarai, sans-serif' },
-  { id: 'plex', name: 'IBM Plex Sans Arabic', family: "'IBM Plex Sans Arabic', sans-serif" },
-  { id: 'kufi', name: 'Noto Kufi Arabic', family: "'Noto Kufi Arabic', sans-serif" },
+  { id: 'cairo', name: 'Cairo', family: 'Cairo, sans-serif', category: 'modern' },
+  { id: 'tajawal', name: 'Tajawal', family: 'Tajawal, sans-serif', category: 'modern' },
+  { id: 'almarai', name: 'Almarai', family: 'Almarai, sans-serif', category: 'modern' },
+  { id: 'plex', name: 'IBM Plex Arabic', family: "'IBM Plex Sans Arabic', sans-serif", category: 'modern' },
+  { id: 'readex', name: 'Readex Pro', family: "'Readex Pro', sans-serif", category: 'modern' },
+  { id: 'amiri', name: 'Amiri', family: 'Amiri, serif', category: 'classic' },
+  { id: 'naskh', name: 'Noto Naskh', family: "'Noto Naskh Arabic', serif", category: 'classic' },
+  { id: 'markazi', name: 'Markazi', family: "'Markazi Text', serif", category: 'classic' },
+  { id: 'kufi', name: 'Noto Kufi', family: "'Noto Kufi Arabic', sans-serif", category: 'kufi' },
+  { id: 'reemkufi', name: 'Reem Kufi', family: "'Reem Kufi', sans-serif", category: 'kufi' },
+  { id: 'changa', name: 'Changa', family: 'Changa, sans-serif', category: 'kufi' },
+  { id: 'messiri', name: 'El Messiri', family: "'El Messiri', sans-serif", category: 'elegant' },
+  { id: 'alexandria', name: 'Alexandria', family: 'Alexandria, sans-serif', category: 'elegant' },
+  { id: 'lalezar', name: 'Lalezar', family: 'Lalezar, sans-serif', category: 'display' },
+  { id: 'lemonada', name: 'Lemonada', family: 'Lemonada, sans-serif', category: 'display' },
+  { id: 'ruqaa', name: 'Aref Ruqaa', family: "'Aref Ruqaa', serif", category: 'display' },
 ] as const;
 
 export type FontId = (typeof FONT_OPTIONS)[number]['id'];
@@ -44,13 +83,18 @@ export interface PageData {
   bio: string;
   contactPhone?: string; // يظهران في بطاقة جهة الاتصال VCF
   contactEmail?: string;
+  translations?: { en?: { name?: string; bio?: string } }; // النسخة الإنجليزية (إدخال يدوي)
   links: Link[];
   theme: Theme;
   wallpaper: {
-    type: 'color' | 'gradient' | 'image';
+    type: 'color' | 'gradient' | 'image' | 'video';
     value: string;
     position?: 'top' | 'center' | 'bottom';
     dim?: number; // تعتيم الخلفية 0-80
+    poster?: string;
+    uploaded?: boolean;
+    fileName?: string;
+    fileSize?: number;
   };
   buttonStyle: {
     shape: 'rounded' | 'square' | 'pill';
@@ -60,13 +104,25 @@ export interface PageData {
     opacity?: number; // 30-100
     customColor?: string;
     useCustomColor?: boolean;
+    // 'brand' keeps each logo's colour (switched automatically when it would
+    // vanish on the button); 'text' paints every logo in the button text colour.
+    iconColor?: 'brand' | 'text';
   };
   profileStyle: {
     type: 'circle' | 'rounded' | 'square' | 'hero' | 'hero_safe' | 'premium';
+    fit?: 'cover' | 'contain';
+    positionX?: number;
+    positionY?: number;
+    zoom?: number;
   };
   typography?: {
     font?: FontId;
     size?: 'small' | 'medium' | 'large';
+    nameSize?: 'small' | 'medium' | 'large';
+    bioSize?: 'small' | 'medium' | 'large';
+    // Optional exact sizes in pixels; when set they win over the presets.
+    namePx?: number;
+    bioPx?: number;
   };
   customColors?: {
     nameColor?: string;
@@ -85,6 +141,11 @@ interface PageContextType {
   setAuthenticated: (value: boolean) => void;
   loadingPage: boolean;
   isDirty: boolean;
+  // The last version that reached the server, shown beside the live draft.
+  savedPageData: PageData | null;
+  savedHistory: SavedVersion[];
+  // Puts an earlier version back into the draft; it still needs «حفظ».
+  restoreVersion: (data: PageData) => void;
   saving: boolean;
   save: () => Promise<void>;
   logout: () => void;
@@ -95,9 +156,9 @@ interface PageContextType {
   updateButtonStyle: (style: Partial<PageData['buttonStyle']>) => void;
   updateProfileStyle: (style: Partial<PageData['profileStyle']>) => void;
   updateTypography: (typography: Partial<NonNullable<PageData['typography']>>) => void;
-  addLink: (link: Omit<Link, 'id'>) => void;
+  addLink: (link: Omit<Link, 'id'>, memberIds?: string[]) => void;
   removeLink: (id: string) => void;
-  updateLink: (id: string, updates: Partial<Link>) => void;
+  updateLink: (id: string, updates: Partial<Link>, memberIds?: string[]) => void;
   moveLink: (id: string, direction: 'up' | 'down') => void;
   reorderLink: (id: string, targetId: string) => void;
 }
@@ -270,6 +331,33 @@ const defaultThemes: Theme[] = [
 export const themes = defaultThemes;
 
 const LOCAL_STORAGE_KEY = 'bio_page_data';
+// Earlier saved versions, kept in this browser only (no server history yet).
+const HISTORY_KEY_PREFIX = 'onwan_design_history_';
+const HISTORY_LIMIT = 10;
+
+export type SavedVersion = { savedAt: string; data: PageData };
+
+function readHistory(username: string): SavedVersion[] {
+  if (!username) return [];
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY_PREFIX + username);
+    return raw ? (JSON.parse(raw) as SavedVersion[]).map((v) => ({ ...v, data: mergeWithDefaults(v.data) })) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHistory(username: string, history: SavedVersion[]) {
+  // Uploaded images can exceed the quota: drop the oldest until it fits.
+  for (let list = history; list.length > 0; list = list.slice(0, -1)) {
+    try {
+      localStorage.setItem(HISTORY_KEY_PREFIX + username, JSON.stringify(list));
+      return;
+    } catch {
+      // try with fewer versions
+    }
+  }
+}
 
 const defaultDesign = {
   theme: defaultThemes[0],
@@ -299,11 +387,11 @@ const defaultPageData: PageData = {
   ...defaultDesign,
 };
 
-function mergeWithDefaults(candidate?: Partial<PageData> | null): PageData {
+export function mergeWithDefaults(candidate?: Partial<PageData> | null): PageData {
   return {
     ...defaultPageData,
     ...(candidate || {}),
-    links: Array.isArray(candidate?.links) ? candidate.links : defaultPageData.links,
+    links: Array.isArray(candidate?.links) ? arrangeSections(candidate.links) : defaultPageData.links,
     theme: {
       ...defaultPageData.theme,
       ...(candidate?.theme || {}),
@@ -321,6 +409,7 @@ function mergeWithDefaults(candidate?: Partial<PageData> | null): PageData {
       ...(candidate?.profileStyle || {}),
     },
     typography: candidate?.typography || {},
+    translations: candidate?.translations || {},
     customColors: candidate?.customColors || undefined,
     extractedColors: candidate?.extractedColors || [],
   };
@@ -345,17 +434,28 @@ function loadLocalPageData() {
   }
 }
 
-export function PageProvider({ children }: { children: ReactNode }) {
-  const [pageData, setPageData] = useState<PageData>(() => loadLocalPageData());
+// Where the editor loads from and saves to. The default is the signed-in
+// beneficiary's own page; the administration passes its own source to edit a
+// customer's page with the same editor (PERM-01).
+export type PageSource = {
+  load: () => Promise<{ pageData: any }>;
+  save: (pageData: PageData) => Promise<{ pageData: any }>;
+};
+
+export function PageProvider({ children, source }: { children: ReactNode; source?: PageSource }) {
+  const [pageData, setPageData] = useState<PageData>(() => (source ? defaultPageData : loadLocalPageData()));
   const [account, setAccount] = useState<Account | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getSessionToken()));
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(source || getSessionToken()));
   const [loadingPage, setLoadingPage] = useState(true);
   // PAGE-07: edits stay a local draft (live preview only) until «حفظ».
   const [isDirty, setIsDirty] = useState(false);
+  const [savedPageData, setSavedPageData] = useState<PageData | null>(null);
+  const [savedHistory, setSavedHistory] = useState<SavedVersion[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    // Someone else's page must never land in this browser's own draft.
+    if (typeof window === 'undefined' || source) {
       return;
     }
 
@@ -366,12 +466,28 @@ export function PageProvider({ children }: { children: ReactNode }) {
       // lives in memory until it is saved.
       console.warn('Draft too large for local storage:', error);
     }
-  }, [pageData]);
+  }, [pageData, source]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function hydrateFromApi() {
+      if (source) {
+        try {
+          const response = await source.load();
+          if (!cancelled) {
+            setPageData(mergeWithDefaults(response.pageData));
+            setSavedPageData(mergeWithDefaults(response.pageData));
+          }
+        } catch (error) {
+          console.error('Failed to load page:', error);
+          if (!cancelled) setIsAuthenticated(false);
+        } finally {
+          if (!cancelled) setLoadingPage(false);
+        }
+        return;
+      }
+
       const token = getSessionToken();
 
       if (!token) {
@@ -384,6 +500,8 @@ export function PageProvider({ children }: { children: ReactNode }) {
 
         if (!cancelled && response.pageData) {
           setPageData(mergeWithDefaults(response.pageData));
+          setSavedPageData(mergeWithDefaults(response.pageData));
+          setSavedHistory(readHistory(response.pageData.username || ''));
           setAccount(response.account);
           setIsDirty(false);
           setIsAuthenticated(true);
@@ -407,7 +525,7 @@ export function PageProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     if (!isDirty) {
@@ -438,14 +556,33 @@ export function PageProvider({ children }: { children: ReactNode }) {
     setSaving(true);
 
     try {
-      const response = await saveMyPage(pageData);
-      setPageData(mergeWithDefaults(response.pageData));
-      setAccount(response.account);
+      if (source) {
+        const savedData = mergeWithDefaults((await source.save(pageData)).pageData);
+        setPageData(savedData);
+        setSavedPageData(savedData);
+      } else {
+        const response = await saveMyPage(pageData);
+        setPageData(mergeWithDefaults(response.pageData));
+        setSavedPageData(mergeWithDefaults(response.pageData));
+        if (savedPageData) {
+          const username = response.pageData.username || pageData.username;
+          const next = [{ savedAt: new Date().toISOString(), data: savedPageData }, ...savedHistory].slice(0, HISTORY_LIMIT);
+          setSavedHistory(next);
+          writeHistory(username, next);
+        }
+        setAccount(response.account);
+      }
+
       setIsDirty(false);
     } finally {
       setSaving(false);
     }
-  }, [pageData]);
+  }, [pageData, source, savedPageData, savedHistory]);
+
+  const restoreVersion = useCallback((data: PageData) => {
+    setPageData(mergeWithDefaults(data));
+    setIsDirty(true);
+  }, []);
 
   const logout = useCallback(() => {
     clearSessionToken();
@@ -453,6 +590,8 @@ export function PageProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
     setAccount(null);
     setPageData(defaultPageData);
+    setSavedPageData(null);
+    setSavedHistory([]);
     setIsDirty(false);
   }, []);
 
@@ -505,64 +644,31 @@ export function PageProvider({ children }: { children: ReactNode }) {
     }));
   }, [edit]);
 
-  const addLink = useCallback((link: Omit<Link, 'id'>) => {
-    const newLink = { ...link, id: Date.now().toString() };
-    edit((prev) => (prev.links.length >= MAX_LINKS ? prev : { ...prev, links: [...prev.links, newLink] }));
+  const addLink = useCallback((link: Omit<Link, 'id'>, memberIds?: string[]) => {
+    const newLink = { ...link, id: crypto.randomUUID() };
+    edit((prev) => (prev.links.length >= MAX_LINKS ? prev : { ...prev, links: saveSectionItem(prev.links, newLink, memberIds) }));
   }, [edit]);
 
   const removeLink = useCallback((id: string) => {
     edit((prev) => ({
       ...prev,
-      links: prev.links.filter((link) => link.id !== id),
+      links: arrangeSections(prev.links.filter((link) => link.id !== id)),
     }));
   }, [edit]);
 
-  const updateLink = useCallback((id: string, updates: Partial<Link>) => {
-    edit((prev) => ({
-      ...prev,
-      links: prev.links.map((link) =>
-        link.id === id ? { ...link, ...updates } : link
-      ),
-    }));
+  const updateLink = useCallback((id: string, updates: Partial<Link>, memberIds?: string[]) => {
+    edit(prev => {
+      const current = prev.links.find(link => link.id === id);
+      return current ? { ...prev, links: saveSectionItem(prev.links, { ...current, ...updates }, memberIds) } : prev;
+    });
   }, [edit]);
 
   const moveLink = useCallback((id: string, direction: 'up' | 'down') => {
-    edit((prev) => {
-      const links = [...prev.links];
-      const index = links.findIndex((link) => link.id === id);
-      
-      if (index === -1) return prev;
-
-      if (direction === 'up' && index > 0) {
-        // Swap with previous
-        const temp = links[index - 1];
-        links[index - 1] = links[index];
-        links[index] = temp;
-      } else if (direction === 'down' && index < links.length - 1) {
-        // Swap with next
-        const temp = links[index + 1];
-        links[index + 1] = links[index];
-        links[index] = temp;
-      }
-
-      return { ...prev, links };
-    });
+    edit(prev => ({ ...prev, links: moveSectionItem(prev.links, id, direction) }));
   }, [edit]);
 
-  // Drag and drop: put the dragged button in the dropped-on button's place.
   const reorderLink = useCallback((id: string, targetId: string) => {
-    edit((prev) => {
-      const from = prev.links.findIndex((link) => link.id === id);
-      const to = prev.links.findIndex((link) => link.id === targetId);
-
-      if (from === -1 || to === -1 || from === to) return prev;
-
-      const links = [...prev.links];
-      const [moved] = links.splice(from, 1);
-      links.splice(to, 0, moved);
-
-      return { ...prev, links };
-    });
+    edit(prev => ({ ...prev, links: reorderSectionItem(prev.links, id, targetId) }));
   }, [edit]);
 
   return (
@@ -576,6 +682,9 @@ export function PageProvider({ children }: { children: ReactNode }) {
         setAuthenticated: setIsAuthenticated,
         loadingPage,
         isDirty,
+        savedPageData,
+        savedHistory,
+        restoreVersion,
         saving,
         save,
         logout,

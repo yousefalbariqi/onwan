@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { Sparkles } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router';
 import { checkUsername } from '../lib/api';
 import { BRAND_NAME, ROOT_DOMAIN, USERNAME_PATTERN, pageHost } from '../lib/site';
+import AuthModal from '../components/AuthModal';
+
+// During UI testing the landing page can proceed using local name validation
+// only, without asking the API (and therefore the database) for availability.
+const skipUsernameAvailabilityCheck =
+  import.meta.env.DEV || import.meta.env.VITE_SKIP_SIGNUP_USERNAME_CHECK === 'true';
 
 type UsernameStatus =
   | 'idle'
   | 'checking'
   | 'available'
+  | 'available_locally'
   | 'available_unverified'
   | 'invalid'
   | 'reserved'
@@ -31,6 +37,12 @@ function getUsernameFeedback(status: UsernameStatus, normalizedUsername: string)
         tone: 'success' as const,
         title: `ممتاز، ${pageHost(normalizedUsername)} متاح.`,
         details: ['يُحجز الاسم لك عند إنشاء الحساب.'],
+      };
+    case 'available_locally':
+      return {
+        tone: 'success' as const,
+        title: `يمكنك المتابعة بالاسم ${normalizedUsername}.`,
+        details: ['وضع الاختبار مفعّل: لم يتم التحقق من توفر الاسم في قاعدة البيانات.'],
       };
     case 'available_unverified':
       return {
@@ -76,7 +88,9 @@ function getUsernameFeedback(status: UsernameStatus, normalizedUsername: string)
 
 export default function Landing() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+  const [searchParams] = useSearchParams();
+  const requestedUsername = (searchParams.get('username') || '').trim().toLowerCase();
+  const [username, setUsername] = useState(requestedUsername);
   const [status, setStatus] = useState<UsernameStatus>('idle');
   const [serviceMessage, setServiceMessage] = useState('');
   const normalizedUsername = username.trim().toLowerCase();
@@ -88,6 +102,12 @@ export default function Landing() {
 
     if (!trimmed) {
       setStatus('idle');
+      setServiceMessage('');
+      return;
+    }
+
+    if (skipUsernameAvailabilityCheck) {
+      setStatus(isLocallyValidUsername(trimmed) ? 'available_locally' : 'invalid');
       setServiceMessage('');
       return;
     }
@@ -111,9 +131,13 @@ export default function Landing() {
 
   const handleStart = () => {
     if (canProceed) {
-      navigate(`/signup?username=${normalizedUsername}`);
+      navigate(`/builder?onboarding=signup&username=${encodeURIComponent(normalizedUsername)}`);
     }
   };
+
+  const authMode = searchParams.get('auth');
+  const showSignup = authMode === 'signup' && USERNAME_PATTERN.test(normalizedUsername);
+  const showLogin = authMode === 'login';
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -131,26 +155,16 @@ export default function Landing() {
           </div>
           <div className="flex gap-3">
             <button
-              onClick={() => navigate('/login')}
+              onClick={() => navigate('/?auth=login')}
               className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition-all"
             >
               تسجيل الدخول
-            </button>
-            <button
-              onClick={handleStart}
-              className="px-6 py-2 bg-white text-emerald-600 rounded-full hover:bg-white/90 transition-all font-semibold"
-            >
-              ابدأ
             </button>
           </div>
         </div>
 
         {/* Hero Section */}
         <div className="text-center space-y-8">
-          <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm mb-6">
-            <Sparkles className="w-4 h-4" />
-            <span>للجمعيات والشركات</span>
-          </div>
 
           <h1 
             className="text-5xl md:text-7xl font-black text-white leading-tight"
@@ -237,6 +251,10 @@ export default function Landing() {
             </button>
           </div>
 
+          <button onClick={() => navigate('/partners')} className="text-sm text-white/80 underline hover:text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+            مطبعة أو محل طباعة؟ كن شريكًا
+          </button>
+
           {/* Features */}
           <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto mt-16 text-white/80">
             <div className="text-center">
@@ -254,6 +272,8 @@ export default function Landing() {
           </div>
         </div>
       </div>
+      {showSignup && <AuthModal mode="signup" username={normalizedUsername} />}
+      {showLogin && <AuthModal mode="login" />}
     </div>
   );
 }

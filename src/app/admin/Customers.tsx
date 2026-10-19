@@ -4,10 +4,11 @@ import { ROOT_DOMAIN } from '../lib/site';
 import { adminCall } from './adminApi';
 import { Badge, Card, Empty, ErrorNote, PAGE_STATUS, PLAN_NAMES, Tabs, formatDate, inputClass, useLoad } from './ui';
 
-type Filter = 'all' | 'overdue' | 'suspended' | 'banned' | 'draft';
+type Filter = 'all' | 'cart' | 'overdue' | 'suspended' | 'banned' | 'draft';
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'الكل' },
+  { id: 'cart', label: 'سلة بانتظار الدفع' },
   { id: 'overdue', label: 'اشتراك منتهٍ' },
   { id: 'suspended', label: 'موقوفة' },
   { id: 'banned', label: 'محظور' },
@@ -67,6 +68,7 @@ export function Customers({ onOpen }: { onOpen: (userId: string) => void }) {
                     <div className="text-xs text-gray-500" dir="ltr">
                       {customer.username ? `${customer.username}.${ROOT_DOMAIN}` : '—'}
                     </div>
+                    {customer.username && !customer.name_fixed && <div className="text-xs text-amber-700">اسم محجوز</div>}
                   </td>
                   <td className="py-3 text-xs text-gray-600" dir="ltr">
                     <div>{customer.email || '—'}</div>
@@ -84,6 +86,7 @@ export function Customers({ onOpen }: { onOpen: (userId: string) => void }) {
                   <td className="py-3 text-gray-700">
                     {customer.plan ? PLAN_NAMES[customer.plan] : '—'}
                     {customer.subscription_status === 'pending_payment' && <span className="mr-1 text-xs text-amber-700">(بانتظار الدفع)</span>}
+                    {customer.has_cart && <div className="text-xs font-semibold text-amber-700">سلة بانتظار التأكيد</div>}
                   </td>
                   <td className="py-3">
                     <div className="text-gray-700">{formatDate(customer.expires_at)}</div>

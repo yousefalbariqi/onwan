@@ -275,7 +275,7 @@ const handlers: Record<string, Handler> = {
         `select u.email, un.username
          from account_setup_tokens t
          join users u on u.id = t.user_id
-         left join usernames un on un.user_id = u.id
+         left join customer_names un on un.user_id = u.id
          where t.token_hash = $1 and t.used_at is null and t.expires_at > now()`,
         [hashSetupToken(String(params.token ?? ''))],
       );
@@ -421,6 +421,19 @@ const handlers: Record<string, Handler> = {
 
       if (existing.rowCount) {
         throw new HttpError(409, 'يوجد حساب في عنوان بهذا البريد أو رقم الجوال.');
+      }
+
+      // The same customer cannot sit in two open orders at once.
+      const openOrder = await pool.query(
+        `select 1 from partner_orders
+         where status = 'awaiting_payment' and created_at > now() - make_interval(days => $3)
+           and (customer_email = $1 or customer_phone = $2)
+         limit 1`,
+        [customerEmail, customerPhone, PARTNER_ORDER_WINDOW_DAYS],
+      );
+
+      if (openOrder.rowCount) {
+        throw new HttpError(409, 'يوجد طلب مفتوح بانتظار الدفع لهذا العميل. ألغِه أولًا لإنشاء طلب جديد.');
       }
 
       const availability = await getUsernameAvailability(String(params.username ?? ''));

@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { LogOut } from 'lucide-react';
 import { BRAND_NAME } from '../lib/site';
 import { StaffMember, adminCall, getStaffToken, setStaffToken } from './adminApi';
 import { CustomerDetail } from './CustomerDetail';
 import { Customers } from './Customers';
+import { Partners } from './Partners';
 import { Reports, Requests, Reviews } from './Queues';
-import { AuditLog, Prices, StaffAdmin } from './Settings';
+import { CustomDomains, DesignService, NfcOrders, Reports as ManagerReports, ServiceSettings } from './Services';
+import { AuditLog, DiscountCodes, Prices, StaffAdmin } from './Settings';
 import { Button, ErrorNote, Field, inputClass } from './ui';
 
-type Section = 'customers' | 'reviews' | 'requests' | 'reports' | 'prices' | 'staff' | 'audit';
+type Section = 'customers' | 'partners' | 'reviews' | 'requests' | 'reports' | 'design' | 'nfc' | 'domains' | 'prices' | 'figures' | 'staff' | 'audit';
 
 const SECTIONS: { id: Section; label: string; managerOnly?: boolean }[] = [
   { id: 'customers', label: 'العملاء' },
+  { id: 'partners', label: 'الشركاء' },
   { id: 'reviews', label: 'مراجعة المحتوى' },
   { id: 'requests', label: 'الطلبات' },
   { id: 'reports', label: 'البلاغات' },
+  { id: 'design', label: 'صمّم لي' },
+  { id: 'nfc', label: 'NFC' },
+  { id: 'domains', label: 'الدومينات' },
   { id: 'prices', label: 'الأسعار' },
+  { id: 'figures', label: 'التقارير', managerOnly: true },
   { id: 'staff', label: 'الموظفون', managerOnly: true },
   { id: 'audit', label: 'سجل العمليات', managerOnly: true },
 ];
@@ -84,7 +92,9 @@ export default function AdminApp() {
   const [staff, setStaff] = useState<StaffMember | null>(null);
   const [checking, setChecking] = useState(Boolean(getStaffToken()));
   const [section, setSection] = useState<Section>('customers');
-  const [customerId, setCustomerId] = useState<string | null>(null);
+  // ?customer=<id> reopens a customer after returning from the page editor.
+  const [searchParams] = useSearchParams();
+  const [customerId, setCustomerId] = useState<string | null>(searchParams.get('customer'));
 
   useEffect(() => {
     if (!getStaffToken()) return;
@@ -163,10 +173,21 @@ export default function AdminApp() {
           ) : (
             <Customers onOpen={setCustomerId} />
           ))}
+        {section === 'partners' && <Partners staff={staff} onOpenCustomer={openCustomer} />}
         {section === 'reviews' && <Reviews onOpen={openCustomer} />}
         {section === 'requests' && <Requests onOpen={openCustomer} />}
         {section === 'reports' && <Reports onOpen={openCustomer} />}
-        {section === 'prices' && <Prices isManager={isManager} />}
+        {section === 'design' && <DesignService onOpen={openCustomer} />}
+        {section === 'nfc' && <NfcOrders onOpen={openCustomer} />}
+        {section === 'domains' && <CustomDomains onOpen={openCustomer} />}
+        {section === 'prices' && (
+          <div className="space-y-4">
+            <Prices isManager={isManager} />
+            {isManager && <DiscountCodes />}
+            <ServiceSettings isManager={isManager} />
+          </div>
+        )}
+        {section === 'figures' && isManager && <ManagerReports />}
         {section === 'staff' && isManager && <StaffAdmin me={staff} />}
         {section === 'audit' && isManager && <AuditLog />}
       </main>

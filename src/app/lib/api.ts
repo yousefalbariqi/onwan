@@ -12,12 +12,22 @@ export type Account = {
   email: string;
   phone: string;
   emailVerified: boolean;
+  // The name is held until the payment fixes it; changeable until then.
+  nameFixed: boolean;
+  nameHoldExpiresAt: string | null;
   pageStatus: 'draft' | 'published' | 'suspended';
   suspensionMessage: string;
   subscription: {
     plan: Plan;
     status: 'pending_payment' | 'active' | 'expired';
+    startsAt: string | null;
     expiresAt: string | null;
+    renewalInvoice: {
+      number: number;
+      plan: Plan;
+      amount: number;
+      dueAt: string | null;
+    } | null;
   } | null;
 };
 
@@ -93,8 +103,8 @@ export function signup(input: { username: string; phone: string; email: string; 
   return request<AuthResponse>('/api/auth/signup', { method: 'POST', body: input });
 }
 
-export function login(email: string, password: string) {
-  return request<AuthResponse>('/api/auth/login', { method: 'POST', body: { email, password } });
+export function login(identifier: string, password: string) {
+  return request<AuthResponse>('/api/auth/login', { method: 'POST', body: { identifier, password } });
 }
 
 export function requestPasswordReset(email: string) {
@@ -141,33 +151,26 @@ export function saveMyPage(pageData: any) {
   });
 }
 
-export function fetchPublicPage(username: string) {
-  return request<{ pageData?: any; suspended?: boolean; message?: string; movedTo?: string }>(
-    `/api/public-page?username=${encodeURIComponent(username)}`,
-  );
-}
+// By page name, or by the entity's own domain when opened on one (DOMAIN-03).
+export function fetchPublicPage(target: { username: string } | { host: string }) {
+  const query = 'host' in target ? `host=${encodeURIComponent(target.host)}` : `username=${encodeURIComponent(target.username)}`;
 
-export function fetchSubscription() {
-  return request<{ plans: { plan: Plan; priceSar: number | null }[]; account: Account }>('/api/subscription', {
-    authenticated: true,
-  });
-}
-
-export function startCheckout(plan: Plan) {
-  return request<{ checkoutUrl: string | null; paymentConfigured: boolean; account: Account }>(
-    '/api/subscription',
-    { method: 'POST', authenticated: true, body: { plan } },
-  );
+  return request<{ pageData?: any; suspended?: boolean; message?: string; movedTo?: string }>(`/api/public-page?${query}`);
 }
 
 export function reportPage(username: string, message: string) {
   return request<{ message: string }>('/api/report', { method: 'POST', body: { username, message } });
 }
 
-export function sendSupportRequest(type: RequestType, message: string) {
-  return request<{ message: string }>('/api/requests', {
+// Signed-in beneficiary actions other than editing the page (api/account.ts).
+export function accountCall<T = any>(action: string, params: Record<string, unknown> = {}) {
+  return request<T>('/api/account', {
     method: 'POST',
     authenticated: true,
-    body: { type, message },
+    body: { action, ...params },
   });
+}
+
+export function sendSupportRequest(type: RequestType, message: string) {
+  return accountCall<{ message: string }>('request.send', { type, message });
 }

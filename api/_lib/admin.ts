@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { activateSubscription, getPlans, isPlan, isValidEmail, normalizeEmail } from './account';
+import { activateSubscription, getPlans, isPlan, isValidEmail, normalizeDiscountCode, normalizeEmail } from './account';
 import { createSessionToken, getBearerToken, verifySessionToken } from './auth';
 import { pool } from './db';
 import { sendNoticeEmail } from './email';
@@ -8,6 +8,9 @@ import { getPageDataByUserId } from './page';
 import { hashPassword, validatePassword, verifyPassword } from './password';
 import { getUsernameAvailability } from './username';
 import { partnerAdminHandlers, recordPartnerRenewal } from './adminPartners';
+import { serviceAdminHandlers } from './adminServices';
+import { archiveLinks } from './page';
+import { recordPayment } from './services';
 
 export type Staff = {
   id: string;
@@ -71,7 +74,7 @@ export async function audit(
 export async function getCustomerLabel(userId: string) {
   const result = await pool.query<{ label: string }>(
     `select coalesce(un.username, u.email, u.phone) as label
-     from users u left join usernames un on un.user_id = u.id
+     from users u left join customer_names un on un.user_id = u.id
      where u.id = $1`,
     [userId],
   );
@@ -95,6 +98,7 @@ async function customerTarget(userId: unknown) {
 
 const handlers: Record<string, Handler> = {
   ...partnerAdminHandlers,
+  ...serviceAdminHandlers,
 
   // First manager only: works while the staff table is empty and the caller
   // knows ADMIN_SETUP_TOKEN from the server environment.
@@ -177,18 +181,21 @@ const handlers: Record<string, Handler> = {
         suspended: "p.status = 'suspended'",
         banned: "u.status = 'banned'",
         draft: "p.status = 'draft'",
+        // NEW-04: registration carts waiting for their payment to be confirmed.
+        cart: "exists (select 1 from registration_carts c where c.user_id = u.id and c.status = 'pending_payment')",
       };
 
       const result = await pool.query(
         `
           select
             u.id, u.email, u.phone, u.status as account_status, u.created_at,
-            un.username, p.display_name, p.status as page_status, p.suspended_at,
+            un.username, un.is_fixed as name_fixed, p.display_name, p.status as page_status, p.suspended_at,
+            exists (select 1 from registration_carts c where c.user_id = u.id and c.status = 'pending_payment') as has_cart,
             s.plan, s.status as subscription_status, s.expires_at,
             case when s.expires_at < now()
               then floor(extract(epoch from now() - s.expires_at) / 86400)::int end as overdue_days
           from users u
-          left join usernames un on un.user_id = u.id
+          left join customer_names un on un.user_id = u.id
           left join pages p on p.user_id = u.id
           left join subscriptions s on s.user_id = u.id
           where (${filters[filter] ?? 'true'})
@@ -209,13 +216,13 @@ const handlers: Record<string, Handler> = {
     run: async (params) => {
       const target = await customerTarget(params.userId);
 
-      const [customer, requests, history] = await Promise.all([
+      const [customer, requests, cart, history] = await Promise.all([
         pool.query(
           `
             select
               u.id, u.email, u.phone, u.status as account_status, u.ban_reason, u.banned_at,
               u.email_verified_at, u.created_at,
-              un.username, p.status as page_status, p.suspension_message, p.suspension_reason, p.suspended_at,
+              un.username, un.is_fixed as name_fixed, un.hold_expires_at, p.status as page_status, p.suspension_message, p.suspension_reason, p.suspended_at,
               case when p.suspended_at is not null
                 then floor(extract(epoch from now() - p.suspended_at) / 86400)::int end as suspended_days,
               s.plan, s.status as subscription_status, s.starts_at, s.expires_at, s.payment_reference, s.custom_price,
@@ -224,7 +231,7 @@ const handlers: Record<string, Handler> = {
               case when s.expires_at < now()
                 then floor(extract(epoch from now() - s.expires_at) / 86400)::int end as overdue_days
             from users u
-            left join usernames un on un.user_id = u.id
+            left join customer_names un on un.user_id = u.id
             left join pages p on p.user_id = u.id
             left join subscriptions s on s.user_id = u.id
             where u.id = $1
@@ -233,6 +240,14 @@ const handlers: Record<string, Handler> = {
         ),
         pool.query(
           'select id, type, message, status, due_at, created_at from support_requests where user_id = $1 order by created_at desc limit 20',
+          [target.id],
+        ),
+        pool.query(
+          `select id, cart_number, plan, plan_price::float, plan_list_price::float, general_discount::float,
+                  discount_code, code_discount::float, custom_domain, domain_price::float, design_price::float, nfc_quantity, nfc_unit_price::float,
+                  nfc_shipping_price::float, nfc_recipient_name, nfc_recipient_phone, nfc_city, nfc_address,
+                  total::float, created_at
+           from registration_carts where user_id = $1 and status = 'pending_payment'`,
           [target.id],
         ),
         pool.query(
@@ -246,6 +261,7 @@ const handlers: Record<string, Handler> = {
         customer: customer.rows[0],
         pageData: await getPageDataByUserId(target.id),
         requests: requests.rows,
+        cart: cart.rows[0] ?? null,
         history: history.rows,
       };
     },
@@ -350,9 +366,24 @@ const handlers: Record<string, Handler> = {
         throw new HttpError(400, 'اختر الاشتراك الشهري أو السنوي.');
       }
 
+      // PAY-05: what was actually collected is recorded with the payment.
+      const amount = Math.round(Number(params.amount) * 100) / 100;
+
+      if (params.amount === '' || params.amount === null || !Number.isFinite(amount) || amount < 0 || amount > 1000000) {
+        throw new HttpError(400, 'أدخل المبلغ المحصّل بالريال.');
+      }
+
       await activateSubscription(target.id, params.plan, `يدوي: ${reference}`);
+      await recordPayment(pool, {
+        userId: target.id,
+        kind: 'subscription',
+        amount,
+        reference,
+        label: target.label,
+        recordedBy: staff.name,
+      });
       const renewalRecorded = await recordPartnerRenewal(target.id);
-      await audit(staff, 'subscription.activate', target, { plan: params.plan, reference, partnerRenewal: renewalRecorded });
+      await audit(staff, 'subscription.activate', target, { plan: params.plan, amount, reference, partnerRenewal: renewalRecorded });
       return { ok: true };
     },
   },
@@ -407,7 +438,9 @@ const handlers: Record<string, Handler> = {
         oldUsername = current.rows[0]?.username ?? '';
 
         if (!oldUsername) {
-          throw new HttpError(409, 'لا يوجد رابط حالي لهذا العميل.');
+          // NEW-01 (amended): before the payment the name is only held, and the
+          // customer changes it themselves at no charge.
+          throw new HttpError(409, 'اسم هذا العميل لم يُثبَّت بعد (لم يدفع)؛ يغيّره العميل نفسه من لوحته قبل الدفع.');
         }
 
         await client.query('update usernames set username = $2 where user_id = $1', [target.id, availability.normalized]);
@@ -451,11 +484,19 @@ const handlers: Record<string, Handler> = {
     run: async (params, staff) => {
       const target = await customerTarget(params.userId);
 
+      const linkId = String(params.linkId ?? '');
+      const page = await pool.query<{ id: string }>('select id from pages where user_id = $1', [target.id]);
+
+      // Kept in the archive so the manager can restore it (PERM-19).
+      if (page.rows[0] && /^[0-9a-f-]{36}$/i.test(linkId)) {
+        await archiveLinks(pool, page.rows[0].id, [linkId], staff.name);
+      }
+
       const result = await pool.query<{ title: string }>(
         `delete from page_links
          where id = $2 and page_id = (select id from pages where user_id = $1)
          returning title`,
-        [target.id, String(params.linkId ?? '')],
+        [target.id, linkId],
       );
 
       if (!result.rowCount) {
@@ -503,7 +544,7 @@ const handlers: Record<string, Handler> = {
                  p.user_id, un.username
           from content_reviews r
           join pages p on p.id = r.page_id
-          left join usernames un on un.user_id = p.user_id
+          left join customer_names un on un.user_id = p.user_id
           where r.status = $1
           order by r.created_at desc
           limit 100
@@ -632,7 +673,7 @@ const handlers: Record<string, Handler> = {
                  r.user_id, u.email, u.phone, un.username
           from support_requests r
           join users u on u.id = r.user_id
-          left join usernames un on un.user_id = r.user_id
+          left join customer_names un on un.user_id = r.user_id
           where ($1::text is null or r.status = $1)
           order by r.created_at desc
           limit 200
@@ -699,6 +740,77 @@ const handlers: Record<string, Handler> = {
       await audit(staff, 'plans.set', { type: 'plan', id: params.plan, label: params.plan }, { priceSar: price });
 
       return { plans: await getPlans() };
+    },
+  },
+
+  // PAY-02: general discount on a plan, until the manager removes it (null).
+  'plans.setDiscount': {
+    access: 'manager',
+    run: async (params, staff) => {
+      const percent = params.percent === null || params.percent === '' ? null : Number(params.percent);
+
+      if (!isPlan(params.plan) || (percent !== null && (!Number.isFinite(percent) || percent <= 0 || percent >= 100))) {
+        throw new HttpError(400, 'أدخل نسبة خصم بين 1 و99، أو اتركها فارغة لإيقاف الخصم.');
+      }
+
+      await pool.query('update plans set discount_percent = $2, updated_at = now() where plan = $1', [params.plan, percent]);
+      await audit(staff, 'plans.setDiscount', { type: 'plan', id: params.plan, label: params.plan }, { percent });
+
+      return { plans: await getPlans() };
+    },
+  },
+
+  // PAY-03: discount codes with an expiry date and a usage limit.
+  'codes.list': {
+    access: 'manager',
+    run: async () => {
+      const result = await pool.query(
+        'select code, kind, value::float, expires_at, max_uses, used_count, is_active, created_at from discount_codes order by created_at desc',
+      );
+
+      return { codes: result.rows };
+    },
+  },
+
+  'codes.create': {
+    access: 'manager',
+    run: async (params, staff) => {
+      const code = normalizeDiscountCode(params.code);
+      const kind = params.kind === 'amount' ? 'amount' : 'percent';
+      const value = Number(params.value);
+      const maxUses = params.maxUses === null || params.maxUses === '' || params.maxUses === undefined ? null : Math.floor(Number(params.maxUses));
+      const expiresAt = params.expiresAt ? new Date(String(params.expiresAt)) : null;
+
+      if (!/^[A-Z0-9_-]{3,40}$/.test(code)) throw new HttpError(400, 'الكود من 3 إلى 40 حرفًا إنجليزيًا أو رقمًا.');
+      if (!Number.isFinite(value) || value <= 0 || (kind === 'percent' && value > 100)) throw new HttpError(400, 'قيمة الخصم غير صحيحة.');
+      if (maxUses !== null && (!Number.isFinite(maxUses) || maxUses < 1)) throw new HttpError(400, 'حد الاستخدام غير صحيح.');
+      if (expiresAt && Number.isNaN(expiresAt.getTime())) throw new HttpError(400, 'تاريخ الانتهاء غير صحيح.');
+
+      try {
+        await pool.query(
+          'insert into discount_codes (code, kind, value, expires_at, max_uses) values ($1, $2, $3, $4, $5)',
+          [code, kind, value, expiresAt, maxUses],
+        );
+      } catch (error: any) {
+        if (error?.code === '23505') throw new HttpError(409, 'هذا الكود موجود.');
+        throw error;
+      }
+
+      await audit(staff, 'codes.create', { type: 'code', id: code, label: code }, { kind, value, maxUses, expiresAt });
+      return { ok: true };
+    },
+  },
+
+  'codes.setActive': {
+    access: 'manager',
+    run: async (params, staff) => {
+      const code = normalizeDiscountCode(params.code);
+      const result = await pool.query('update discount_codes set is_active = $2 where code = $1', [code, params.isActive === true]);
+
+      if (!result.rowCount) throw new HttpError(404, 'الكود غير موجود.');
+
+      await audit(staff, 'codes.setActive', { type: 'code', id: code, label: code }, { isActive: params.isActive === true });
+      return { ok: true };
     },
   },
 

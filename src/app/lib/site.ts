@@ -37,3 +37,17 @@ export function getSubdomainUsername() {
 
   return label && label !== 'www' && USERNAME_PATTERN.test(label) ? label : null;
 }
+
+// DOMAIN-03: the hostname when the app is opened on an entity's own domain
+// (anything that is not ours and not a development host), otherwise null.
+export function getCustomHost() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const host = window.location.hostname.toLowerCase();
+  const ours = host === ROOT_DOMAIN || host.endsWith(`.${ROOT_DOMAIN}`) || host.endsWith('.vercel.app');
+  const local = host === 'localhost' || /^[0-9.]+$/.test(host) || host.endsWith('.local');
+
+  return ours || local ? null : host;
+}

@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
-import { ArrowRight, Trash2 } from 'lucide-react';
+import { ArrowRight, Pencil, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import { mergeWithDefaults } from '../context/PageContext';
 import { PageView } from '../components/PageView';
 import { ROOT_DOMAIN } from '../lib/site';
 import { StaffMember, adminCall } from './adminApi';
@@ -32,7 +34,57 @@ const ACTION_LABELS: Record<string, string> = {
   'review.accepted': 'قبول محتوى',
   'review.rejected': 'رفض محتوى',
   'request.update': 'تحديث طلب',
+  'partnerOrder.confirmPayment': 'تأكيد دفع طلب شريك',
+  'content.save': 'تعديل الصفحة',
+  'content.restoreLink': 'استعادة محتوى محذوف',
+  'design.confirmPayment': 'تأكيد دفع «صمّم لي»',
+  'design.approve': 'اعتماد تصميم «صمّم لي»',
+  'cart.confirmPayment': 'تأكيد دفع سلة التسجيل',
 };
+
+// NEW-04: the registration cart is confirmed once, for everything in it.
+function CartCard({ cart, onDone }: { cart: any; onDone: () => void }) {
+  const [reference, setReference] = useState('');
+  const action = useAction(onDone);
+
+  return (
+    <Card title={`سلة التسجيل #${cart.cart_number} — بانتظار الدفع`}>
+      <Info label={`اشتراك ${PLAN_NAMES[cart.plan]}`}>
+        {cart.plan_price} ريال
+        {(cart.general_discount > 0 || cart.code_discount > 0) && (
+          <span className="mr-2 text-xs font-normal text-gray-500">
+            (السعر {cart.plan_list_price}
+            {cart.general_discount > 0 && ` − خصم عام ${cart.general_discount}`}
+            {cart.code_discount > 0 && ` − كود ${cart.discount_code} ${cart.code_discount}`})
+          </span>
+        )}
+      </Info>
+      {cart.design_price !== null && <Info label="«صمّم لي»">{cart.design_price} ريال</Info>}
+      {cart.nfc_quantity > 0 && (
+        <>
+          <Info label={`قطع NFC × ${cart.nfc_quantity}`}>{cart.nfc_quantity * cart.nfc_unit_price} ريال + شحن {cart.nfc_shipping_price} ريال</Info>
+          <Info label="الشحن إلى">
+            {cart.nfc_recipient_name} · <span dir="ltr">{cart.nfc_recipient_phone}</span> · {cart.nfc_city} — {cart.nfc_address}
+          </Info>
+        </>
+      )}
+      {cart.custom_domain && (
+        <Info label="دومين خاص">
+          <span dir="ltr">{cart.custom_domain}</span> · {cart.domain_price} ريال
+        </Info>
+      )}
+      <Info label="الإجمالي">{cart.total} ريال</Info>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="مرجع الدفع أو ملاحظة السداد" className={`${inputClass} min-w-0 flex-1`} />
+        <Button tone="good" disabled={action.busy || reference.trim().length < 3} onClick={() => action.run(() => adminCall('carts.confirmPayment', { id: cart.id, reference }))}>
+          تأكيد دفع السلة كاملة
+        </Button>
+      </div>
+      <ErrorNote message={action.error} />
+      <p className="mt-2 text-xs text-gray-500">التأكيد يثبّت اسم الرابط وينشر الصفحة، ويفتح «صمّم لي» ويُدخل طلب NFC والدومين الخاص كمدفوعة إن كانت في السلة.</p>
+    </Card>
+  );
+}
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -52,9 +104,19 @@ export function CustomerDetail({
   staff: StaffMember;
   onBack: () => void;
 }) {
+  const navigate = useNavigate();
   const load = useCallback(() => adminCall('customers.get', { userId }), [userId]);
+  // PERM-19: deleted content is the manager's to see and restore.
+  const loadDeleted = useCallback(
+    () => (staff.role === 'manager' ? adminCall('content.listDeleted', { userId }) : Promise.resolve({ deleted: [] })),
+    [userId, staff.role],
+  );
+  const deleted = useLoad<any>(loadDeleted);
   const { data, error, reload } = useLoad<any>(load);
-  const action = useAction(reload);
+  const action = useAction(() => {
+    reload();
+    deleted.reload();
+  });
   // Deleting leaves nothing to reload.
   const removal = useAction();
   const isManager = staff.role === 'manager';
@@ -64,6 +126,7 @@ export function CustomerDetail({
   const [reason, setReason] = useState('');
   const [plan, setPlan] = useState('annual');
   const [reference, setReference] = useState('');
+  const [amount, setAmount] = useState('');
   const [newUsername, setNewUsername] = useState('');
   const [feePaid, setFeePaid] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
@@ -89,7 +152,10 @@ export function CustomerDetail({
         <div className="space-y-4">
           <Card title={pageData?.name || label}>
             <Info label="الرابط">
-              <span dir="ltr">{customer.username ? `${customer.username}.${ROOT_DOMAIN}` : '—'}</span>
+              <span dir="ltr">{customer.username ? `${customer.username}.${ROOT_DOMAIN}` : '—'}</span>{' '}
+              {customer.username && !customer.name_fixed && (
+                <Badge tone="amber">محجوز{customer.hold_expires_at ? ` حتى ${formatDate(customer.hold_expires_at)}` : ''} — يُثبَّت بالدفع</Badge>
+              )}
             </Info>
             <Info label="البريد">
               <span dir="ltr">{customer.email || '—'}</span> {customer.email && !customer.email_verified_at && <Badge tone="amber">غير مؤكد</Badge>}
@@ -120,6 +186,8 @@ export function CustomerDetail({
             )}
           </Card>
 
+          {data.cart && <CartCard cart={data.cart} onDone={reload} />}
+
           <Card title="الاشتراك">
             <Info label="النوع">{customer.plan ? PLAN_NAMES[customer.plan] : 'لا يوجد'}</Info>
             <Info label="تاريخ الانتهاء">
@@ -129,12 +197,23 @@ export function CustomerDetail({
               )}
             </Info>
             <Info label="مرجع آخر دفع">{customer.payment_reference || '—'}</Info>
+            {customer.partner_shop && <Info label="سُجّل عبر الشريك">{customer.partner_shop}</Info>}
+            {customer.custom_price && <Info label="سعر العميل المحفوظ للتجديد">{Number(customer.custom_price)} ريال</Info>}
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-[120px_minmax(0,1fr)_auto]">
+            <div className="mt-4 grid gap-2 sm:grid-cols-[110px_120px_minmax(0,1fr)_auto]">
               <select value={plan} onChange={(e) => setPlan(e.target.value)} className={inputClass}>
                 <option value="annual">سنوي</option>
                 <option value="monthly">شهري</option>
               </select>
+              <input
+                type="number"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="المبلغ المحصّل"
+                className={inputClass}
+                dir="ltr"
+              />
               <input
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
@@ -143,9 +222,12 @@ export function CustomerDetail({
               />
               <Button
                 tone="good"
-                disabled={action.busy || reference.trim().length < 3}
+                disabled={action.busy || reference.trim().length < 3 || amount === ''}
                 onClick={async () => {
-                  if (await call('subscription.activate', { plan, reference })) setReference('');
+                  if (await call('subscription.activate', { plan, reference, amount: Number(amount) })) {
+                    setReference('');
+                    setAmount('');
+                  }
                 }}
               >
                 تفعيل / تجديد
@@ -204,7 +286,9 @@ export function CustomerDetail({
           </Card>
 
           <Card title="تغيير رابط الصفحة">
-            {canChangeSubdomain ? (
+            {!customer.name_fixed ? (
+              <p className="text-sm text-gray-500">الاسم محجوز ولم يُثبَّت بعد؛ يغيّره العميل نفسه مجانًا قبل الدفع.</p>
+            ) : canChangeSubdomain ? (
               <>
                 <div className="flex items-center gap-2" dir="ltr">
                   <input
@@ -240,7 +324,15 @@ export function CustomerDetail({
             )}
           </Card>
 
-          <Card title="المحتوى">
+          <Card
+            title="المحتوى"
+            actions={
+              <Button onClick={() => navigate(`/admin/edit/${userId}`)}>
+                <Pencil className="ml-1 inline h-4 w-4" />
+                تعديل الصفحة كاملة
+              </Button>
+            }
+          >
             <div className="mb-3 flex flex-wrap gap-2">
               {[
                 ['name', 'إزالة الاسم'],
@@ -287,6 +379,26 @@ export function CustomerDetail({
               <Empty>لا توجد أزرار.</Empty>
             )}
           </Card>
+
+          {isManager && deleted.data?.deleted.length > 0 && (
+            <Card title="محتوى محذوف (للمدير)">
+              <ul className="divide-y divide-gray-100 text-sm">
+                {deleted.data.deleted.map((item: any) => (
+                  <li key={item.id} className="flex items-center justify-between gap-3 py-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold">{item.title}</div>
+                      <div className="truncate text-xs text-gray-500" dir="ltr">{item.link_type === 'file' ? item.file_name || 'file' : item.url}</div>
+                      <div className="text-xs text-gray-500">حذفه: {item.deleted_by} · {formatDate(item.deleted_at, true)}</div>
+                    </div>
+                    <Button disabled={action.busy} onClick={() => call('content.restoreLink', { id: item.id })}>
+                      استعادة
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-gray-500">العنصر المستعاد يعود مخفيًا في آخر القائمة حتى يُظهره العميل أو موظف.</p>
+            </Card>
+          )}
 
           {data.requests.length > 0 && (
             <Card title="طلبات العميل">
@@ -365,7 +477,7 @@ export function CustomerDetail({
 
         <div>
           <div className="mb-2 text-xs font-semibold text-gray-500">الصفحة كما حفظها العميل</div>
-          {pageData ? <PageView data={pageData} variant="preview" /> : <Empty>لا توجد صفحة.</Empty>}
+          {pageData ? <PageView data={mergeWithDefaults(pageData)} variant="preview" /> : <Empty>لا توجد صفحة.</Empty>}
         </div>
       </div>
     </div>
