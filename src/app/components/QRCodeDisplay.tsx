@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Download, QrCode, X } from 'lucide-react';
+import { Check, Copy, Download, Share2, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { pageHost, pageUrl } from '../lib/site';
 
@@ -10,6 +10,7 @@ interface QRCodeDisplayProps {
 export function QRCodeDisplay({ username }: QRCodeDisplayProps) {
   const [showModal, setShowModal] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [copied, setCopied] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const url = pageUrl(username);
@@ -41,15 +42,15 @@ export function QRCodeDisplay({ username }: QRCodeDisplayProps) {
 
   return (
     <>
+      {/* Same size and shape as «صمّم لي» and «التالي» beside it. */}
       <button
         onClick={() => setShowModal(true)}
-        className="flex h-10 min-w-10 items-center justify-center gap-2 bg-white border-2 border-gray-200 text-gray-700 px-2 sm:px-4 rounded-full text-sm font-semibold hover:bg-gray-50 hover:border-emerald-300 transition-all"
-        title="عرض باركود الصفحة"
+        className="flex h-10 w-[104px] items-center justify-center gap-1.5 rounded-full border border-gray-200 bg-white text-sm font-bold text-gray-800 shadow-sm transition-transform active:scale-95"
+        style={{ fontFamily: 'Cairo, sans-serif' }}
+        title="مشاركة رابط صفحتك وباركودها"
       >
-        <QrCode className="h-5 w-5" />
-        <span className="hidden sm:inline" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          باركود
-        </span>
+        <Share2 className="h-4 w-4" />
+        مشاركة
       </button>
 
       {showModal && (
@@ -62,7 +63,7 @@ export function QRCodeDisplay({ username }: QRCodeDisplayProps) {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-black text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                باركود صفحتك
+                مشاركة صفحتك
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -92,6 +93,31 @@ export function QRCodeDisplay({ username }: QRCodeDisplayProps) {
               </p>
             </div>
 
+            <div className="mb-3 grid grid-cols-2 gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(url);
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1500);
+                  } catch {
+                    // clipboard blocked: the link is shown above to copy by hand
+                  }
+                }}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-gray-100 py-3 text-sm font-bold text-gray-800"
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'تم النسخ' : 'نسخ الرابط'}
+              </button>
+              <button
+                onClick={() => navigator.share?.({ url }).catch(() => undefined)}
+                disabled={typeof navigator.share !== 'function'}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-gray-100 py-3 text-sm font-bold text-gray-800 disabled:opacity-40"
+              >
+                <Share2 className="h-4 w-4" />
+                إرسال
+              </button>
+            </div>
             {/* Download Button */}
             <button
               onClick={handleDownload}

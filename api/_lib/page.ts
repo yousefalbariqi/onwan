@@ -514,46 +514,44 @@ export async function savePageData(userId: string, pageData: any, options: { sta
 
     await client.query('delete from page_links where page_id = $1', [pageId]);
 
-    for (const [index, link] of links.entries()) {
+    // One round trip for every button (instead of one per button): a saved
+    // page has up to MAX_LINKS of them and each trip to the database adds latency.
+    if (links.length) {
       await client.query(
         `
           insert into page_links (
-            page_id,
-            title,
-            url,
-            link_type,
-            file_category,
-            file_name,
-            file_mime_type,
-            file_size,
-            platform,
-            sort_order,
-            icon_style,
-            text_position,
-            is_hidden,
-            title_en,
-            custom_icon,
-            display_json
+            page_id, title, url, link_type, file_category, file_name, file_mime_type, file_size,
+            platform, sort_order, icon_style, text_position, is_hidden, title_en, custom_icon, display_json
           )
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)
+          select $1, r.title, r.url, r.link_type, r.file_category, r.file_name, r.file_mime_type, r.file_size,
+                 r.platform, r.sort_order, r.icon_style, r.text_position, r.is_hidden, r.title_en, r.custom_icon, r.display_json
+          from jsonb_to_recordset($2::jsonb) as r(
+            title text, url text, link_type text, file_category text, file_name text, file_mime_type text,
+            file_size integer, platform text, sort_order integer, icon_style text, text_position text,
+            is_hidden boolean, title_en text, custom_icon text, display_json jsonb
+          )
         `,
         [
           pageId,
-          link.title,
-          link.url,
-          link.linkType,
-          link.fileCategory,
-          link.fileName,
-          link.fileMimeType,
-          link.fileSize,
-          link.platform,
-          index,
-          link.iconStyle,
-          link.textPosition,
-          link.hidden,
-          link.titleEn,
-          link.customIcon,
-          JSON.stringify(link.display),
+          JSON.stringify(
+            links.map((link, index) => ({
+              title: link.title,
+              url: link.url,
+              link_type: link.linkType,
+              file_category: link.fileCategory,
+              file_name: link.fileName,
+              file_mime_type: link.fileMimeType,
+              file_size: link.fileSize,
+              platform: link.platform,
+              sort_order: index,
+              icon_style: link.iconStyle,
+              text_position: link.textPosition,
+              is_hidden: link.hidden,
+              title_en: link.titleEn,
+              custom_icon: link.customIcon,
+              display_json: link.display ?? null,
+            })),
+          ),
         ],
       );
     }

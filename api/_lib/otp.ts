@@ -30,13 +30,21 @@ export async function issueCode(email: string, purpose: OtpPurpose, intro?: stri
     [email, purpose],
   );
 
-  await pool.query(
+  const inserted = await pool.query<{ id: string }>(
     `insert into verification_codes (email, code, purpose, expires_at)
-     values ($1, $2, $3, $4)`,
+     values ($1, $2, $3, $4)
+     returning id`,
     [email, code, purpose, expiresAt],
   );
 
-  await sendOtpEmail(email, code, intro);
+  try {
+    await sendOtpEmail(email, code, intro);
+  } catch (error) {
+    // A code that never left must not start the resend cooldown.
+    await pool.query('delete from verification_codes where id = $1', [inserted.rows[0].id]);
+    console.error('OTP email failed:', error);
+    throw new HttpError(502, 'تعذر إرسال الرمز إلى بريدك الآن. حاول بعد قليل، وإن تكرر تواصل مع الإدارة.');
+  }
 }
 
 // One-time: a correct code is marked used; wrong guesses are counted and the

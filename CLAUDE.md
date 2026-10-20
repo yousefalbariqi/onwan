@@ -97,6 +97,7 @@ Vite + React SPA deployed on Vercel, backend as Vercel serverless functions in `
 
 - Edits are a **local draft**: they update the live preview and set `isDirty`, and reach the public page only through the explicit `save()` (PAGE-07). There is no auto-save. Every editor mutation goes through the internal `edit()` helper so the dirty flag stays correct.
 - On mount with a session token it hydrates from `/api/page/me`, replacing the local draft.
+- Undo / redo (`undo`, `redo`, `canUndo`, `canRedo`) keep snapshots of `pageData` taken in `edit()`; typing within 0.7 s is one step, a save does not clear them, `replacePageData` (login / hydrate) does. `isDirty` after an undo is `data !== savedPageData` (the saved copy is the same object as the draft right after a save or load). `restoreDraft` puts a whole earlier state back as one step.
 - `updateTheme` resets `wallpaper` to the theme background and clears custom colors.
 - PAGE-16: the English version is `translations.en` (name, description) plus `titleEn` on each link — on the link itself because link ids change on every save. Arabic and English are the only languages.
 - `resetDesign` restores the default look only; content is untouched (PAGE-08; exact behaviour is pending P-07).
@@ -115,7 +116,7 @@ Shared code in `api/_lib/`:
 
 - `db.ts` — lazy singleton `pg.Pool`
 - `auth.ts` — HMAC-SHA256 session tokens (30-day TTL); `session.ts` — `requireUser()` loads the user on every request and rejects banned accounts
-- `password.ts` — scrypt hashing; `otp.ts` — 6-digit one-time codes with cooldown and attempt limit
+- `password.ts` — scrypt hashing; `otp.ts` — 4-digit one-time codes with cooldown and attempt limit
 - `http.ts` — `HttpError` (message is shown to the client) and `handleApiError` (anything else becomes a generic 500; details stay in the log)
 - `page.ts` — page persistence and validation: max 20 buttons, files limited to images and PDF, link URLs limited to http(s)/mailto/tel. Every save inserts a `content_reviews` row (status `pending`) for the administration.
 - `accountActions.ts` — the signed-in beneficiary's actions behind `api/account.ts`: requests to the administration, «صمّم لي» request, NFC order, ACCT-05 changes (a code to the registered email; a new email needs a second code sent to it), and the overview shown in the «الحساب» tab

@@ -187,7 +187,9 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
     <div
       className={
         isPublic
-          ? 'relative min-h-screen flex items-center justify-center transition-all duration-500'
+          // Content starts at the top (not vertically centred), so a short page
+          // has no empty band above the photo.
+          ? 'relative min-h-screen flex items-start justify-center transition-all duration-500'
           : `relative w-full rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 ${
               isHeroLayout ? 'min-h-[700px]' : 'min-h-[600px]'
             }`

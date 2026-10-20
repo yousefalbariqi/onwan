@@ -6,7 +6,7 @@ const KEY_LENGTH = 64;
 
 export function validatePassword(password: string) {
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return `كلمة المرور يجب ألا تقل عن ${MIN_PASSWORD_LENGTH} أحرف.`;
+    return `لزيادة أمان حسابك، اختر كلمة مرور من ${MIN_PASSWORD_LENGTH} أحرف على الأقل.`;
   }
 
   if (password.length > 200) {

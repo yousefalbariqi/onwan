@@ -53,8 +53,10 @@ export function StyleEditor() {
   return (
     <div className="flex h-full min-h-[560px] flex-col bg-[#f2f2f7]" style={{ fontFamily: 'Tajawal, sans-serif' }}>
       {/* On desktop the big preview already sits beside the panel. */}
-      <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-4 lg:hidden">
-        <div className="w-full max-w-[230px]"><PhonePreview /></div>
+      {/* The free height decides the phone's size (its width follows from the
+          aspect ratio), so the preview can never grow over the tool tray. */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-3 lg:hidden">
+        <div className="aspect-[390/862] h-full max-h-[520px] max-w-full"><PhonePreview /></div>
       </div>
 
       <div className="shrink-0 rounded-t-[24px] bg-white px-4 pb-5 pt-3 shadow-[0_-6px_20px_rgba(0,0,0,0.06)]">

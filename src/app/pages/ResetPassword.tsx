@@ -78,13 +78,13 @@ export default function ResetPassword() {
           )}
           <AuthField
             label="رمز الاستعادة"
-            hint="6 أرقام، صالح لمدة 10 دقائق ولمرة واحدة."
+            hint="4 أرقام، صالح لمدة 10 دقائق ولمرة واحدة."
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
-            maxLength={6}
+            maxLength={4}
             required
             autoFocus
           />
@@ -98,7 +98,7 @@ export default function ResetPassword() {
             required
           />
           <AuthError message={error} />
-          <AuthSubmit loading={loading} disabled={code.length !== 6 || password.length < 8}>
+          <AuthSubmit loading={loading} disabled={code.length !== 4 || password.length < 8}>
             حفظ كلمة المرور والدخول
           </AuthSubmit>
         </form>

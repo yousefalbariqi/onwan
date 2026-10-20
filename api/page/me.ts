@@ -17,17 +17,17 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'GET') {
       await ensurePageForUser(user.id);
-      sendJson(res, 200, {
-        pageData: await getPageDataByUserId(user.id),
-        account: await getAccountSummary(user.id),
-      });
+      const [pageData, account] = await Promise.all([getPageDataByUserId(user.id), getAccountSummary(user.id)]);
+      sendJson(res, 200, { pageData, account });
       return;
     }
 
     const body = await readJsonBody(req);
-    const pageData = await savePageData(user.id, body.pageData ?? {});
+    // The account summary does not depend on the page content, so it is read
+    // alongside the save instead of after it.
+    const [pageData, account] = await Promise.all([savePageData(user.id, body.pageData ?? {}), getAccountSummary(user.id)]);
 
-    sendJson(res, 200, { pageData, account: await getAccountSummary(user.id) });
+    sendJson(res, 200, { pageData, account });
   } catch (error) {
     handleApiError(res, error);
   }

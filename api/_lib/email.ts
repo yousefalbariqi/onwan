@@ -11,7 +11,8 @@ function getFromEmail(): string {
 }
 
 export function generateOtp(): string {
-  return crypto.randomInt(100000, 1000000).toString();
+  // 4 digits (owner decision, 19 Oct 2026); OTP_MAX_ATTEMPTS in otp.ts keeps guessing out of reach.
+  return crypto.randomInt(1000, 10000).toString();
 }
 
 export function escapeHtml(value: string) {

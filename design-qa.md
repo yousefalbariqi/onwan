@@ -63,4 +63,9 @@ Ideas the owner gave for the mobile `/builder` that the requirements document (`
 | D-12 | Logo colour and contrast | Logos keep their brand colour unless the WCAG contrast with the button is below 2:1, then they take the button text colour. «لون الشعارات: ملوّنة / بلون النص» in «الأسلوب». | — |
 | D-13 | WhatsApp and email fields | WhatsApp takes a Saudi mobile number (+966 fixed) and builds `wa.me`; email takes an address and builds `mailto:`. A green confirmation line appears once valid. | Other country codes for WhatsApp? |
 
+| D-14 | Undo / redo and save feedback (19 Oct) | Undo and redo over editor changes (⌘Z / ⇧⌘Z outside text fields); saving does not clear them. The save keeps its own button: spinner → «تم الحفظ» for 1.5 s, red «إعادة المحاولة» on failure, never a success before the server confirms. Save stays manual: auto-save was declined because it would publish every change (PAGE-07). | — |
+| D-15 | Editor sheets close only on purpose | No closing by tapping outside or dragging. «تم» saves and closes only after the server confirms; «×» closes and, if the panel changed something, asks before putting it back. Leaving the editor waits for a running save and offers «حفظ والخروج / الخروج دون حفظ / البقاء». | — |
+| D-16 | Header and sign-in | Header: «مشاركة» (link, send, QR), «صمّم لي», «التالي», same size. While the email is unconfirmed, «أكّد بريدك» takes the header's place and the 4-digit code is typed in a popup. Signed out, the editor shows and the login opens over it; after login the person stays in the editor; a guest who signs up keeps the design as an unsaved draft. The welcome popup is removed. | OTP shortened to 4 digits (owner, 19 Oct). |
+| D-17 | Desktop editor | A rail of the same round sections, the open panel beside it, and the page large with undo / redo / save above it. | — |
+
 Verification: `npm run build` passes after each change. Not yet checked in a browser with a signed-in account.

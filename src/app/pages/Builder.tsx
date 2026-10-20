@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { PageData, SavedVersion, Theme, themes, usePageContext } from '../context/PageContext';
+import { PageData, SavedVersion, themes, usePageContext } from '../context/PageContext';
 import { PhonePreview } from '../components/PhonePreview';
 import { PageView } from '../components/PageView';
 import { HeaderEditor } from '../components/HeaderEditor';
@@ -11,7 +11,8 @@ import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { AccountPanel } from '../components/AccountPanel';
 import { accountCall } from '../lib/api';
 import { BRAND_NAME, pageHost, pageUrl } from '../lib/site';
-import { Palette, User, Image as ImageIcon, Sparkles, Link2, Eye, Home, ArrowLeft, Save, ExternalLink, Settings, ChevronLeft, X, Check, Share2, Undo2, History } from 'lucide-react';
+import { User, Image as ImageIcon, Sparkles, Link2, Eye, ArrowLeft, Save, Settings, X, Check, Undo2, Redo2, History, Loader2, RotateCw } from 'lucide-react';
+import { EmailVerifyChip } from '../components/EmailVerifyChip';
 import AuthModal from '../components/AuthModal';
 
 type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account';
@@ -26,16 +27,16 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
   const [activeTab, setActiveTab] = useState<Tab>('header');
   const [mobilePanel, setMobilePanel] = useState<Tab | null>(null);
   const [showGuestAuth, setShowGuestAuth] = useState(false);
-  const [undoWallpaper, setUndoWallpaper] = useState<PageData['wallpaper'] | null>(null);
-  const [undoTheme, setUndoTheme] = useState<Theme | null>(null);
   const [designNotice, setDesignNotice] = useState('');
-  const [showWelcome, setShowWelcome] = useState(() => {
-    if (staffEdit || guestPreview || localStorage.getItem('bio_sa_welcome_seen')) return false;
-    localStorage.setItem('bio_sa_welcome_seen', '1');
-    return true;
-  });
-  const { pageData, savedPageData, replacePageData, savedHistory, restoreVersion, account, isAuthenticated, loadingPage, isDirty, saving, save, updateTheme, updateWallpaper } = usePageContext();
+  const { pageData, savedHistory, restoreVersion, restoreDraft, undo, redo, canUndo, canRedo, account, isAuthenticated, loadingPage, isDirty, saving, save, updateTheme, updateWallpaper } = usePageContext();
   const [saveError, setSaveError] = useState('');
+  // Feedback of the explicit save (PAGE-07): spinner, then «تم الحفظ» briefly.
+  const [justSaved, setJustSaved] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [exitPrompt, setExitPrompt] = useState<null | (() => void)>(null);
+  // The draft when a panel was opened, so «×» can put it back.
+  const [panelStart, setPanelStart] = useState<{ data: PageData } | null>(null);
+  const [panelError, setPanelError] = useState('');
   // «صمّم لي» is offered at the start of building and stays on offer until the
   // beneficiary takes it or pays; taking it leads to the cart with it selected.
   const [designOffer, setDesignOffer] = useState<{ priceSar: number | null } | null>(null);
@@ -57,71 +58,93 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     navigate('/plan-selection?design=1');
   };
   const isPublished = account?.pageStatus === 'published';
-  const completionItems = [
-    { label: 'اسم للجهة', done: pageData.name.trim().length >= 2 },
-    { label: 'تعريف مختصر', done: pageData.bio.trim().length >= 8 },
-    { label: 'رابط واحد', done: pageData.links.some((link) => link.display?.kind !== 'heading' && !link.hidden && link.title.trim() && link.url.trim()) },
-  ];
-  const missingItems = completionItems.filter((item) => !item.done);
-  const completionCount = completionItems.length - missingItems.length;
-  const pageStatusLabel = isDirty ? 'تعديلات غير محفوظة' : isPublished ? 'منشورة الآن' : 'مسودة محفوظة';
 
   const applyQuickWallpaper = (value: string) => {
-    setUndoWallpaper(pageData.wallpaper);
-    setUndoTheme(null);
     setDesignNotice('تم تطبيق الخلفية');
     updateWallpaper({ type: 'gradient', value });
   };
 
   const noteThemeChange = (themeName: string) => {
-    setUndoTheme(pageData.theme);
-    setUndoWallpaper(null);
     setDesignNotice(`تم تطبيق ثيم ${themeName}`);
   };
 
+  // Short confirmations disappear on their own.
   useEffect(() => {
-    if (!loadingPage && !isAuthenticated && !guestPreview) {
-      if (staffEdit) {
-        staffEdit.onExit();
-      } else {
-        navigate('/login');
-      }
+    if (!designNotice) return;
+    const timer = window.setTimeout(() => setDesignNotice(''), 2000);
+    return () => window.clearTimeout(timer);
+  }, [designNotice]);
+
+  useEffect(() => {
+    if (!justSaved) return;
+    const timer = window.setTimeout(() => setJustSaved(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [justSaved]);
+
+  // Signed out: the editor stays on screen and, after a short look, the login
+  // opens over it; after login the person carries on here.
+  useEffect(() => {
+    if (loadingPage || isAuthenticated || guestPreview) {
+      setShowLogin(false);
+      return;
     }
+    if (staffEdit) {
+      staffEdit.onExit();
+      return;
+    }
+    const timer = window.setTimeout(() => setShowLogin(true), 600);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, loadingPage, navigate, guestPreview]);
+  }, [isAuthenticated, loadingPage, guestPreview]);
 
   // PAGE-07: nothing reaches the public page until this explicit save.
+  // Resolves true only once the server confirmed the save — no early «تم».
   const handleSave = async () => {
-    if (guestPreview) return;
+    if (guestPreview || !isAuthenticated) return false;
 
     try {
       setSaveError('');
       await save();
+      setJustSaved(true);
+      return true;
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'تعذر حفظ التعديلات.');
+      return false;
     }
+  };
+
+  // ⌘Z / ⇧⌘Z (Ctrl on Windows) outside text fields, where the browser's own undo applies.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') return;
+      const target = event.target as HTMLElement;
+      if (target.closest('input, textarea, [contenteditable="true"]')) return;
+      event.preventDefault();
+      if (event.shiftKey) redo();
+      else undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo]);
+
+  // Leaving the editor: wait for a running save, and offer to save first.
+  const leave = (go: () => void) => {
+    if (saving) {
+      setExitPrompt(() => go);
+      return;
+    }
+    if (isDirty && isAuthenticated && !guestPreview) {
+      setExitPrompt(() => go);
+      return;
+    }
+    go();
   };
 
   const handleShare = () => {
     navigate('/plan-selection');
   };
 
-  const [shareNotice, setShareNotice] = useState('');
   const [showHistory, setShowHistory] = useState(false);
-
-  const sharePage = async () => {
-    const url = pageUrl(pageData.username);
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: pageData.name, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      setShareNotice('تم نسخ الرابط');
-    } catch {
-      // the share sheet was dismissed
-    }
-  };
 
   const restore = (version: SavedVersion) => {
     if (isDirty && !window.confirm('استرجاع هذا التصميم؟ ستُستبدل تعديلاتك غير المحفوظة.')) return;
@@ -138,9 +161,65 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     </button>
   );
 
+  // Undo and redo are one pair; the save sits apart with its own state, so the
+  // two are never confused.
+  const renderEditActions = (horizontal = false) => {
+    const saveState = saving ? 'saving' : saveError ? 'error' : justSaved ? 'saved' : isDirty ? 'dirty' : 'clean';
+    const round = 'flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.08)] transition-transform active:scale-90 disabled:opacity-35';
+    return (
+      <div className={`flex items-center ${horizontal ? 'gap-3' : 'flex-col gap-5'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+        <div className={`flex ${horizontal ? 'gap-2' : 'flex-col items-center gap-2'}`}>
+          <button onClick={undo} disabled={!canUndo} className={round} aria-label="تراجع" title="تراجع عن آخر تعديل"><Undo2 className="h-5 w-5" /></button>
+          <button onClick={redo} disabled={!canRedo} className={round} aria-label="إعادة" title="إعادة التعديل"><Redo2 className="h-5 w-5" /></button>
+        </div>
+        {!guestPreview && isAuthenticated && (
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              onClick={handleSave}
+              disabled={saveState === 'saving' || saveState === 'clean' || saveState === 'saved'}
+              className={`flex h-12 w-12 items-center justify-center rounded-full text-white transition-all active:scale-90 ${
+                saveState === 'error' ? 'bg-[#ff3b30]' : saveState === 'dirty' ? 'bg-emerald-600 shadow-[0_6px_14px_rgba(5,150,105,0.35)]' : saveState === 'saved' ? 'bg-[#34c759]' : saveState === 'saving' ? 'bg-emerald-600' : 'bg-[#d1d1d6]'
+              }`}
+              aria-label="حفظ"
+            >
+              {saveState === 'saving' ? <Loader2 className="h-5 w-5 animate-spin" /> : saveState === 'saved' ? <Check className="h-6 w-6" /> : saveState === 'error' ? <RotateCw className="h-5 w-5" /> : <Save className="h-5 w-5" />}
+            </button>
+            <span className={`text-[11px] font-bold ${saveState === 'error' ? 'text-[#ff3b30]' : saveState === 'saved' ? 'text-[#34c759]' : 'text-[#3a3a3c]'}`}>
+              {saveState === 'saving' ? 'يحفظ…' : saveState === 'saved' ? 'تم الحفظ' : saveState === 'error' ? 'إعادة المحاولة' : saveState === 'dirty' ? 'حفظ' : 'محفوظ'}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const openPanel = (tab: Tab) => {
     setActiveTab(tab);
     setMobilePanel(tab);
+    setPanelStart({ data: pageData });
+    setPanelError('');
+  };
+
+  const closePanel = () => {
+    setMobilePanel(null);
+    setPanelStart(null);
+    setPanelError('');
+  };
+
+  // «تم»: save what was changed, and close only once the server has it.
+  const finishPanel = async () => {
+    if (!isDirty || guestPreview || !isAuthenticated || mobilePanel === 'account') return closePanel();
+    if (await handleSave()) closePanel();
+    else setPanelError('تعذر الحفظ. تحقق من الاتصال ثم اضغط «تم» مرة أخرى.');
+  };
+
+  // «×»: leave the panel; changes made in it are put back after a reminder.
+  const cancelPanel = () => {
+    if (panelStart && pageData !== panelStart.data) {
+      if (!window.confirm('تجاهل التعديلات التي أجريتها في هذه النافذة؟')) return;
+      restoreDraft(panelStart.data);
+    }
+    closePanel();
   };
 
   const tabs = [
@@ -190,123 +269,80 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     );
   }
 
-  if (!isAuthenticated && !guestPreview) {
+  if (!isAuthenticated && staffEdit) {
     return null;
   }
 
   return (
     <div className="h-screen flex flex-col bg-gray-50" dir="rtl">
-      <div className="flex items-center justify-between border-b border-gray-200 bg-white px-3 py-2 shadow-sm sm:px-4 sm:py-3">
-        <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center justify-between gap-2 border-b border-black/5 bg-white px-3 py-2 sm:px-4 sm:py-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          {/* Exit, first in the header (top right in RTL), on every screen size. */}
           <button
-            onClick={() => {
-              if (!staffEdit) return navigate('/');
-              if (!isDirty || window.confirm('لديك تعديلات غير محفوظة ستُفقد. الخروج؟')) staffEdit.onExit();
-            }}
-            className={`${staffEdit ? '' : 'hidden sm:block '}p-2 hover:bg-gray-100 rounded-lg transition-all`}
-            title={staffEdit ? 'العودة إلى لوحة الإدارة' : 'العودة للرئيسية'}
+            onClick={() => leave(() => (staffEdit ? staffEdit.onExit() : navigate('/')))}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform active:scale-95"
+            aria-label={staffEdit ? 'العودة إلى لوحة الإدارة' : 'الخروج من المحرر'}
+            title={staffEdit ? 'العودة إلى لوحة الإدارة' : 'الخروج من المحرر'}
           >
-            <Home className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+            <X className="h-5 w-5" />
           </button>
           {staffEdit && (
             <div className="text-base font-bold text-emerald-600 sm:text-xl" style={{ fontFamily: 'Cairo, sans-serif' }}>
               تعديل صفحة عميل
             </div>
           )}
-          <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
-          <div className="text-xs sm:text-sm text-gray-600 hidden sm:block" style={{ fontFamily: 'Tajawal, sans-serif' }} dir="ltr">
+          <div className="hidden truncate text-sm text-gray-500 sm:block" style={{ fontFamily: 'Tajawal, sans-serif' }} dir="ltr">
             {pageData.username ? pageHost(pageData.username) : guestUsername ? pageHost(guestUsername) : ''}
           </div>
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-2">
-          {!staffEdit && !guestPreview && <QRCodeDisplay username={pageData.username} />}
-          {guestPreview && (
-            <button
-              onClick={() => setShowGuestAuth(true)}
-              className="flex h-10 items-center rounded-full bg-emerald-600 px-4 text-sm font-bold text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)] active:scale-95"
-              style={{ fontFamily: 'Cairo, sans-serif' }}
-              title="أنشئ حسابك لحفظ صفحتك"
-            >
-              حفظ صفحتي
-            </button>
-          )}
-          <button
-            hidden={Boolean(staffEdit || guestPreview)}
-            onClick={() => navigate('/preview')}
-            className="flex h-10 min-w-10 items-center justify-center gap-2 rounded-full bg-gray-100 px-2.5 sm:px-4 text-sm font-semibold text-gray-700 hover:bg-gray-200 active:scale-95 transition-all"
-            title="معاينة التعديلات قبل الحفظ"
-          >
-            <Eye className="h-5 w-5" />
-            <span className="hidden sm:inline" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              معاينة
-            </span>
-          </button>
-          {isPublished && (
-            <a
-              href={pageUrl(pageData.username)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-10 min-w-10 items-center justify-center gap-2 rounded-full bg-gray-100 px-2.5 sm:px-4 text-sm font-semibold text-gray-700 hover:bg-gray-200 active:scale-95 transition-all"
-              title="افتح الصفحة المنشورة كما يراها الجمهور"
-            >
-              <ExternalLink className="h-5 w-5" />
-              <span className="hidden sm:inline" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                الصفحة المنشورة
-              </span>
-            </a>
-          )}
-          {designOffer && (
-            <button
-              onClick={chooseDesignService}
-              className="flex h-10 w-[104px] items-center justify-center gap-1.5 rounded-full bg-gradient-to-l from-violet-600 via-fuchsia-500 to-orange-400 text-sm font-bold text-white shadow-[0_4px_14px_rgba(168,85,247,0.4)] transition-transform active:scale-95"
-              style={{ fontFamily: 'Cairo, sans-serif' }}
-              title={`فريق ${BRAND_NAME} يصمم صفحتك عنك${designOffer.priceSar !== null ? ` بـ ${designOffer.priceSar} ريال` : ''}`}
-            >
-              <Sparkles className="h-4 w-4" />
-              صمّم لي
-            </button>
-          )}
-          {!guestPreview && (
-            <button
-              onClick={handleSave}
-              disabled={!isDirty || saving}
-              className="hidden lg:flex h-10 items-center gap-2 bg-gray-900 text-white px-5 rounded-full text-sm font-bold transition-all disabled:bg-gray-200 disabled:text-gray-500"
-              title={isPublished ? 'حفظ التعديلات ونشرها للجمهور' : 'حفظ التعديلات'}
-            >
-              <Save className="w-4 h-4" />
-              <span className="hidden sm:inline" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                {saving ? 'جاري الحفظ...' : isDirty ? 'حفظ التعديلات' : isPublished ? 'منشورة' : 'مسودة محفوظة'}
-              </span>
-            </button>
-          )}
-          {!guestPreview && account?.pageStatus === 'draft' && (
-            <button
-              onClick={handleShare}
-              className="flex h-10 w-[104px] items-center justify-center gap-1.5 bg-gradient-to-r from-lime-500 to-emerald-500 text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)] active:scale-95 rounded-full text-sm font-bold hover:shadow-lg transition-all"
-              title="اشترك لنشر الصفحة للجمهور"
-            >
-              <span style={{ fontFamily: 'Cairo, sans-serif' }}>التالي</span>
-              <ArrowLeft className="w-4 h-4" />
-            </button>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {account && !account.emailVerified && !guestPreview && !staffEdit ? (
+            // Until the email is confirmed the confirmation takes the header's place.
+            <EmailVerifyChip />
+          ) : (
+            <>
+              {!staffEdit && !guestPreview && <QRCodeDisplay username={pageData.username} />}
+              {designOffer && (
+                <button
+                  onClick={chooseDesignService}
+                  className="flex h-10 w-[104px] items-center justify-center gap-1.5 rounded-full bg-gradient-to-l from-violet-600 via-fuchsia-500 to-orange-400 text-sm font-bold text-white shadow-[0_4px_14px_rgba(168,85,247,0.4)] transition-transform active:scale-95"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                  title={`فريق ${BRAND_NAME} يصمم صفحتك عنك${designOffer.priceSar !== null ? ` بـ ${designOffer.priceSar} ريال` : ''}`}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  صمّم لي
+                </button>
+              )}
+              {guestPreview && (
+                <button
+                  onClick={() => setShowGuestAuth(true)}
+                  className="flex h-10 w-[104px] items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)] active:scale-95"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                  title="أنشئ حسابك لحفظ صفحتك"
+                >
+                  حفظ صفحتي
+                </button>
+              )}
+              {!guestPreview && account?.pageStatus === 'draft' && (
+                <button
+                  onClick={() => leave(handleShare)}
+                  className="flex h-10 w-[104px] items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-lime-500 to-emerald-500 text-sm font-bold text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)] transition-all active:scale-95"
+                  title="اشترك لنشر الصفحة للجمهور"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  التالي
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
 
-
-      {(saveError || (account && !account.emailVerified) || account?.pageStatus === 'suspended') && (
-        <div className="space-y-1 border-b border-gray-200 bg-white px-4 py-2 text-xs sm:text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-          {saveError && <div className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{saveError}</div>}
-          {account?.pageStatus === 'suspended' && (
-            <div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
-              صفحتك موقوفة من الإدارة وغير ظاهرة للجمهور. التفاصيل في تبويب «الحساب».
-            </div>
-          )}
-          {account && !account.emailVerified && (
-            <button onClick={() => setActiveTab('account')} className="block w-full rounded-lg bg-amber-50 px-3 py-2 text-right text-amber-800">
-              بريدك الإلكتروني غير مؤكد — أكّده من تبويب «الحساب».
-            </button>
-          )}
+      {account?.pageStatus === 'suspended' && isAuthenticated && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 sm:text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          صفحتك موقوفة من الإدارة وغير ظاهرة للجمهور. التفاصيل في «الإعدادات».
         </div>
       )}
 
@@ -319,6 +355,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
               { id: 'links' as Tab, label: 'الروابط', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
+              ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -338,50 +375,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
                 <span className="mt-2 block text-center text-xs font-bold text-[#3a3a3c]">{isDirty ? 'الحالي · غير محفوظ' : 'الحالي'}</span>
               </button>
 
-              <div className="flex flex-1 flex-col items-center justify-center gap-4">
-                {[
-                  {
-                    label: saving ? 'جارٍ…' : 'حفظ',
-                    icon: Save,
-                    onClick: guestPreview ? () => setShowGuestAuth(true) : handleSave,
-                    disabled: !guestPreview && (!isDirty || saving),
-                    primary: true,
-                  },
-                  {
-                    // Drops the unsaved changes and goes back to the last saved version.
-                    label: 'رجوع',
-                    icon: Undo2,
-                    onClick: () => {
-                      if (savedPageData && window.confirm('إلغاء التعديلات غير المحفوظة والرجوع لآخر نسخة محفوظة؟')) replacePageData(savedPageData);
-                    },
-                    disabled: !isDirty || !savedPageData,
-                    primary: false,
-                  },
-                  ...(staffEdit
-                    ? []
-                    : [{
-                        label: isPublished ? 'مشاركة' : 'نشر',
-                        icon: isPublished ? Share2 : ArrowLeft,
-                        onClick: isPublished ? sharePage : guestPreview ? () => setShowGuestAuth(true) : handleShare,
-                        disabled: false,
-                        primary: false,
-                      }]),
-                  ...(staffEdit || guestPreview
-                    ? []
-                    : [{ label: 'الإعدادات', icon: Settings, onClick: () => openPanel('account'), disabled: false, primary: false }]),
-                ].map((action) => {
-                  const Icon = action.icon;
-                  return (
-                    <button key={action.label} onClick={action.onClick} disabled={action.disabled} className="group flex flex-col items-center gap-1.5 disabled:opacity-40">
-                      <span className={`flex h-12 w-12 items-center justify-center rounded-full transition-transform group-active:scale-90 ${action.primary && !action.disabled ? 'bg-emerald-600 text-white shadow-[0_6px_14px_rgba(5,150,105,0.35)]' : 'bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.08)]'}`}>
-                        <Icon className="h-5 w-5" strokeWidth={2.2} />
-                      </span>
-                      <span className="text-[11px] font-bold text-[#3a3a3c]">{action.label}</span>
-                    </button>
-                  );
-                })}
-                {shareNotice && <p className="text-center text-[10px] font-bold text-emerald-700">{shareNotice}</p>}
-              </div>
+              <div className="flex flex-1 flex-col items-center justify-center">{renderEditActions()}</div>
 
               <div className="w-[30%] shrink-0 self-center">
                 {savedHistory[0] ? (
@@ -494,184 +488,120 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
         )}
 
         {mobilePanel && (
-          <div className="fixed inset-0 z-50 flex items-end bg-black/35" onClick={() => setMobilePanel(null)}>
-            <section
-              className={`w-full overflow-hidden rounded-t-[30px] bg-[#f7f7f8] shadow-[0_-12px_40px_rgba(0,0,0,0.2)] h-[94dvh] max-h-[94dvh]`}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="sticky top-0 z-10 border-b border-black/5 bg-[#f7f7f8]/95 px-5 pb-3 pt-2 backdrop-blur">
-                <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-[#c7c7cc]" />
+          // Closed only by «×» or «تم» — never by tapping outside or dragging.
+          <div className="fixed inset-0 z-50 flex items-end bg-black/35">
+            <section className="h-[94dvh] max-h-[94dvh] w-full overflow-hidden rounded-t-[30px] bg-[#f7f7f8] shadow-[0_-12px_40px_rgba(0,0,0,0.2)]">
+              <div className="sticky top-0 z-10 border-b border-black/5 bg-[#f7f7f8]/95 px-5 py-3 backdrop-blur">
                 <div className="flex items-center justify-between">
-                  <button onClick={() => setMobilePanel(null)} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[#55555b]" aria-label="إغلاق"><X className="h-5 w-5" /></button>
+                  <button onClick={cancelPanel} disabled={saving} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[#55555b]" aria-label="إغلاق"><X className="h-5 w-5" /></button>
                   <h2 className="text-lg font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{mobilePanel === 'theme' ? 'الخلفية' : tabs.find((tab) => tab.id === mobilePanel)?.label}</h2>
-                  <button onClick={() => setMobilePanel(null)} className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-black text-emerald-700" style={{ fontFamily: 'Cairo, sans-serif' }}>تم</button>
+                  <button onClick={finishPanel} disabled={saving} className="flex min-w-[52px] items-center justify-center rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-black text-emerald-700" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'تم'}
+                  </button>
                 </div>
+                {panelError && <p className="mt-2 text-center text-xs font-bold text-[#ff3b30]" style={{ fontFamily: 'Tajawal, sans-serif' }}>{panelError}</p>}
               </div>
-              <div className={`overflow-y-auto scroll-smooth h-[calc(94dvh-74px)] bg-[#f2f2f7]`}>{renderActivePanel()}</div>
+              <div className="h-[calc(94dvh-64px)] overflow-y-auto scroll-smooth bg-[#f2f2f7]">{renderActivePanel()}</div>
             </section>
           </div>
         )}
 
-        {(undoWallpaper || undoTheme) && (
-          <div className={`fixed inset-x-4 z-[60] mx-auto max-w-sm rounded-2xl bg-[#1d1d1f] p-3 text-white shadow-2xl bottom-5`} role="status">
-            <div className="flex items-center gap-3">
-              <span className="flex-1 text-sm">{designNotice}</span>
-              <button
-                onClick={() => {
-                  if (undoWallpaper) updateWallpaper(undoWallpaper);
-                  if (undoTheme) updateTheme(undoTheme);
-                  setUndoWallpaper(null);
-                  setUndoTheme(null);
-                  setDesignNotice('');
-                }}
-                className="rounded-xl bg-white/15 px-3 py-1.5 text-sm font-black text-white"
-              >تراجع</button>
-              <button onClick={() => { setUndoWallpaper(null); setUndoTheme(null); setDesignNotice(''); }} className="text-white/70" aria-label="إغلاق الرسالة"><X className="h-4 w-4" /></button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {(undoWallpaper || undoTheme) && (
-        <div className="fixed bottom-6 left-6 z-[60] hidden w-[320px] rounded-2xl bg-[#1d1d1f] p-3 text-white shadow-2xl lg:block" role="status">
-          <div className="flex items-center gap-3">
-            <span className="flex-1 text-sm">{designNotice}</span>
-            <button
-              onClick={() => {
-                if (undoWallpaper) updateWallpaper(undoWallpaper);
-                if (undoTheme) updateTheme(undoTheme);
-                setUndoWallpaper(null);
-                setUndoTheme(null);
-                setDesignNotice('');
-              }}
-              className="rounded-xl bg-white/15 px-3 py-1.5 text-sm font-black text-white"
-            >تراجع</button>
-            <button onClick={() => { setUndoWallpaper(null); setUndoTheme(null); setDesignNotice(''); }} className="text-white/70" aria-label="إغلاق الرسالة"><X className="h-4 w-4" /></button>
-          </div>
+      {designNotice && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4" role="status">
+          <span className="rounded-full bg-[#1d1d1f]/90 px-4 py-2 text-sm font-bold text-white shadow-xl" style={{ fontFamily: 'Tajawal, sans-serif' }}>{designNotice}</span>
         </div>
       )}
 
-      <div className="hidden lg:block flex-1 min-h-0 overflow-hidden">
-        <div className="mx-auto grid h-full max-w-[1440px] grid-cols-[minmax(360px,420px)_minmax(0,560px)] justify-center gap-8 px-6 py-6">
-          <aside className="h-full overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm">
-            <div className="flex h-full flex-col">
-              <div className="border-b border-gray-100 px-5 py-5">
-                <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  تخصيص الصفحة
-                </h2>
-                <p className="mt-1 text-sm text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                  حرر صفحتك من هنا، والمعاينة تبقى واضحة طوال الوقت.
-                </p>
-              </div>
+      {/* Desktop: the phone layout's language on a wide screen — a rail of the
+          same round sections, the open panel beside it, and the page large. */}
+      <div className="hidden min-h-0 flex-1 bg-[#f5f5f7] lg:block" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+        <div className="mx-auto grid h-full max-w-[1400px] grid-cols-[96px_minmax(380px,440px)_minmax(0,1fr)] gap-6 px-6 py-6">
+          <nav className="flex flex-col items-center gap-5 pt-2">
+            {[
+              { id: 'header' as Tab, label: 'الهوية', icon: User, tone: 'bg-[#7cc4ff] text-[#0b4fa8]' },
+              { id: 'links' as Tab, label: 'الروابط', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
+              { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
+              { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
+              ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
+            ].map((item) => {
+              const Icon = item.icon;
+              const active = activeTab === item.id || (item.id === 'wallpaper' && activeTab === 'theme');
+              return (
+                <button key={item.id} onClick={() => setActiveTab(item.id)} className="group flex flex-col items-center gap-1.5">
+                  <span className={`flex h-14 w-14 items-center justify-center rounded-full transition-all ${item.tone} ${active ? 'scale-105 ring-[3px] ring-[#0a84ff] ring-offset-2 ring-offset-[#f5f5f7]' : 'opacity-80 group-hover:opacity-100'}`}>
+                    <Icon className="h-6 w-6" />
+                  </span>
+                  <span className={`text-xs font-bold ${active ? 'text-[#1d1d1f]' : 'text-[#6e6e73]'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
-              <div className="border-b border-gray-100 p-3">
-                <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
-                  {tabs.map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = activeTab === tab.id;
-
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-semibold transition-all ${
-                          isActive ? 'bg-emerald-500 text-white shadow-sm' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                        }`}
-                        style={{ fontFamily: 'Cairo, sans-serif' }}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto bg-gray-50">{renderActivePanel()}</div>
+          <aside className="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#f2f2f7] shadow-[0_2px_12px_rgba(0,0,0,0.05)] ring-1 ring-black/[0.04]">
+            <div className="border-b border-black/5 bg-white/80 px-6 py-4 backdrop-blur">
+              <h2 className="text-xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                {activeTab === 'theme' ? 'الخلفية' : tabs.find((tab) => tab.id === activeTab)?.label}
+              </h2>
             </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">{renderActivePanel()}</div>
           </aside>
 
-          <section className="h-full overflow-y-auto rounded-[32px] border border-gray-200 bg-gradient-to-br from-white via-gray-50 to-emerald-50/50 px-8 py-8 shadow-sm">
-            <div className="mx-auto flex min-h-full max-w-[460px] flex-col">
-              <div className="mb-6 flex items-center justify-between gap-4 rounded-3xl border border-white/70 bg-white/80 px-5 py-4 shadow-sm backdrop-blur">
-                <div>
-                  <div className="text-sm font-semibold text-emerald-600" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    معاينة مباشرة
-                  </div>
-                  <p className="mt-1 text-sm text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                    تعرض تعديلاتك غير المحفوظة. الجمهور يرى آخر نسخة محفوظة فقط.
-                  </p>
-                </div>
-                <button
-                  hidden={Boolean(staffEdit || guestPreview)}
-                  onClick={() => navigate('/preview')}
-                  className="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-200"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  <Eye className="h-4 w-4" />
-                  <span>فتح المعاينة</span>
-                </button>
-              </div>
-
-              <div className="mx-auto w-full max-w-[420px]">
-                <PhonePreview />
-                <p className="mt-3 text-center text-xs text-gray-500">نفس تنسيق الصفحة الفعلية، مصغّر بالكامل. مرّر داخل المعاينة لرؤية بقية المحتوى.</p>
+          <section className="flex min-h-0 flex-col items-center gap-4">
+            {/* The edit actions come first, on the right where an Arabic reader starts. */}
+            <div className="flex w-full items-center justify-between rounded-full bg-white px-3 py-2 shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+              {renderEditActions(true)}
+              <div className="flex items-center gap-2 px-2 text-sm text-[#6e6e73]">
+                <span className={`h-2 w-2 rounded-full ${isDirty ? 'bg-amber-500' : 'bg-[#34c759]'}`} />
+                {isDirty ? 'المعاينة فيها تعديلات لم تُحفظ' : isPublished ? 'هذه النسخة المنشورة' : 'كل التعديلات محفوظة'}
               </div>
             </div>
+            <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+              <div className="aspect-[390/862] h-full max-h-[780px] max-w-full"><PhonePreview /></div>
+            </div>
+            {!staffEdit && !guestPreview && isAuthenticated && (
+              <button onClick={() => navigate('/preview')} className="flex items-center gap-2 text-sm font-bold text-[#0a84ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <Eye className="h-4 w-4" />
+                فتح المعاينة بملء الشاشة
+              </button>
+            )}
           </section>
         </div>
       </div>
 
-      {showWelcome && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-4" style={{ zIndex: 50 }}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slideUp">
-            <h3 className="text-lg font-bold text-gray-900 mb-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              مرحبًا بك في {BRAND_NAME} 👋
-            </h3>
-            <p className="text-sm text-gray-600 mb-5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-              كيف تحب تجهيز صفحة جهتك؟
-            </p>
+      {guestPreview && showGuestAuth && <AuthModal mode="signup" username={guestUsername} inEditor />}
+      {showLogin && !isAuthenticated && !guestPreview && <AuthModal mode="login" inEditor />}
 
-            <div className="space-y-3">
-              {designOffer && (
-                <button
-                  onClick={chooseDesignService}
-                  className="w-full rounded-xl border-2 border-emerald-500 bg-emerald-50 p-4 text-right transition-all hover:bg-emerald-100"
-                >
-                  <div className="flex items-center gap-2 text-base font-bold text-emerald-800" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    <Sparkles className="w-5 h-5" />
-                    صمّم لي
-                  </div>
-                  <p className="mt-1 text-xs text-emerald-900" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                    فريق {BRAND_NAME} يصمم الصفحة عنك لمرة واحدة ويعتمدها معك عبر واتساب
-                    {designOffer.priceSar !== null ? ` — ${designOffer.priceSar} ريال تُدفع مع الاشتراك` : ''}.
-                  </p>
-                </button>
-              )}
-
-              <button
-                onClick={() => setShowWelcome(false)}
-                className="w-full rounded-xl border-2 border-gray-200 p-4 text-right transition-all hover:border-gray-300"
-              >
-                <div className="flex items-center gap-2 text-base font-bold text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  <Palette className="w-5 h-5" />
-                  سأصمّم بنفسي
-                </div>
-                <p className="mt-1 text-xs text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                  اختر الثيم وأضف الشعار والتعريف والروابط. التغييرات تظهر في المعاينة فورًا ولا تصل للجمهور إلا بعد «حفظ»، والصفحة تُنشر بعد إتمام الاشتراك.
-                </p>
-              </button>
+      {exitPrompt && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          <div className="w-full max-w-[320px] overflow-hidden rounded-3xl bg-white text-center shadow-2xl">
+            <div className="px-6 pb-4 pt-6">
+              <p className="text-lg font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{saving ? 'لحظة، نحفظ تعديلاتك' : 'لم تُحفظ تعديلاتك بعد'}</p>
+              <p className="mt-1 text-sm text-[#6e6e73]">{saving ? 'ننتظر اكتمال الحفظ قبل الخروج.' : 'هل تحفظها قبل الخروج؟'}</p>
             </div>
-
-            {designOffer && (
-              <p className="mt-4 text-center text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                خيار «صمّم لي» يبقى ظاهرًا أعلى المحرر إن غيّرت رأيك لاحقًا.
-              </p>
-            )}
+            <div className="divide-y divide-[#e5e5ea] border-t border-[#e5e5ea] text-[15px]">
+              <button
+                disabled={saving}
+                onClick={async () => {
+                  const go = exitPrompt;
+                  if (!isDirty || (await handleSave())) {
+                    setExitPrompt(null);
+                    go();
+                  }
+                }}
+                className="block w-full py-3 font-bold text-[#0a84ff] disabled:text-[#8e8e93]"
+              >
+                {saving ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : 'حفظ والخروج'}
+              </button>
+              {!saving && (
+                <button onClick={() => { const go = exitPrompt; setExitPrompt(null); go(); }} className="block w-full py-3 text-[#ff3b30]">الخروج دون حفظ</button>
+              )}
+              <button onClick={() => setExitPrompt(null)} className="block w-full py-3 text-[#1d1d1f]">البقاء</button>
+            </div>
           </div>
         </div>
       )}
-      {guestPreview && showGuestAuth && <AuthModal mode="signup" username={guestUsername} />}
     </div>
   );
 }

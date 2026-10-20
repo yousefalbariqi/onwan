@@ -1,5 +1,5 @@
 import { arrangeSections, moveSectionItem, reorderSectionItem, saveSectionItem } from '../../../shared/linkSections';
-import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
 import { Account, fetchMyPage, saveMyPage } from '../lib/api';
 import { clearSessionToken, getSessionToken } from '../lib/session';
 import { MAX_LINKS } from '../lib/site';
@@ -144,6 +144,11 @@ interface PageContextType {
   // The last version that reached the server, shown beside the live draft.
   savedPageData: PageData | null;
   savedHistory: SavedVersion[];
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  restoreDraft: (data: PageData) => void;
   // Puts an earlier version back into the draft; it still needs «حفظ».
   restoreVersion: (data: PageData) => void;
   saving: boolean;
@@ -476,8 +481,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         try {
           const response = await source.load();
           if (!cancelled) {
-            setPageData(mergeWithDefaults(response.pageData));
-            setSavedPageData(mergeWithDefaults(response.pageData));
+            const loaded = mergeWithDefaults(response.pageData);
+            setPageData(loaded);
+            setSavedPageData(loaded);
           }
         } catch (error) {
           console.error('Failed to load page:', error);
@@ -499,8 +505,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         const response = await fetchMyPage();
 
         if (!cancelled && response.pageData) {
-          setPageData(mergeWithDefaults(response.pageData));
-          setSavedPageData(mergeWithDefaults(response.pageData));
+          const loaded = mergeWithDefaults(response.pageData);
+          setPageData(loaded);
+          setSavedPageData(loaded);
           setSavedHistory(readHistory(response.pageData.username || ''));
           setAccount(response.account);
           setIsDirty(false);
@@ -542,15 +549,73 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   }, [isDirty]);
 
   // Every editor change goes through here so the draft is marked unsaved.
-  const edit = useCallback((updater: (prev: PageData) => PageData) => {
-    setPageData(updater);
-    setIsDirty(true);
+  // Undo / redo over editor changes. Saving does not clear it; loading a
+  // different page (login, hydrate) does. Typing bursts count as one step.
+  const pageDataRef = useRef(pageData);
+  pageDataRef.current = pageData;
+  const savedRef = useRef<PageData | null>(null);
+  savedRef.current = savedPageData;
+  const past = useRef<PageData[]>([]);
+  const future = useRef<PageData[]>([]);
+  const lastPush = useRef(0);
+  const [historyTick, setHistoryTick] = useState(0);
+  const HISTORY_STEPS = 60;
+
+  const pushHistory = useCallback((force = false) => {
+    const now = Date.now();
+    if (force || now - lastPush.current > 700) {
+      past.current = [...past.current, pageDataRef.current].slice(-HISTORY_STEPS);
+    }
+    lastPush.current = now;
+    future.current = [];
+    setHistoryTick((tick) => tick + 1);
   }, []);
 
+  // A draft equals the server copy only when it is that very object.
+  const show = useCallback((data: PageData) => {
+    setPageData(data);
+    setIsDirty(data !== savedRef.current);
+  }, []);
+
+  const undo = useCallback(() => {
+    const previous = past.current.pop();
+    if (!previous) return;
+    future.current = [pageDataRef.current, ...future.current];
+    lastPush.current = 0;
+    show(previous);
+    setHistoryTick((tick) => tick + 1);
+  }, [show]);
+
+  const redo = useCallback(() => {
+    const [next, ...rest] = future.current;
+    if (!next) return;
+    future.current = rest;
+    past.current = [...past.current, pageDataRef.current];
+    lastPush.current = 0;
+    show(next);
+    setHistoryTick((tick) => tick + 1);
+  }, [show]);
+
+  const edit = useCallback((updater: (prev: PageData) => PageData) => {
+    pushHistory();
+    setPageData(updater);
+    setIsDirty(true);
+  }, [pushHistory]);
+
   const replacePageData = useCallback((nextPageData: PageData) => {
+    past.current = [];
+    future.current = [];
+    setHistoryTick((tick) => tick + 1);
     setPageData(mergeWithDefaults(nextPageData));
     setIsDirty(false);
   }, []);
+
+  // Puts a whole earlier state back (a saved version, or the state before a
+  // panel was opened); it is one undoable step.
+  const restoreDraft = useCallback((data: PageData) => {
+    pushHistory(true);
+    show(data);
+  }, [pushHistory, show]);
 
   const save = useCallback(async () => {
     setSaving(true);
@@ -562,8 +627,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         setSavedPageData(savedData);
       } else {
         const response = await saveMyPage(pageData);
-        setPageData(mergeWithDefaults(response.pageData));
-        setSavedPageData(mergeWithDefaults(response.pageData));
+        const savedData = mergeWithDefaults(response.pageData);
+        setPageData(savedData);
+        setSavedPageData(savedData);
         if (savedPageData) {
           const username = response.pageData.username || pageData.username;
           const next = [{ savedAt: new Date().toISOString(), data: savedPageData }, ...savedHistory].slice(0, HISTORY_LIMIT);
@@ -580,9 +646,10 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   }, [pageData, source, savedPageData, savedHistory]);
 
   const restoreVersion = useCallback((data: PageData) => {
+    pushHistory(true);
     setPageData(mergeWithDefaults(data));
     setIsDirty(true);
-  }, []);
+  }, [pushHistory]);
 
   const logout = useCallback(() => {
     clearSessionToken();
@@ -685,6 +752,11 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         savedPageData,
         savedHistory,
         restoreVersion,
+        undo,
+        redo,
+        canUndo: historyTick >= 0 && past.current.length > 0,
+        canRedo: historyTick >= 0 && future.current.length > 0,
+        restoreDraft,
         saving,
         save,
         logout,

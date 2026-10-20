@@ -10,7 +10,8 @@ export const PROFILE_SHAPES: { id: import('../context/PageContext').PageData['pr
   { id: 'hero_safe', label: 'مشهد متوازن', preview: 'h-8 w-14 rounded-md border-2 border-dashed border-[#8e8e93] bg-transparent' },
 ];
 
-export function ProfileImageControls() {
+// `showPosition`: the position / zoom sliders; «الهوية» draws its own around the photo.
+export function ProfileImageControls({ showPosition = true }: { showPosition?: boolean }) {
   const { pageData, updateProfileStyle } = usePageContext();
   const style = pageData.profileStyle;
   const fit = style.fit ?? (style.type === 'hero_safe' ? 'contain' : 'cover');
@@ -28,7 +29,7 @@ export function ProfileImageControls() {
       </div>
       {pageData.profileImage && <>
         <Segmented options={[{ id: 'cover', label: 'ملء المساحة' }, { id: 'contain', label: 'إظهار كاملة' }]} value={fit} onChange={fit => updateProfileStyle({ fit: fit as 'cover' | 'contain', zoom: 1 })} />
-        {fit === 'cover' && <div className="space-y-3">
+        {fit === 'cover' && showPosition && <div className="space-y-3">
           <p className="text-xs text-[#6e6e73]">اضبط موضع الصورة وتكبيرها، وتابع النتيجة في المعاينة.</p>
           {([{ key: 'positionX', label: 'أفقيًا', min: 0, max: 100, value: style.positionX ?? 50 }, { key: 'positionY', label: 'عموديًا', min: 0, max: 100, value: style.positionY ?? 50 }, { key: 'zoom', label: 'التكبير', min: 1, max: 3, value: style.zoom ?? 1 }] as const).map(control => <label key={control.key} className="flex items-center gap-3 text-sm text-[#1d1d1f]">
             <span className="w-16">{control.label}</span><input aria-label={control.label} type="range" dir="ltr" min={control.min} max={control.max} step={control.key === 'zoom' ? 0.01 : 1} value={control.value} onChange={event => updateProfileStyle({ [control.key]: Number(event.target.value) })} className="min-w-0 flex-1 accent-[#0a84ff]" />

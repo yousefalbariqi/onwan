@@ -9,15 +9,18 @@ type AuthMode = 'signup' | 'login';
 interface AuthModalProps {
   mode: AuthMode;
   username?: string;
+  // Opened over the editor: keep the guest's design, and offer the other mode in place.
+  inEditor?: boolean;
 }
 
 const MIN_PASSWORD_LENGTH = 8;
 
 // The modal intentionally has no dismiss action: registration starts only
 // after a name has been picked and continues in this focused step.
-export default function AuthModal({ mode, username }: AuthModalProps) {
+export default function AuthModal({ mode: initialMode, username, inEditor = false }: AuthModalProps) {
   const navigate = useNavigate();
-  const onSuccess = useAuthSuccess();
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const onSuccess = useAuthSuccess({ keepDraft: inEditor && initialMode === 'signup' });
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [identifier, setIdentifier] = useState('');
@@ -36,7 +39,7 @@ export default function AuthModal({ mode, username }: AuthModalProps) {
       }
 
       if (password.length < MIN_PASSWORD_LENGTH) {
-        setError(`كلمة المرور يجب ألا تقل عن ${MIN_PASSWORD_LENGTH} أحرف.`);
+        setError(`لزيادة أمان حسابك، اختر كلمة مرور من ${MIN_PASSWORD_LENGTH} أحرف على الأقل.`);
         return;
       }
     }
@@ -112,7 +115,8 @@ export default function AuthModal({ mode, username }: AuthModalProps) {
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="8 أحرف على الأقل"
+                placeholder="••••••••"
+                hint={`${MIN_PASSWORD_LENGTH} أحرف على الأقل، ويُفضّل أن تجمع بين حروف وأرقام.`}
               />
             </>
           ) : (
@@ -123,7 +127,7 @@ export default function AuthModal({ mode, username }: AuthModalProps) {
                 autoComplete="username"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value.trim())}
-                placeholder="name@example.org أو 05XXXXXXXX"
+                placeholder="05XXXXXXXX"
                 autoFocus
               />
               <ModalField
@@ -132,6 +136,7 @@ export default function AuthModal({ mode, username }: AuthModalProps) {
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
               />
             </>
           )}
@@ -151,7 +156,7 @@ export default function AuthModal({ mode, username }: AuthModalProps) {
         {isSignup ? (
           <p className="mt-4 text-center text-sm text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
             لديك حساب؟{' '}
-            <button type="button" onClick={() => navigate('/?auth=login')} className="font-bold text-emerald-700 hover:underline">
+            <button type="button" onClick={() => (inEditor ? (setError(''), setMode('login')) : navigate('/?auth=login'))} className="font-bold text-emerald-700 hover:underline">
               سجّل الدخول
             </button>
           </p>
@@ -170,7 +175,7 @@ export default function AuthModal({ mode, username }: AuthModalProps) {
   );
 }
 
-function ModalField({ label, ...inputProps }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+function ModalField({ label, hint, ...inputProps }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string }) {
   return (
     <label className="block text-right">
       <span className="mb-1.5 block text-sm font-semibold text-gray-700" style={{ fontFamily: 'Cairo, sans-serif' }}>{label}</span>
@@ -181,6 +186,7 @@ function ModalField({ label, ...inputProps }: React.InputHTMLAttributes<HTMLInpu
         className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-center text-base text-gray-900 outline-none transition-colors placeholder:text-center placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
         style={{ fontFamily: 'Cairo, sans-serif' }}
       />
+      {hint && <span className="mt-1 block text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>{hint}</span>}
     </label>
   );
 }

@@ -293,14 +293,14 @@ export function AccountPanel() {
               <input
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
-                maxLength={6}
+                maxLength={4}
                 inputMode="numeric"
                 placeholder="الرمز"
                 className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-center text-sm focus:outline-none focus:border-emerald-500"
                 dir="ltr"
               />
               <button
-                disabled={emailBusy || code.length !== 6}
+                disabled={emailBusy || code.length !== 4}
                 onClick={() =>
                   runEmailAction(async () => {
                     const response = await verifyEmailCode(code);

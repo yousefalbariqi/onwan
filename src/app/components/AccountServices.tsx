@@ -323,7 +323,7 @@ export function AccountSecurity({ onAccount }: { onAccount: (account: Account) =
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
-            maxLength={6}
+            maxLength={4}
             inputMode="numeric"
             placeholder={step === 'newEmailCode' ? 'الرمز المرسل إلى البريد الجديد' : 'الرمز المرسل إلى بريدك المسجل'}
             className={`${fieldClass} text-center`}
@@ -342,7 +342,7 @@ export function AccountSecurity({ onAccount }: { onAccount: (account: Account) =
           )}
           <div className="grid grid-cols-2 gap-2">
             <button
-              disabled={busy || code.length !== 6 || (step === 'code' && value.length < (change === 'password' ? 8 : 5))}
+              disabled={busy || code.length !== 4 || (step === 'code' && value.length < (change === 'password' ? 8 : 5))}
               onClick={submit}
               className="rounded-lg bg-gray-900 py-2 text-sm font-bold text-white disabled:opacity-50"
               style={{ fontFamily: 'Cairo, sans-serif' }}
