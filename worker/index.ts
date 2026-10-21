@@ -37,6 +37,7 @@ export async function invokeHandler(request: Request, handler: typeof signup, qu
     headers: Object.fromEntries(request.headers),
     query: query ?? Object.fromEntries(url.searchParams),
     text: () => request.text(),
+    arrayBuffer: () => request.arrayBuffer(),
   };
   let status = 200;
   let body: BodyInit | null = null;
@@ -58,6 +59,42 @@ export async function invokeHandler(request: Request, handler: typeof signup, qu
   return new Response(request.method === 'HEAD' ? null : body, { status, headers });
 }
 
+type MediaObject = {
+  size: number;
+  httpEtag: string;
+  range?: { offset?: number; length?: number; suffix?: number };
+  body?: ReadableStream;
+  writeHttpMetadata(headers: Headers): void;
+};
+type MediaReader = { get(key: string, options?: { range?: Headers; onlyIf?: Headers }): Promise<MediaObject | null> };
+
+// Background videos from R2, on every host (subdomains and custom domains),
+// with byte ranges so phones can stream and seek.
+export async function serveMedia(request: Request, env: RuntimeEnv, key: string) {
+  const media = env.MEDIA as MediaReader | undefined;
+  if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
+  if (!media || !/^wallpapers\/[a-zA-Z0-9-]{1,64}\/[a-f0-9-]{36}\.(mp4|webm)$/.test(key)) return new Response('Not found', { status: 404 });
+  const object = await media.get(key, { range: request.headers, onlyIf: request.headers });
+  if (!object) return new Response('Not found', { status: 404 });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('ETag', object.httpEtag);
+  headers.set('Accept-Ranges', 'bytes');
+  // A stored name is never reused, so the file can be cached for good.
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  if (!object.body) return new Response(null, { status: 304, headers });
+  const range = object.range;
+  if (range && request.headers.has('range')) {
+    const offset = range.suffix !== undefined ? object.size - range.suffix : range.offset ?? 0;
+    const length = range.length ?? object.size - offset;
+    headers.set('Content-Range', `bytes ${offset}-${offset + length - 1}/${object.size}`);
+    headers.set('Content-Length', String(length));
+    return new Response(request.method === 'HEAD' ? null : object.body, { status: 206, headers });
+  }
+  headers.set('Content-Length', String(object.size));
+  return new Response(request.method === 'HEAD' ? null : object.body, { status: 200, headers });
+}
+
 async function dispatch(request: Request, env: RuntimeEnv): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '') || '/';
@@ -66,6 +103,7 @@ async function dispatch(request: Request, env: RuntimeEnv): Promise<Response> {
     if (handler) return invokeHandler(request, handler);
     return invokeHandler(request, async (_req, res) => sendJson(res, 404, { error: 'Not found' }));
   }
+  if (path.startsWith('/media/wallpapers/')) return serveMedia(request, env, path.slice('/media/'.length));
   const root = typeof env.ROOT_DOMAIN === 'string' ? env.ROOT_DOMAIN : 'onwan.link';
   const suffix = `.${root}`;
   const label = url.hostname.endsWith(suffix) ? url.hostname.slice(0, -suffix.length) : '';

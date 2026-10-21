@@ -72,7 +72,9 @@ Plain PostgreSQL, no ORM. Apply migrations from `database/` in this order: `phas
 - `deleted_links` archives every button removed by a save or by staff, so the manager can restore it (PERM-19); nothing purges it (retention is pending, P-09).
 - `page_links.custom_icon` (phase 13): a button's own icon — `icon:<id>` from `src/app/lib/linkIcons.tsx` or a small uploaded image (data URL, ≤200 KB, cropped to 128 px). Only website / custom / file buttons offer it; brand platforms keep their logo. Never rename a library id.
 - `page_links.display_json` (phase 14): optional card layout/image/fit/position, or `{kind: 'heading'}` for a standalone section title. Sections use a stable `sectionId` in both the heading and its member links, independent of row ids. Hiding a section also excludes its members from the public API; deleting it ungroups its links. Heading rows have an empty URL and remain sortable/hideable. Empty metadata preserves the existing button layout.
-- Videos: `display.kind = 'video'` embeds supported YouTube/Vimeo/HTTPS MP4/WebM URLs in a content player. `wallpaper.type = 'video'` uses a direct HTTPS MP4/WebM URL with optional poster, position and dim; muted loop, pause control and reduced-motion support. No video upload/storage backend is introduced.
+- Videos: `display.kind = 'video'` embeds supported YouTube/Vimeo/HTTPS MP4/WebM URLs in a content player. `wallpaper.type = 'video'` uses a direct HTTPS MP4/WebM URL with optional poster, position and dim; muted loop, pause control and reduced-motion support. The editor uploads a picked file at once, applies poster/position/dim straight to the draft, and takes the video's first frame as the poster when none is set; a video that cannot play leaves the poster in place.
+- Background photo (note 27): `wallpaper.positionX` / `positionY` (0–100) and `zoom` (1–3), set in «تنسيق»; rendered by `WallpaperImage.tsx`. Older pages with only `position` (top/center/bottom) map onto the vertical focus.
+- Profile shapes (note 29): the editor offers five; `hero_safe` («مشهد متوازن») is no longer offered but still renders, and counts as «صورة عريضة» (`hero`) in the picker.
 - `subscriptions.status` is not flipped when the period ends; expiry is derived from `expires_at`.
 
 ## Architecture
@@ -99,7 +101,7 @@ Vite + React SPA deployed on Vercel, backend as Vercel serverless functions in `
 - On mount with a session token it hydrates from `/api/page/me`, replacing the local draft.
 - Undo / redo (`undo`, `redo`, `canUndo`, `canRedo`) keep snapshots of `pageData` taken in `edit()`; typing within 0.7 s is one step, a save does not clear them, `replacePageData` (login / hydrate) does. `isDirty` after an undo is `data !== savedPageData` (the saved copy is the same object as the draft right after a save or load). `restoreDraft` puts a whole earlier state back as one step.
 - `updateTheme` resets `wallpaper` to the theme background and clears custom colors.
-- PAGE-16: the English version is `translations.en` (name, description) plus `titleEn` on each link — on the link itself because link ids change on every save. Arabic and English are the only languages.
+- PAGE-16: the English version is `translations.en` (name, description) plus `titleEn` on each link (kept on the link itself). Arabic and English are the only languages.
 - `resetDesign` restores the default look only; content is untouched (PAGE-08; exact behaviour is pending P-07).
 
 The builder renders its editor panels twice (mobile and desktop layouts, one hidden by CSS). Keep editor-local state reachable from the visible instance: wrap file inputs in their label or use `useId()` — never a fixed `id`.
@@ -132,7 +134,9 @@ Endpoints: `auth/signup`, `auth/login`, `auth/reset-password` (`action: request 
 
 **Files** (logo, wallpaper, images, PDFs) are still stored inline as data URLs in the database, capped at 2–3 MB client-side. Real storage, quotas and file-replace-with-same-URL (FILE-02) wait on P-02.
 
-**Link save strategy:** `savePageData` deletes and re-inserts all `page_links` on every save, so link ids change on each save.
+**Link save strategy:** `savePageData` deletes and re-inserts all `page_links` on every save, but keeps each link's id when the editor sends a valid UUID (new links get `crypto.randomUUID()` in the editor), so ids are stable across saves; a non-UUID or repeated id gets a new one.
+
+**Save speed (note 28, Oct 2026):** `shared/pageTransfer.ts` — the editor sends inline data URLs that are unchanged since the last save (profile image, wallpaper value/poster, link file `url`, `customIcon`, `display.image`, links matched by id) as the `KEPT` marker; `savePageData` restores them from the stored row before validation and answers 409 if one has nothing to come from. With `slim: true` (`PATCH /api/page/me`) the response is slimmed the same way and the editor expands it from what it sent. An uploaded background video already verified by an earlier save is not checked against Blob storage again (uploads never overwrite). `save()` in `PageContext` runs one request at a time; edits made while it runs stay in the draft as unsaved. The local draft copy in `localStorage` is written after an 800 ms pause.
 
 ### Path alias
 
@@ -148,4 +152,4 @@ Vercel. `vercel.json` rewrites all non-asset paths to `index.html` (SPA routing)
 
 Section presentation: `display.sectionLayout` on section headings is list (default), grid, or carousel. Text paragraphs use `display.kind = text` with plain-text `body` / optional `bodyEn` (2000 characters each); rows have no URL and can be ordered, grouped and hidden. Existing display_json storage is reused.
 
-Background video upload limit approved by owner: 20 MB (20 * 1024 * 1024 bytes), MP4/WebM. Upload via @vercel/blob client directly to public Blob storage, token endpoint api/video-upload.ts authenticates owners and scopes paths. Requires BLOB_READ_WRITE_TOKEN; it is not currently configured locally. Save verifies uploaded file owner, size and MIME using Blob head. Background video files never go into page JSON. Content video is YouTube-only.
+Background video upload limit approved by owner: 20 MB (20 * 1024 * 1024 bytes), MP4/WebM. Stored in Cloudflare R2 (binding `MEDIA`, bucket `onwan-media`; owner decision 20 Oct 2026 to stay on Supabase + Cloudflare): `api/video-upload.ts` receives the file as the body and writes `wallpapers/<userId>/<uuid>.<ext>`; the page stores `/media/wallpapers/...`, which `serveMedia` in `worker/index.ts` serves on any host with byte ranges. Save verifies owner, size and MIME with R2 `head` once per file. Videos saved earlier with Vercel Blob URLs stay valid as saved. Uploads work under `npm run dev:worker`, not plain Vite. Background video files never go into page JSON. Content video is YouTube-only. Profile shape names: «صورة عريضة» (`hero`) is approved (20 Oct 2026).

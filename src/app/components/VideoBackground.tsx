@@ -30,13 +30,14 @@ export function VideoBackground({ src, poster, position = 'center' }: { src: str
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true" style={poster ? { backgroundImage: `url(${poster})`, backgroundSize: 'cover', backgroundPosition: position } : undefined}>
       <video ref={video} key={src} src={src} poster={poster} muted loop playsInline preload="none" tabIndex={-1} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => { setFailed(true); setPlaying(false); }} className={`h-full w-full object-cover ${failed ? 'invisible' : ''}`} style={{ objectPosition: position }} />
     </div>
-    <button type="button" disabled={failed} aria-label={playing ? 'إيقاف فيديو الخلفية' : 'تشغيل فيديو الخلفية'} aria-pressed={playing} onClick={() => {
+    {/* A video that cannot play leaves the poster in its place, without a broken control. */}
+    {!failed && <button type="button" aria-label={playing ? 'إيقاف فيديو الخلفية' : 'تشغيل فيديو الخلفية'} aria-pressed={playing} onClick={() => {
       const element = video.current;
       if (!element) return;
       wanted.current = !playing;
       if (playing) element.pause(); else void element.play().catch(() => setPlaying(false));
-    }} className="absolute left-3 top-3 z-20 flex min-h-9 items-center gap-1.5 rounded-full bg-black/70 px-3 py-2 text-xs text-white shadow-sm disabled:opacity-70">
-      {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{failed ? 'تعذّر تشغيل الخلفية' : playing ? 'إيقاف الخلفية' : 'تشغيل الخلفية'}
-    </button>
+    }} className="absolute left-3 top-3 z-20 flex min-h-9 items-center gap-1.5 rounded-full bg-black/70 px-3 py-2 text-xs text-white shadow-sm ">
+      {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{playing ? 'إيقاف الخلفية' : 'تشغيل الخلفية'}
+    </button>}
   </>;
 }

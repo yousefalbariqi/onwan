@@ -1,7 +1,6 @@
 import { useId, useState } from 'react';
 import { usePageContext } from '../context/PageContext';
-import { Group, Panel } from './ios';
-import { ZoomIn } from 'lucide-react';
+import { EndsSlider, Group, Panel, VerticalSlider } from './ios';
 import { extractColorsFromImage } from '../utils/colorExtractor';
 import { ProfileImageControls } from './ProfileImageControls';
 import { ProfileImageDisplay } from './ProfileImageDisplay';
@@ -10,32 +9,6 @@ import { ProfileImageDisplay } from './ProfileImageDisplay';
 // The source may be larger than what is stored: cropping re-encodes it small.
 const MAX_SOURCE_SIZE = 8 * 1024 * 1024;
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
-
-// A slider standing upright beside the photo. `topIsMin`: the top end is the
-// minimum (position: 0 = top); otherwise the top end is the maximum (zoom in).
-function VerticalSlider({ label, min, max, step, value, onChange, topIsMin = false, icon }: { label: string; min: number; max: number; step: number; value: number; onChange: (value: number) => void; topIsMin?: boolean; icon?: 'zoom' }) {
-  const LENGTH = 150;
-  return (
-    <div className="flex shrink-0 flex-col items-center gap-1 text-[10px] text-[#6e6e73]">
-      {icon === 'zoom' ? <ZoomIn className="h-3.5 w-3.5" /> : <span>{topIsMin ? 'أعلى' : ''}</span>}
-      <div className="relative w-7" style={{ height: LENGTH }}>
-        <input
-          aria-label={label}
-          type="range"
-          dir="ltr"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="absolute left-1/2 top-1/2 accent-[#0a84ff]"
-          style={{ width: LENGTH, transform: `translate(-50%, -50%) rotate(${topIsMin ? 90 : -90}deg)` }}
-        />
-      </div>
-      <span>{icon === 'zoom' ? 'تكبير' : topIsMin ? 'أسفل' : ''}</span>
-    </div>
-  );
-}
 
 export function HeaderEditor() {
   const { pageData, updatePageData, updateProfileStyle } = usePageContext();
@@ -117,11 +90,10 @@ export function HeaderEditor() {
           {canAdjust && <VerticalSlider label="تكبير" min={1} max={3} step={0.01} value={style.zoom ?? 1} icon="zoom" onChange={(value) => updateProfileStyle({ zoom: value })} />}
         </div>
         {canAdjust && (
-          <label className="flex w-full items-center gap-3 px-1 text-xs text-[#6e6e73]">
-            <span>يمين</span>
-            <input aria-label="يمين / يسار" type="range" dir="rtl" min={0} max={100} step={1} value={style.positionX ?? 50} onChange={(event) => updateProfileStyle({ positionX: Number(event.target.value) })} className="min-w-0 flex-1 accent-[#0a84ff]" />
-            <span>يسار</span>
-          </label>
+          <EndsSlider label="يمين / يسار" start="يمين" end="يسار" min={0} max={100} value={style.positionX ?? 50} onChange={(value) => updateProfileStyle({ positionX: value })} />
+        )}
+        {canAdjust && ((style.positionX ?? 50) !== 50 || (style.positionY ?? 50) !== 50 || (style.zoom ?? 1) !== 1) && (
+          <button type="button" onClick={() => updateProfileStyle({ positionX: 50, positionY: 50, zoom: 1 })} className="text-xs text-[#0a84ff]">إعادة الصورة إلى المنتصف</button>
         )}
         <div className="flex items-center gap-4 text-[15px]">
           <label htmlFor={uploadId} className="cursor-pointer text-[#0a84ff]">{pageData.profileImage ? 'تغيير الصورة' : 'إضافة شعار أو صورة'}</label>
@@ -133,13 +105,14 @@ export function HeaderEditor() {
 
       </section>
 
-      <Group title="شكل الصورة" footer="تظهر الخيارات نفسها في «الأسلوب»، وتنعكس التعديلات في المعاينة مباشرة.">
-        <div className="p-4"><ProfileImageControls showPosition={false} /></div>
+      {/* Note 24: every tool of the profile photo lives here, beside the photo. */}
+      <Group title="شكل الصورة" footer="تظهر النتيجة في المعاينة مباشرة، وتغيير الشكل يحافظ على الصورة المرفوعة.">
+        <div className="p-4"><ProfileImageControls /></div>
       </Group>
 
       <Group title="الاسم">
         <div className="px-4 py-1">
-          <input value={pageData.name} onChange={(e) => updatePageData({ name: e.target.value })} placeholder="اسم الجهة" maxLength={80} className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} />
+          <input value={pageData.name} onChange={(e) => updatePageData({ name: e.target.value })} placeholder="اسمك" maxLength={80} className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} />
         </div>
       </Group>
 

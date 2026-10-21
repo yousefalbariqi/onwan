@@ -25,7 +25,7 @@ export default async function handler(req: any, res: any) {
     const body = await readJsonBody(req);
     // The account summary does not depend on the page content, so it is read
     // alongside the save instead of after it.
-    const [pageData, account] = await Promise.all([savePageData(user.id, body.pageData ?? {}), getAccountSummary(user.id)]);
+    const [pageData, account] = await Promise.all([savePageData(user.id, body.pageData ?? {}, { slimResponse: body.slim === true }), getAccountSummary(user.id)]);
 
     sendJson(res, 200, { pageData, account });
   } catch (error) {

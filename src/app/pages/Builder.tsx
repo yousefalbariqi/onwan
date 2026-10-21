@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { PageData, SavedVersion, themes, usePageContext } from '../context/PageContext';
 import { PhonePreview } from '../components/PhonePreview';
 import { PageView } from '../components/PageView';
+import { wallpaperFocus } from '../components/WallpaperImage';
 import { HeaderEditor } from '../components/HeaderEditor';
 import { WallpaperEditor } from '../components/WallpaperEditor';
 import { StyleEditor } from '../components/StyleEditor';
@@ -36,7 +37,12 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
   const [exitPrompt, setExitPrompt] = useState<null | (() => void)>(null);
   // The draft when a panel was opened, so «×» can put it back.
   const [panelStart, setPanelStart] = useState<{ data: PageData } | null>(null);
-  const [panelError, setPanelError] = useState('');
+  // «×» on a window with changes asks once: save them, or leave without them.
+  const [panelExitPrompt, setPanelExitPrompt] = useState(false);
+  // An add / edit form in «المحتوى» with input not yet added to the page.
+  const [contentFormPending, setContentFormPending] = useState(false);
+  // Note 28: a green «تم الحفظ» once the server confirmed, or the error with a retry.
+  const [saveToast, setSaveToast] = useState<null | { kind: 'saved' } | { kind: 'error'; message: string }>(null);
   // «صمّم لي» is offered at the start of building and stays on offer until the
   // beneficiary takes it or pays; taking it leads to the cart with it selected.
   const [designOffer, setDesignOffer] = useState<{ priceSar: number | null } | null>(null);
@@ -81,6 +87,12 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     return () => window.clearTimeout(timer);
   }, [justSaved]);
 
+  useEffect(() => {
+    if (saveToast?.kind !== 'saved') return;
+    const timer = window.setTimeout(() => setSaveToast(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [saveToast]);
+
   // Signed out: the editor stays on screen and, after a short look, the login
   // opens over it; after login the person carries on here.
   useEffect(() => {
@@ -104,11 +116,15 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
 
     try {
       setSaveError('');
+      if (saveToast?.kind === 'error') setSaveToast(null);
       await save();
       setJustSaved(true);
+      setSaveToast({ kind: 'saved' });
       return true;
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'تعذر حفظ التعديلات.');
+      const message = err instanceof Error ? err.message : 'تعذر حفظ التعديلات.';
+      setSaveError(message);
+      setSaveToast({ kind: 'error', message });
       return false;
     }
   };
@@ -197,28 +213,40 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     setActiveTab(tab);
     setMobilePanel(tab);
     setPanelStart({ data: pageData });
-    setPanelError('');
+    setPanelExitPrompt(false);
   };
 
   const closePanel = () => {
     setMobilePanel(null);
     setPanelStart(null);
-    setPanelError('');
+    setPanelExitPrompt(false);
   };
 
-  // «تم»: save what was changed, and close only once the server has it.
-  const finishPanel = async () => {
-    if (!isDirty || guestPreview || !isAuthenticated || mobilePanel === 'account') return closePanel();
-    if (await handleSave()) closePanel();
-    else setPanelError('تعذر الحفظ. تحقق من الاتصال ثم اضغط «تم» مرة أخرى.');
-  };
+  const panelChanged = Boolean(panelStart && pageData !== panelStart.data);
 
-  // «×»: leave the panel; changes made in it are put back after a reminder.
-  const cancelPanel = () => {
-    if (panelStart && pageData !== panelStart.data) {
-      if (!window.confirm('تجاهل التعديلات التي أجريتها في هذه النافذة؟')) return;
-      restoreDraft(panelStart.data);
+  // «احفظ تعديلاتي»: the window closes at once and the save carries on; the
+  // green confirmation (or the error with a retry) follows from the server.
+  const finishPanel = () => {
+    if (contentFormPending && !panelExitPrompt) {
+      setPanelExitPrompt(true);
+      return;
     }
+    const needsSave = isDirty && !guestPreview && isAuthenticated && mobilePanel !== 'account';
+    closePanel();
+    if (needsSave) void handleSave();
+  };
+
+  // «×»: closes straight away unless this window changed something.
+  const cancelPanel = () => {
+    if (panelChanged || contentFormPending) {
+      setPanelExitPrompt(true);
+      return;
+    }
+    closePanel();
+  };
+
+  const discardPanel = () => {
+    if (panelStart) restoreDraft(panelStart.data);
     closePanel();
   };
 
@@ -241,12 +269,12 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     }
 
     if (activeTab === 'links') {
-      return <LinkEditor />;
+      return <LinkEditor onPendingChange={setContentFormPending} />;
     }
 
     if (activeTab === 'wallpaper') {
-      const segment = pageData.wallpaper.type === 'video' ? 'video' : pageData.wallpaper.type === 'image' ? 'photo' : pageData.wallpaper.type === 'gradient' ? 'gradients' : 'colors';
-      return <WallpaperEditor key="wallpaper" initialSegment={segment} onThemeSelected={noteThemeChange} />;
+      // Note 26: «ثيمات» is what the background opens on.
+      return <WallpaperEditor key="wallpaper" initialSegment="themes" onThemeSelected={noteThemeChange} />;
     }
 
     if (activeTab === 'account') {
@@ -435,7 +463,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
             </div>
             <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {[
-                { name: 'الخلفية الحالية', style: pageData.wallpaper.type === 'gradient' ? { background: pageData.wallpaper.value } : pageData.wallpaper.type === 'image' ? { backgroundImage: `url(${pageData.wallpaper.value})`, backgroundPosition: pageData.wallpaper.position ?? 'center', backgroundSize: 'cover' } : { backgroundColor: pageData.wallpaper.type === 'video' ? pageData.theme.background : pageData.wallpaper.value, ...(pageData.wallpaper.type === 'video' && pageData.wallpaper.poster ? { backgroundImage: `url(${pageData.wallpaper.poster})`, backgroundSize: 'cover' } : {}) } },
+                { name: 'الخلفية الحالية', style: pageData.wallpaper.type === 'gradient' ? { background: pageData.wallpaper.value } : pageData.wallpaper.type === 'image' ? { backgroundImage: `url(${pageData.wallpaper.value})`, backgroundPosition: `${wallpaperFocus(pageData.wallpaper).x}% ${wallpaperFocus(pageData.wallpaper).y}%`, backgroundSize: 'cover' } : { backgroundColor: pageData.wallpaper.type === 'video' ? pageData.theme.background : pageData.wallpaper.value, ...(pageData.wallpaper.type === 'video' && pageData.wallpaper.poster ? { backgroundImage: `url(${pageData.wallpaper.poster})`, backgroundSize: 'cover' } : {}) } },
                 { name: 'بحر هادئ', value: 'linear-gradient(145deg, #c4ecff 0%, #61a6ff 45%, #1e4ba8 100%)', style: { background: 'linear-gradient(145deg, #c4ecff 0%, #61a6ff 45%, #1e4ba8 100%)' } },
                 { name: 'فجر دافئ', value: 'linear-gradient(145deg, #fedb8c 0%, #f5a0b6 45%, #ad78d1 100%)', style: { background: 'linear-gradient(145deg, #fedb8c 0%, #f5a0b6 45%, #ad78d1 100%)' } },
                 { name: 'ليل أنيق', value: 'linear-gradient(145deg, #334155 0%, #0f172a 55%, #020617 100%)', style: { background: 'linear-gradient(145deg, #334155 0%, #0f172a 55%, #020617 100%)' } },
@@ -492,14 +520,15 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
           <div className="fixed inset-0 z-50 flex items-end bg-black/35">
             <section className="h-[94dvh] max-h-[94dvh] w-full overflow-hidden rounded-t-[30px] bg-[#f7f7f8] shadow-[0_-12px_40px_rgba(0,0,0,0.2)]">
               <div className="sticky top-0 z-10 border-b border-black/5 bg-[#f7f7f8]/95 px-5 py-3 backdrop-blur">
-                <div className="flex items-center justify-between">
-                  <button onClick={cancelPanel} disabled={saving} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[#55555b]" aria-label="إغلاق"><X className="h-5 w-5" /></button>
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                  <button onClick={cancelPanel} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[#55555b]" aria-label="إغلاق"><X className="h-5 w-5" /></button>
                   <h2 className="text-lg font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{mobilePanel === 'theme' ? 'الخلفية' : tabs.find((tab) => tab.id === mobilePanel)?.label}</h2>
-                  <button onClick={finishPanel} disabled={saving} className="flex min-w-[52px] items-center justify-center rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-black text-emerald-700" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'تم'}
-                  </button>
+                  {mobilePanel === 'account' || guestPreview || !isAuthenticated ? <span /> : (
+                    <button onClick={finishPanel} className={`justify-self-end rounded-full px-3.5 py-2 text-[13px] font-black transition-colors ${panelChanged ? 'bg-emerald-600 text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)]' : 'bg-emerald-50 text-emerald-700'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      احفظ تعديلاتي
+                    </button>
+                  )}
                 </div>
-                {panelError && <p className="mt-2 text-center text-xs font-bold text-[#ff3b30]" style={{ fontFamily: 'Tajawal, sans-serif' }}>{panelError}</p>}
               </div>
               <div className="h-[calc(94dvh-64px)] overflow-y-auto scroll-smooth bg-[#f2f2f7]">{renderActivePanel()}</div>
             </section>
@@ -507,6 +536,40 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
         )}
 
       </div>
+
+      {saveToast && (
+        <div className="pointer-events-none fixed inset-x-0 top-4 z-[80] flex justify-center px-4" role={saveToast.kind === 'error' ? 'alert' : 'status'} style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          {saveToast.kind === 'saved' ? (
+            <span className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.14)] ring-1 ring-black/5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#34c759] text-white"><Check className="h-3.5 w-3.5" strokeWidth={3} /></span>
+              تم الحفظ
+            </span>
+          ) : (
+            <span className="pointer-events-auto flex max-w-sm items-center gap-3 rounded-2xl bg-white py-2 pl-2 pr-4 text-sm text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.16)] ring-1 ring-[#ff3b30]/25">
+              <span className="min-w-0 flex-1"><b className="block text-[#ff3b30]">لم تُحفظ التعديلات</b><span className="block truncate text-xs text-[#6e6e73]">{saveToast.message}</span></span>
+              <button onClick={() => void handleSave()} disabled={saving} className="shrink-0 rounded-full bg-[#ff3b30] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'إعادة المحاولة'}</button>
+              <button onClick={() => setSaveToast(null)} aria-label="إغلاق التنبيه" className="shrink-0 rounded-full p-1 text-[#8e8e93]"><X className="h-4 w-4" /></button>
+            </span>
+          )}
+        </div>
+      )}
+
+      {panelExitPrompt && (
+        <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={() => setPanelExitPrompt(false)} style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          <div className="w-full max-w-[340px] overflow-hidden rounded-[22px] bg-white text-center shadow-2xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="panel-exit-title">
+            <p id="panel-exit-title" className="px-6 pb-1 pt-5 text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{contentFormPending ? 'لم تُضف ما كتبته بعد' : 'لديك تعديلات لم تُحفظ'}</p>
+            <p className="px-6 pb-4 text-sm text-[#6e6e73]">{contentFormPending ? 'أكمل العنصر واضغط «إضافة إلى الصفحة» أو «تطبيق التعديل»، ثم احفظ.' : 'احفظها لتظهر في صفحتك، أو اخرج وتعود كما كانت.'}</p>
+            <div className="space-y-2 px-4 pb-4">
+              {contentFormPending ? (
+                <button onClick={() => setPanelExitPrompt(false)} className="block w-full rounded-xl bg-emerald-600 py-3 text-[15px] font-bold text-white">متابعة التعديل</button>
+              ) : (
+                <button onClick={finishPanel} className="block w-full rounded-xl bg-emerald-600 py-3 text-[15px] font-bold text-white">احفظ تعديلاتي</button>
+              )}
+              <button onClick={discardPanel} className="block w-full rounded-xl bg-[#f2f2f7] py-3 text-[15px] font-bold text-[#ff3b30]">اخرج بدون حفظ</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {designNotice && (
         <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4" role="status">

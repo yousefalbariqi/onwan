@@ -1,4 +1,5 @@
 import { arrangeSections, moveSectionItem, reorderSectionItem, saveSectionItem } from '../../../shared/linkSections';
+import { expandPageData, slimPageData } from '../../../shared/pageTransfer';
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
 import { Account, fetchMyPage, saveMyPage } from '../lib/api';
 import { clearSessionToken, getSessionToken } from '../lib/session';
@@ -90,6 +91,10 @@ export interface PageData {
     type: 'color' | 'gradient' | 'image' | 'video';
     value: string;
     position?: 'top' | 'center' | 'bottom';
+    // Background photo framing from «تنسيق»: focus 0–100 % and zoom 1–3.
+    positionX?: number;
+    positionY?: number;
+    zoom?: number;
     dim?: number; // تعتيم الخلفية 0-80
     poster?: string;
     uploaded?: boolean;
@@ -464,13 +469,18 @@ export function PageProvider({ children, source }: { children: ReactNode; source
       return;
     }
 
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pageData));
-    } catch (error) {
-      // Uploaded images can exceed the localStorage quota; the draft still
-      // lives in memory until it is saved.
-      console.warn('Draft too large for local storage:', error);
-    }
+    // Serialising a draft with inline images on every keystroke made typing
+    // and saving sluggish; it is written once the editing pauses.
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pageData));
+      } catch (error) {
+        // Uploaded images can exceed the localStorage quota; the draft still
+        // lives in memory until it is saved.
+        console.warn('Draft too large for local storage:', error);
+      }
+    }, 800);
+    return () => window.clearTimeout(timer);
   }, [pageData, source]);
 
   useEffect(() => {
@@ -617,33 +627,62 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     show(data);
   }, [pushHistory, show]);
 
-  const save = useCallback(async () => {
-    setSaving(true);
+  // One save at a time: a second press while one is running gets the same
+  // result instead of a duplicate request (note 28).
+  const inFlight = useRef<Promise<void> | null>(null);
+  const historyRef = useRef(savedHistory);
+  historyRef.current = savedHistory;
 
-    try {
-      if (source) {
-        const savedData = mergeWithDefaults((await source.save(pageData)).pageData);
-        setPageData(savedData);
-        setSavedPageData(savedData);
-      } else {
-        const response = await saveMyPage(pageData);
-        const savedData = mergeWithDefaults(response.pageData);
-        setPageData(savedData);
-        setSavedPageData(savedData);
-        if (savedPageData) {
-          const username = response.pageData.username || pageData.username;
-          const next = [{ savedAt: new Date().toISOString(), data: savedPageData }, ...savedHistory].slice(0, HISTORY_LIMIT);
-          setSavedHistory(next);
-          writeHistory(username, next);
+  const save = useCallback(() => {
+    if (inFlight.current) return inFlight.current;
+    const sent = pageDataRef.current;
+    const previous = savedRef.current;
+    if (previous && sent === previous) return Promise.resolve();
+
+    const run = async () => {
+      setSaving(true);
+      const started = performance.now();
+      try {
+        let savedData: PageData;
+        if (source) {
+          savedData = mergeWithDefaults((await source.save(sent)).pageData);
+        } else {
+          // Files unchanged since the last save are not uploaded again.
+          const body = slimPageData(sent, previous);
+          const response = await saveMyPage(body);
+          const expanded = expandPageData(response.pageData, sent);
+          savedData = mergeWithDefaults(expanded ?? (await fetchMyPage()).pageData);
+          setAccount(response.account);
+          if (previous) {
+            const username = response.pageData.username || sent.username;
+            const next = [{ savedAt: new Date().toISOString(), data: previous }, ...historyRef.current].slice(0, HISTORY_LIMIT);
+            setSavedHistory(next);
+            // Off the critical path: serialising earlier versions is slow.
+            window.setTimeout(() => writeHistory(username, next), 0);
+          }
+          if (import.meta.env.DEV) {
+            console.info(`[onwan] save ${Math.round(performance.now() - started)} ms · sent ${Math.round(JSON.stringify(body).length / 1024)} KB of ${Math.round(JSON.stringify(sent).length / 1024)} KB`);
+          }
         }
-        setAccount(response.account);
-      }
 
-      setIsDirty(false);
-    } finally {
-      setSaving(false);
-    }
-  }, [pageData, source, savedPageData, savedHistory]);
+        savedRef.current = savedData;
+        setSavedPageData(savedData);
+        // Edits made while the save was running stay in the draft, unsaved.
+        if (pageDataRef.current === sent) {
+          setPageData(savedData);
+          setIsDirty(false);
+        } else {
+          setIsDirty(true);
+        }
+      } finally {
+        setSaving(false);
+        inFlight.current = null;
+      }
+    };
+
+    inFlight.current = run();
+    return inFlight.current;
+  }, [source]);
 
   const restoreVersion = useCallback((data: PageData) => {
     pushHistory(true);

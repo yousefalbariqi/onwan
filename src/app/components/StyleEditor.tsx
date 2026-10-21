@@ -3,9 +3,8 @@ import { ColorDots, Segmented, Toggle } from './ios';
 import { FONT_OPTIONS, PageData, usePageContext } from '../context/PageContext';
 import { loadFont } from '../lib/fonts';
 import { PhonePreview } from './PhonePreview';
-import { ProfileImageControls } from './ProfileImageControls';
 
-// «الأسلوب»: profile-image shape, buttons, text and colours. Laid out like
+// «الأسلوب»: buttons, text and colours (the profile photo is in «الهوية», note 24). Laid out like
 // Apple's Lock Screen / photo editor: the real page large on top, and below it
 // a tray that shows the tools of one tab at a time — no scrolling.
 
@@ -22,7 +21,6 @@ const BUTTON_SHAPES = [
 ] as const;
 
 const TOOL_TABS = [
-  { id: 'image', label: 'الصورة' },
   { id: 'buttons', label: 'الأزرار' },
   { id: 'text', label: 'النص' },
   { id: 'colors', label: 'الألوان' },
@@ -38,8 +36,8 @@ function Scroller({ children }: { children: React.ReactNode }) {
 }
 
 export function StyleEditor() {
-  const { pageData, updateButtonStyle, updateTypography, updateProfileStyle, updatePageData } = usePageContext();
-  const [tab, setTab] = useState<ToolTab>('image');
+  const { pageData, updateButtonStyle, updateTypography, updatePageData } = usePageContext();
+  const [tab, setTab] = useState<ToolTab>('buttons');
   const currentFont = pageData.typography?.font ?? 'cairo';
 
   // The fonts load only once the «النص» tab is opened.
@@ -55,18 +53,18 @@ export function StyleEditor() {
       {/* On desktop the big preview already sits beside the panel. */}
       {/* The free height decides the phone's size (its width follows from the
           aspect ratio), so the preview can never grow over the tool tray. */}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-3 lg:hidden">
-        <div className="aspect-[390/862] h-full max-h-[520px] max-w-full"><PhonePreview /></div>
+      <div className="flex min-h-[200px] flex-1 items-center justify-center overflow-hidden px-4 py-3 lg:hidden">
+        <div className="aspect-[390/862] h-full max-h-[480px] max-w-full"><PhonePreview /></div>
       </div>
 
-      <div className="shrink-0 rounded-t-[24px] bg-white px-4 pb-5 pt-3 shadow-[0_-6px_20px_rgba(0,0,0,0.06)]">
-        <Segmented options={TOOL_TABS} value={tab} onChange={(id) => setTab(id as ToolTab)} />
+      {/* Note 25: the tray keeps one height on every tab, so the preview above
+          never jumps or slides under the controls; long tabs scroll inside. */}
+      <div className="flex shrink-0 flex-col rounded-t-[24px] bg-white shadow-[0_-6px_20px_rgba(0,0,0,0.06)] lg:rounded-none lg:shadow-none">
+        <div className="px-4 pb-3 pt-3.5">
+          <Segmented large options={TOOL_TABS} value={tab} onChange={(id) => setTab(id as ToolTab)} />
+        </div>
 
-        <div className="mt-4 min-h-[150px] space-y-4">
-          {tab === 'image' && (
-            <ProfileImageControls />
-          )}
-
+        <div className="h-[280px] space-y-4 overflow-y-auto overscroll-contain px-4 pb-6 pt-1 lg:h-auto lg:overflow-visible">
           {tab === 'buttons' && (
             <>
               <div className="grid grid-cols-2 gap-3">

@@ -28,6 +28,13 @@
       "zone_name": "onwan.link"
     }
   ],
+  // Background videos (note 30). Create once: npx wrangler r2 bucket create onwan-media
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "onwan-media"
+    }
+  ],
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",

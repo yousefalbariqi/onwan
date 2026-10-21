@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Circle, Plus, Check, ChevronLeft } from 'lucide-react';
+import { Circle, Plus, Check, ChevronLeft, ZoomIn } from 'lucide-react';
 
 // Shared Apple-style (iOS Settings) controls for the editor panels: grouped
 // lists, rows, segmented controls, switches and a single row of colour dots.
@@ -26,17 +26,20 @@ export function Row({ label, children, stacked = false }: { label: string; child
   );
 }
 
-export function Segmented<T extends string>({ options, value, onChange }: { options: readonly { id: T; label: string; icon?: typeof Circle }[]; value: T; onChange: (id: T) => void }) {
+// `large`: the main tabs of a panel; the default fits inside a row.
+export function Segmented<T extends string>({ options, value, onChange, large = false }: { options: readonly { id: T; label: string; icon?: typeof Circle }[]; value: T; onChange: (id: T) => void; large?: boolean }) {
   return (
-    <div className="flex rounded-[10px] bg-[#e9e9ee] p-0.5">
+    <div className={`flex rounded-[10px] bg-[#e9e9ee] p-0.5 ${large ? 'min-h-[40px]' : 'min-h-[34px]'}`} role="group">
       {options.map((option) => {
         const Icon = option.icon;
         const active = option.id === value;
         return (
           <button
             key={option.id}
+            type="button"
+            aria-pressed={active}
             onClick={() => onChange(option.id)}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-[8px] py-1.5 text-[13px] font-bold transition-all ${active ? 'bg-white text-[#1d1d1f] shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6e6e73]'}`}
+            className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-1 font-bold leading-none transition-all ${large ? 'text-[14px]' : 'text-[13px]'} ${active ? 'bg-white text-[#1d1d1f] shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6e6e73]'}`}
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             {Icon && <Icon className="h-3.5 w-3.5" />}
@@ -104,5 +107,42 @@ export function NavRow({ label, value, onClick, tone = 'default' }: { label: str
         {tone === 'default' && <ChevronLeft className="h-4 w-4 text-[#c7c7cc]" />}
       </span>
     </button>
+  );
+}
+
+// A slider standing upright beside the photo. `topIsMin`: the top end is the
+// minimum (position: 0 = top); otherwise the top end is the maximum (zoom in).
+export function VerticalSlider({ label, min, max, step, value, onChange, topIsMin = false, icon }: { label: string; min: number; max: number; step: number; value: number; onChange: (value: number) => void; topIsMin?: boolean; icon?: 'zoom' }) {
+  const LENGTH = 150;
+  return (
+    <div className="flex shrink-0 flex-col items-center gap-1 text-[10px] text-[#6e6e73]">
+      {icon === 'zoom' ? <ZoomIn className="h-3.5 w-3.5" /> : <span>{topIsMin ? 'أعلى' : ''}</span>}
+      <div className="relative w-7" style={{ height: LENGTH }}>
+        <input
+          aria-label={label}
+          type="range"
+          dir="ltr"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="absolute left-1/2 top-1/2 accent-[#0a84ff]"
+          style={{ width: LENGTH, transform: `translate(-50%, -50%) rotate(${topIsMin ? 90 : -90}deg)` }}
+        />
+      </div>
+      <span>{icon === 'zoom' ? 'تكبير' : topIsMin ? 'أسفل' : ''}</span>
+    </div>
+  );
+}
+
+// A horizontal slider with its two ends named (e.g. يمين / يسار).
+export function EndsSlider({ label, start, end, min, max, step = 1, value, onChange }: { label: string; start: string; end: string; min: number; max: number; step?: number; value: number; onChange: (value: number) => void }) {
+  return (
+    <label className="flex w-full items-center gap-3 px-1 text-xs text-[#6e6e73]">
+      <span className="shrink-0">{start}</span>
+      <input aria-label={label} type="range" dir="rtl" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} className="min-w-0 flex-1 accent-[#0a84ff]" />
+      <span className="shrink-0">{end}</span>
+    </label>
   );
 }

@@ -1,6 +1,8 @@
-import { getEnv } from './runtime.js';
+import { getBinding } from './runtime.js';
+import type { MediaBucket } from '../video-upload.js';
 import { BACKGROUND_VIDEO_TYPES, MAX_BACKGROUND_VIDEO_BYTES, parseVideoSource, parseYouTubeVideoSource } from '../../shared/videoSources.js';
 import { arrangeSections, visibleSectionItems } from '../../shared/linkSections.js';
+import { expandPageData, hasKept, slimPageData } from '../../shared/pageTransfer.js';
 import { PoolClient } from 'pg';
 import { pool } from './db.js';
 import { HttpError } from './http.js';
@@ -432,7 +434,33 @@ export async function archiveLinks(client: PoolClient | typeof pool, pageId: str
 // PAGE-07: this is the explicit «حفظ». It publishes the edit and (PAGE-01,
 // MOD-01) queues it for the administration's later review. A save made by an
 // employee on the customer's behalf (PERM-01) is recorded as already reviewed.
-export async function savePageData(userId: string, pageData: any, options: { staffName?: string } = {}) {
+// What is stored now: the source of values sent as KEPT, and of the uploaded
+// video already verified by an earlier save.
+async function loadStoredForSave(userId: string, withLinks: boolean) {
+  const page = await pool.query<{ id: string; profile_image_url: string | null; wallpaper_json: Record<string, any> | null }>(
+    'select id, profile_image_url, wallpaper_json from pages where user_id = $1 limit 1',
+    [userId],
+  );
+  const row = page.rows[0];
+  if (!row) return null;
+  const links = withLinks
+    ? (await pool.query<{ id: string; url: string; custom_icon: string | null; display_json: Record<string, any> | null }>(
+        'select id, url, custom_icon, display_json from page_links where page_id = $1',
+        [row.id],
+      )).rows
+    : [];
+  return {
+    profileImage: row.profile_image_url || '',
+    wallpaper: row.wallpaper_json || {},
+    links: links.map((link) => ({ id: link.id, url: link.url, customIcon: link.custom_icon || undefined, display: link.display_json || {} })),
+  };
+}
+
+export async function savePageData(userId: string, sentPageData: any, options: { staffName?: string; slimResponse?: boolean } = {}) {
+  const sentKept = hasKept(sentPageData ?? {});
+  const stored = sentKept || sentPageData?.wallpaper?.uploaded ? await loadStoredForSave(userId, sentKept) : null;
+  const pageData = sentKept ? expandPageData(sentPageData, stored) : sentPageData;
+  if (!pageData) throw new HttpError(409, 'تغيّرت صفحتك من مكان آخر. أعد تحميل المحرر ثم احفظ مرة أخرى.');
   const links = normalizeLinks(pageData.links);
   const profileImage = validateImageValue(pageData.profileImage, 'الصورة / الشعار');
   const wallpaper = { ...(pageData.wallpaper ?? DEFAULT_PAGE_DATA.wallpaper) };
@@ -440,12 +468,23 @@ export async function savePageData(userId: string, pageData: any, options: { sta
   if (wallpaper.type === 'video') {
     if (!parseVideoSource(String(wallpaper.value ?? ''), true)) throw new HttpError(400, 'خلفية الفيديو تحتاج رابط HTTPS مباشرًا لملف MP4 أو WebM.');
     if (wallpaper.poster) validateImageValue(wallpaper.poster, 'الصورة البديلة للفيديو');
-    if (wallpaper.uploaded) {
-      const url = new URL(String(wallpaper.value));
-      if (!url.hostname.endsWith('.public.blob.vercel-storage.com') || !url.pathname.startsWith(`/wallpapers/${userId}/`)) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
-      const { head } = await import('@vercel/blob');
-      const file = await head(url.href, { token: getEnv('BLOB_READ_WRITE_TOKEN') });
-      if (file.size > MAX_BACKGROUND_VIDEO_BYTES || !BACKGROUND_VIDEO_TYPES.includes(file.contentType)) throw new HttpError(400, 'فيديو الخلفية يجب أن يكون MP4 أو WebM بحجم لا يتجاوز 20 MB.');
+    // The same uploaded file was checked when it was first saved; asking the
+    // storage again on every save only slowed saving down.
+    const alreadyVerified = stored?.wallpaper?.uploaded && stored.wallpaper.type === 'video' && stored.wallpaper.value === wallpaper.value && typeof stored.wallpaper.fileSize === 'number';
+    if (wallpaper.uploaded && String(wallpaper.value).startsWith('/media/') && !String(wallpaper.value).startsWith(`/media/wallpapers/${userId}/`)) {
+      throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
+    }
+    if (wallpaper.uploaded && alreadyVerified) {
+      // Videos uploaded before the move to R2 (Vercel Blob URLs) stay valid as saved.
+      wallpaper.fileSize = stored!.wallpaper.fileSize;
+    } else if (wallpaper.uploaded) {
+      const value = String(wallpaper.value);
+      if (!value.startsWith(`/media/wallpapers/${userId}/`)) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
+      const media = getBinding<MediaBucket>('MEDIA');
+      if (!media) throw new HttpError(503, 'تخزين الفيديو غير متاح الآن. حاول لاحقًا.');
+      const file = await media.head(value.slice('/media/'.length));
+      if (!file) throw new HttpError(400, 'لم نجد فيديو الخلفية المرفوع. ارفعه مرة أخرى.');
+      if (file.size > MAX_BACKGROUND_VIDEO_BYTES || !BACKGROUND_VIDEO_TYPES.includes(file.httpMetadata?.contentType ?? '')) throw new HttpError(400, 'فيديو الخلفية يجب أن يكون MP4 أو WebM بحجم لا يتجاوز 20 MB.');
       wallpaper.fileSize = file.size;
     }
 
@@ -501,8 +540,16 @@ export async function savePageData(userId: string, pageData: any, options: { sta
       throw new Error('Page not found');
     }
 
-    // Buttons the editor no longer sends were deleted by this save.
-    const keptIds = links.map((link) => link.id).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    // Buttons the editor no longer sends were deleted by this save. Ids are
+    // kept across saves (the editor matches unchanged files by id); anything
+    // else, or a repeated id, gets a new one.
+    const seenIds = new Set<string>();
+    const rowIds = links.map((link) => {
+      const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(link.id) && !seenIds.has(link.id.toLowerCase()) ? link.id.toLowerCase() : null;
+      if (id) seenIds.add(id);
+      return id;
+    });
+    const keptIds = rowIds.filter((id): id is string => Boolean(id));
     const removed = await client.query<{ id: string }>(
       'select id from page_links where page_id = $1 and not (id = any($2::uuid[]))',
       [pageId, keptIds],
@@ -520,13 +567,13 @@ export async function savePageData(userId: string, pageData: any, options: { sta
       await client.query(
         `
           insert into page_links (
-            page_id, title, url, link_type, file_category, file_name, file_mime_type, file_size,
+            id, page_id, title, url, link_type, file_category, file_name, file_mime_type, file_size,
             platform, sort_order, icon_style, text_position, is_hidden, title_en, custom_icon, display_json
           )
-          select $1, r.title, r.url, r.link_type, r.file_category, r.file_name, r.file_mime_type, r.file_size,
+          select coalesce(r.id, gen_random_uuid()), $1, r.title, r.url, r.link_type, r.file_category, r.file_name, r.file_mime_type, r.file_size,
                  r.platform, r.sort_order, r.icon_style, r.text_position, r.is_hidden, r.title_en, r.custom_icon, r.display_json
           from jsonb_to_recordset($2::jsonb) as r(
-            title text, url text, link_type text, file_category text, file_name text, file_mime_type text,
+            id uuid, title text, url text, link_type text, file_category text, file_name text, file_mime_type text,
             file_size integer, platform text, sort_order integer, icon_style text, text_position text,
             is_hidden boolean, title_en text, custom_icon text, display_json jsonb
           )
@@ -535,6 +582,7 @@ export async function savePageData(userId: string, pageData: any, options: { sta
           pageId,
           JSON.stringify(
             links.map((link, index) => ({
+              id: rowIds[index],
               title: link.title,
               url: link.url,
               link_type: link.linkType,
@@ -576,7 +624,9 @@ export async function savePageData(userId: string, pageData: any, options: { sta
     client.release();
   }
 
-  return getPageDataByUserId(userId);
+  const saved = await getPageDataByUserId(userId);
+  // The editor already holds every unchanged file it just sent.
+  return options.slimResponse && saved ? slimPageData(saved, pageData) : saved;
 }
 
 function mapPage(page: PageRecord, links: LinkRecord[], includeHidden = true) {

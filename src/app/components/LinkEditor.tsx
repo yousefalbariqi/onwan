@@ -1,143 +1,189 @@
 import { parseYouTubeVideoSource } from '../../../shared/videoSources';
-import { useMemo, useState, useEffect } from 'react';
-import { LinkDisplay, usePageContext } from '../context/PageContext';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, LinkDisplay, usePageContext } from '../context/PageContext';
 import {
-  Plus,
-  Trash2,
-  Check,
-  ChevronUp,
-  ChevronDown,
-  Search,
-  Upload,
-  PlayCircle,
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronRight,
   Eye,
   EyeOff,
+  FileText,
+  FolderOpen,
   GripVertical,
+  Link2,
+  MoreHorizontal,
+  PlayCircle,
+  Plus,
+  Search,
+  Trash2,
+  Type,
+  Upload,
 } from 'lucide-react';
 import { SOCIAL_PLATFORMS, SocialIcon } from './SocialIcons';
-import { FieldRow, Group, Panel, Segmented } from './ios';
+import { Group, Panel, Segmented } from './ios';
 import { ImageCropper } from './ImageCropper';
 import { LinkAppearanceEditor } from './LinkAppearanceEditor';
 import { LINK_ICONS } from '../lib/linkIcons';
 import { MAX_LINKS } from '../lib/site';
 
-type LinkType = 'url' | 'file';
-type IconStyle = 'color' | 'mono';
-type TextPosition = 'center' | 'right';
+// «المحتوى»: a calm list with one «+ إضافة محتوى», then four kinds to choose
+// from (رابط، ملف، نص، مجموعة), then only the fields that kind needs; the rest
+// waits behind «خيارات إضافية». Every kind is one of the existing stored forms
+// (link, file, text paragraph, heading / section), so nothing new is saved.
+
+type ContentKind = 'link' | 'file' | 'text' | 'group';
+type LinkMode = 'url' | 'whatsapp' | 'email';
 type FileCategory = 'cv' | 'menu' | 'other';
-type FileKind = 'image' | 'pdf';
 
-const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-
-type LinkFormState = {
+type FormState = {
+  kind: ContentKind;
+  mode: LinkMode;
+  // «نص» is a paragraph (نبذة) or a standalone heading (عنوان).
+  textStyle: 'body' | 'heading';
   title: string;
+  // Until the title is typed by hand it follows the link (platform / site name).
+  titleTouched: boolean;
   titleEn: string;
   url: string;
   platform: string;
-  iconStyle: IconStyle;
-  textPosition: TextPosition;
-  linkType: LinkType;
+  iconStyle: 'color' | 'mono';
+  textPosition: 'center' | 'right';
   fileCategory: FileCategory;
   fileName: string;
   fileMimeType: string;
   fileSize?: number;
-  // Editor-only: which file tile was picked. Both are saved as platform 'file'.
-  fileKind: FileKind;
   customIcon: string;
   display: LinkDisplay;
   sectionMembers: string[];
 };
 
-const QUICK_SOCIAL_IDS = ['whatsapp', 'instagram', 'twitter', 'tiktok', 'snapchat', 'youtube', 'facebook', 'email', 'website', 'custom'];
+type Screen = { name: 'list' } | { name: 'choose' } | { name: 'form'; id?: string };
+
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+// FILE-01: صور وPDF فقط — must match ALLOWED_FILE_MIME_TYPES in api/_lib/page.ts.
+const ALLOWED_FILE_TYPES = [...IMAGE_TYPES, 'application/pdf'];
 // Files are stored inline for now; the final storage limits are pending (P-02).
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
-// FILE-01: صور وPDF فقط — must match ALLOWED_FILE_MIME_TYPES in api/_lib/page.ts.
-const ALLOWED_FILE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'];
+const MAX_ICON_SOURCE_SIZE = 8 * 1024 * 1024;
+const WHATSAPP_PREFIX = 'https://wa.me/966';
+// General buttons can carry their own icon (D-11); brand platforms keep their logo.
+const ICON_PLATFORMS = ['website', 'custom', 'file'];
 
-function createInitialFormState(): LinkFormState {
+const KINDS: { id: ContentKind; label: string; hint: string; Icon: typeof Link2; tone: string }[] = [
+  { id: 'link', label: 'رابط', hint: 'المواقع الخارجية ووسائل التواصل', Icon: Link2, tone: 'bg-[#0a84ff]/10 text-[#0a84ff]' },
+  { id: 'file', label: 'ملف', hint: 'الصور وملفات PDF', Icon: FileText, tone: 'bg-[#ff9500]/12 text-[#c76a00]' },
+  { id: 'text', label: 'نص', hint: 'عنوان أو نبذة داخل الصفحة', Icon: Type, tone: 'bg-[#34c759]/12 text-[#1f8a3b]' },
+  { id: 'group', label: 'مجموعة', hint: 'تنظيم عدة عناصر تحت عنوان', Icon: FolderOpen, tone: 'bg-[#af52de]/12 text-[#8e3bb8]' },
+];
+
+const PLATFORM_HOSTS: [RegExp, string][] = [
+  [/(^|\.)instagram\.com$/, 'instagram'],
+  [/(^|\.)(twitter|x)\.com$/, 'twitter'],
+  [/(^|\.)tiktok\.com$/, 'tiktok'],
+  [/(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/, 'youtube'],
+  [/(^|\.)linkedin\.com$/, 'linkedin'],
+  [/(^|\.)github\.com$/, 'github'],
+  [/(^|\.)(facebook\.com|fb\.com|fb\.me)$/, 'facebook'],
+  [/(^|\.)snapchat\.com$/, 'snapchat'],
+  [/(^|\.)(wa\.me|whatsapp\.com)$/, 'whatsapp'],
+  [/(^|\.)(t\.me|telegram\.me|telegram\.org)$/, 'telegram'],
+];
+
+function hostOf(raw: string) {
+  const value = raw.trim();
+  if (!value) return '';
+  try {
+    return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `https://${value}`).hostname.toLowerCase().replace(/^(www|m)\./, '');
+  } catch {
+    return '';
+  }
+}
+
+// Known platforms by the link's host (not a substring, so «netflix.com» is not X).
+function detectPlatform(raw: string) {
+  if (/^mailto:/i.test(raw.trim())) return 'email';
+  const host = hostOf(raw);
+  if (!host) return null;
+  return PLATFORM_HOSTS.find(([pattern]) => pattern.test(host))?.[1] ?? 'website';
+}
+
+const platformName = (id: string) => (id === 'twitter' ? 'X' : SOCIAL_PLATFORMS.find((platform) => platform.id === id)?.name ?? '');
+
+function suggestedTitle(form: FormState) {
+  if (form.mode === 'whatsapp') return 'واتساب';
+  if (form.mode === 'email') return 'راسلنا';
+  if (form.platform === 'website' || form.platform === 'custom') return hostOf(form.url);
+  return platformName(form.platform);
+}
+
+function emptyForm(kind: ContentKind): FormState {
   return {
+    kind,
+    mode: 'url',
+    textStyle: 'body',
     title: '',
+    titleTouched: false,
     titleEn: '',
     url: '',
-    platform: 'instagram',
+    platform: kind === 'file' ? 'file' : kind === 'link' ? 'website' : 'custom',
     iconStyle: 'color',
     textPosition: 'center',
-    linkType: 'url',
     fileCategory: 'other',
     fileName: '',
     fileMimeType: '',
-    fileKind: 'pdf',
     customIcon: '',
-    display: {},
+    display: kind === 'text' ? { kind: 'text', body: '' } : kind === 'group' ? { kind: 'heading', sectionId: crypto.randomUUID() } : {},
     sectionMembers: [],
   };
 }
 
-function isFormReady(form: LinkFormState) {
-  if (form.display.kind === 'text') return Boolean(form.display.body?.trim() && form.display.body.length <= 2000);
-  if (form.display.kind === 'video') return Boolean(form.title.trim() && parseYouTubeVideoSource(form.url));
-  return Boolean(form.title.trim() && (form.display.kind === 'heading' || (form.url.trim() && (form.display.layout !== 'card' || form.display.image))));
+function kindOf(link: Link): ContentKind {
+  if (link.display?.kind === 'heading') return link.display.sectionId ? 'group' : 'text';
+  if (link.display?.kind === 'text') return 'text';
+  return link.linkType === 'file' ? 'file' : 'link';
 }
 
-// WhatsApp and email have their own fields (a phone number / an address);
-// the link is built from them, so a platform placeholder must never become the value.
-function keepOwnFieldUrl(platformId: string | undefined, url: string) {
-  if (platformId === 'email') return url.startsWith('mailto:') ? url : '';
-  if (platformId === 'whatsapp') return url.startsWith('https://wa.me/') && /\d$/.test(url) ? url : '';
-  return null;
+function formFromLink(link: Link, links: Link[]): FormState {
+  const kind = kindOf(link);
+  const sectionId = link.display?.sectionId;
+  return {
+    kind,
+    mode: link.platform === 'whatsapp' && link.url.startsWith(WHATSAPP_PREFIX) ? 'whatsapp' : link.platform === 'email' && link.url.startsWith('mailto:') ? 'email' : 'url',
+    textStyle: link.display?.kind === 'heading' ? 'heading' : 'body',
+    title: link.title,
+    titleTouched: true,
+    titleEn: link.titleEn || '',
+    url: link.url,
+    platform: link.platform || (kind === 'file' ? 'file' : 'custom'),
+    iconStyle: link.iconStyle || 'color',
+    textPosition: link.textPosition || 'center',
+    fileCategory: link.fileCategory || 'other',
+    fileName: link.fileName || '',
+    fileMimeType: link.fileMimeType || '',
+    fileSize: link.fileSize,
+    customIcon: link.customIcon || '',
+    display: link.display || {},
+    sectionMembers: kind === 'group' && sectionId ? links.filter((item) => item.display?.kind !== 'heading' && item.display?.sectionId === sectionId).map((item) => item.id) : [],
+  };
 }
 
-const WHATSAPP_PREFIX = 'https://wa.me/966';
-
-// General buttons can carry their own icon (D-11); brand platforms keep their logo.
-const ICON_PLATFORMS = ['website', 'custom', 'file'];
-const MAX_ICON_SOURCE_SIZE = 8 * 1024 * 1024;
-
-function detectPlatformFromUrl(rawUrl: string) {
-  const normalized = rawUrl.trim().toLowerCase();
-
-  if (!normalized) return null;
-  if (normalized.startsWith('mailto:')) return 'email';
-  if (normalized.includes('instagram.com')) return 'instagram';
-  if (normalized.includes('twitter.com') || normalized.includes('x.com')) return 'twitter';
-  if (normalized.includes('tiktok.com')) return 'tiktok';
-  if (normalized.includes('youtube.com') || normalized.includes('youtu.be')) return 'youtube';
-  if (normalized.includes('linkedin.com')) return 'linkedin';
-  if (normalized.includes('github.com')) return 'github';
-  if (normalized.includes('facebook.com')) return 'facebook';
-  if (normalized.includes('snapchat.com')) return 'snapchat';
-  if (normalized.includes('wa.me') || normalized.includes('whatsapp')) return 'whatsapp';
-  if (normalized.includes('t.me') || normalized.includes('telegram.me')) return 'telegram';
-
-  return 'website';
-}
-
-function getDefaultTitleByCategory(category: FileCategory) {
-  if (category === 'cv') return 'السيرة الذاتية';
-  if (category === 'menu') return 'قائمة الطعام';
-  return 'الملف التعريفي';
-}
-
-function getCategoryLabel(category?: FileCategory) {
-  if (category === 'cv') return 'سيرة ذاتية';
-  if (category === 'menu') return 'قائمة طعام';
-  return 'ملف';
+function isReady(form: FormState) {
+  if (form.kind === 'text') return form.textStyle === 'heading' ? Boolean(form.title.trim()) : Boolean(form.display.body?.trim() && form.display.body.length <= 2000);
+  if (form.kind === 'group') return Boolean(form.title.trim());
+  if (!form.title.trim() || !form.url.trim()) return false;
+  if (form.display.kind === 'video') return Boolean(parseYouTubeVideoSource(form.url));
+  if (form.mode === 'email') return /^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.url);
+  if (form.mode === 'whatsapp') return /^https:\/\/wa\.me\/9665\d{8}$/.test(form.url);
+  return form.display.layout !== 'card' || Boolean(form.display.image);
 }
 
 function formatFileSize(size?: number) {
   if (!size || size <= 0) return '';
-
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = size;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function readFileAsDataUrl(file: File) {
@@ -149,626 +195,497 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
-// Shown only once the field holds a valid value, to confirm what the button will do.
-function Confirmation({ text }: { text: string }) {
-  return <p className="-mt-1 !border-t-0 px-4 pb-3 text-xs font-bold text-[#34c759]">✓ {text}</p>;
+function itemSubtitle(link: Link, links: Link[]) {
+  if (link.hidden) return 'مخفي عن الزوار';
+  const kind = link.display?.kind;
+  if (kind === 'text') return 'نبذة';
+  if (kind === 'video') return 'فيديو يوتيوب داخل الصفحة';
+  if (kind === 'heading') {
+    if (!link.display?.sectionId) return 'عنوان';
+    const count = links.filter((item) => item.display?.kind !== 'heading' && item.display?.sectionId === link.display?.sectionId).length;
+    return count ? `مجموعة · ${count} ${count === 1 ? 'عنصر' : count === 2 ? 'عنصران' : count <= 10 ? 'عناصر' : 'عنصرًا'}` : 'مجموعة فارغة';
+  }
+  if (link.display?.layout === 'card') return 'بطاقة مصوّرة';
+  if (link.linkType === 'file') return [link.fileMimeType === 'application/pdf' ? 'PDF' : 'صورة', formatFileSize(link.fileSize)].filter(Boolean).join(' · ');
+  if (link.url.startsWith(WHATSAPP_PREFIX)) return `+966 ${link.url.slice(WHATSAPP_PREFIX.length)}`;
+  return link.url.replace(/^mailto:/i, '').replace(/^https?:\/\/(www\.)?/i, '');
 }
 
-export function LinkEditor() {
-  const { pageData, addLink, removeLink, updateLink, moveLink, reorderLink } = usePageContext();
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const limitReached = pageData.links.length >= MAX_LINKS;
-  // The English title field appears once the page has an English version.
-  const hasEnglish = Boolean(pageData.translations?.en?.name || pageData.translations?.en?.bio);
-  const [isAdding, setIsAdding] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [newLink, setNewLink] = useState<LinkFormState>(createInitialFormState());
-  const [editLink, setEditLink] = useState<LinkFormState>(createInitialFormState());
-  const [newPlatformQuery, setNewPlatformQuery] = useState('');
-  const [editPlatformQuery, setEditPlatformQuery] = useState('');
-  const [showMorePlatformsForNew, setShowMorePlatformsForNew] = useState(false);
-  const [showMorePlatformsForEdit, setShowMorePlatformsForEdit] = useState(false);
-  const [newFileError, setNewFileError] = useState('');
-  const [editFileError, setEditFileError] = useState('');
-  const [prevNewPlatform, setPrevNewPlatform] = useState(newLink.platform);
-  const [prevEditPlatform, setPrevEditPlatform] = useState(editLink.platform);
-  const [iconError, setIconError] = useState('');
-  const [expandedIcons, setExpandedIcons] = useState(false);
-  const [iconQuery, setIconQuery] = useState('');
-  useEffect(() => { setExpandedIcons(false); setIconQuery(''); setIconError(''); }, [isAdding, editingId]);
-  const [iconCrop, setIconCrop] = useState<{ src: string; setForm: React.Dispatch<React.SetStateAction<LinkFormState>> } | null>(null);
+function ItemIcon({ link }: { link: Link }) {
+  const kind = link.display?.kind;
+  if (kind === 'text') return <Type className="h-5 w-5 text-[#1f8a3b]" />;
+  if (kind === 'video') return <PlayCircle className="h-5 w-5 text-[#ff3b30]" />;
+  if (kind === 'heading') return link.display?.sectionId ? <FolderOpen className="h-5 w-5 text-[#8e3bb8]" /> : <Type className="h-5 w-5 text-[#6e6e73]" />;
+  if (link.display?.layout === 'card' && link.display.image) return <img src={link.display.image} alt="" className="h-full w-full rounded-[10px] object-cover" />;
+  return <SocialIcon platform={link.linkType === 'file' && link.fileMimeType?.startsWith('image/') ? 'image' : link.platform || 'custom'} iconStyle={link.iconStyle || 'color'} customIcon={link.customIcon} color={link.customIcon?.startsWith('icon:') ? '#3a3a3c' : undefined} className="h-5 w-5" />;
+}
 
-  const quickSocialPlatforms = useMemo(
-    () => QUICK_SOCIAL_IDS.map((id) => SOCIAL_PLATFORMS.find((platform) => platform.id === id)!).filter(Boolean),
-    [],
+// A small two-choice sheet (note 23's style), for leaving a changed form and
+// for deleting a group.
+function ConfirmSheet({ title, message, confirmLabel, cancelLabel, onConfirm, onCancel }: { title: string; message: string; confirmLabel: string; cancelLabel: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={onCancel}>
+      <div className="w-full max-w-[340px] overflow-hidden rounded-[22px] bg-white text-center shadow-2xl" onClick={(event) => event.stopPropagation()} role="alertdialog" aria-modal="true" aria-label={title}>
+        <p className="px-6 pb-1 pt-5 text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</p>
+        <p className="px-6 pb-4 text-sm leading-6 text-[#6e6e73]">{message}</p>
+        <div className="space-y-2 px-4 pb-4">
+          <button type="button" onClick={onConfirm} className="block w-full rounded-xl bg-[#ff3b30] py-3 text-[15px] font-bold text-white">{confirmLabel}</button>
+          <button type="button" onClick={onCancel} className="block w-full rounded-xl bg-[#f2f2f7] py-3 text-[15px] font-bold text-[#1d1d1f]">{cancelLabel}</button>
+        </div>
+      </div>
+    </div>
   );
+}
 
+function Advanced({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section>
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex min-h-11 w-full items-center justify-between rounded-2xl bg-white px-4 text-[15px] text-[#1d1d1f]">
+        خيارات إضافية
+        <ChevronDown className={`h-4 w-4 text-[#8e8e93] transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="mt-4 space-y-6">{children}</div>}
+    </section>
+  );
+}
 
-  const filteredPlatformsForNew = useMemo(() => {
-    const query = newPlatformQuery.trim().toLowerCase();
-    if (!query) return SOCIAL_PLATFORMS;
+// `onPendingChange`: the editor window is told while a form holds unadded
+// input, so closing it never drops that input silently.
+export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: boolean) => void } = {}) {
+  const { pageData, addLink, removeLink, updateLink, moveLink, reorderLink } = usePageContext();
+  const links = pageData.links;
+  const limitReached = links.length >= MAX_LINKS;
+  // The English fields appear once the page has an English version.
+  const hasEnglish = Boolean(pageData.translations?.en?.name || pageData.translations?.en?.bio);
+  const groups = links.filter((item) => item.display?.kind === 'heading' && item.display.sectionId);
 
-    return SOCIAL_PLATFORMS.filter(
-      (platform) =>
-        platform.name.toLowerCase().includes(query) ||
-        platform.id.toLowerCase().includes(query) ||
-        platform.placeholder.toLowerCase().includes(query),
-    );
-  }, [newPlatformQuery]);
+  const [screen, setScreen] = useState<Screen>({ name: 'list' });
+  const [form, setForm] = useState<FormState>(() => emptyForm('link'));
+  const formStart = useRef('');
+  const [fileError, setFileError] = useState('');
+  const [iconError, setIconError] = useState('');
+  const [iconsOpen, setIconsOpen] = useState(false);
+  const [iconQuery, setIconQuery] = useState('');
+  const [iconCrop, setIconCrop] = useState<string | null>(null);
+  const [actionsFor, setActionsFor] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<null | { kind: 'leave' } | { kind: 'deleteGroup'; link: Link; count: number }>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const topRef = useRef<HTMLDivElement>(null);
 
-  const filteredPlatformsForEdit = useMemo(() => {
-    const query = editPlatformQuery.trim().toLowerCase();
-    if (!query) return SOCIAL_PLATFORMS;
-
-    return SOCIAL_PLATFORMS.filter(
-      (platform) =>
-        platform.name.toLowerCase().includes(query) ||
-        platform.id.toLowerCase().includes(query) ||
-        platform.placeholder.toLowerCase().includes(query),
-    );
-  }, [editPlatformQuery]);
-
-  // عند تغيير platform في نموذج جديد: حدّث العنوان والـ URL
+  // Each new screen starts at its top (not on first opening the panel).
+  const firstScreen = useRef(true);
   useEffect(() => {
-    if (newLink.display.kind) { setPrevNewPlatform(newLink.platform); return; }
-    if (prevNewPlatform !== newLink.platform) {
-      const isFile = newLink.platform === 'file';
-      const platform = SOCIAL_PLATFORMS.find((p) => p.id === newLink.platform);
-      
-      setNewLink((prev) => ({
-        ...prev,
-        title: isFile ? getDefaultTitleByCategory(prev.fileCategory) : platform?.name || '',
-        url: isFile ? prev.url : keepOwnFieldUrl(platform?.id, prev.url) ?? (platform?.placeholder || ''),
-        linkType: isFile ? 'file' : 'url',
-      }));
-      setPrevNewPlatform(newLink.platform);
-    }
-  }, [newLink.platform, prevNewPlatform]);
+    if (firstScreen.current) { firstScreen.current = false; return; }
+    topRef.current?.scrollIntoView({ block: 'start' });
+  }, [screen]);
 
-  // عند تغيير platform في نموذج تعديل: حدّث العنوان والـ URL
-  useEffect(() => {
-    if (editLink.display.kind) { setPrevEditPlatform(editLink.platform); return; }
-    if (prevEditPlatform !== editLink.platform) {
-      const isFile = editLink.platform === 'file';
-      const platform = SOCIAL_PLATFORMS.find((p) => p.id === editLink.platform);
-      
-      setEditLink((prev) => ({
-        ...prev,
-        title: isFile ? getDefaultTitleByCategory(prev.fileCategory) : platform?.name || '',
-        url: isFile ? prev.url : keepOwnFieldUrl(platform?.id, prev.url) ?? (platform?.placeholder || ''),
-        linkType: isFile ? 'file' : 'url',
-      }));
-      setPrevEditPlatform(editLink.platform);
-    }
-  }, [editLink.platform, prevEditPlatform]);
-
-  const applyPlatformToForm = (form: LinkFormState, platformId: string): LinkFormState => {
-    const platform = SOCIAL_PLATFORMS.find((item) => item.id === platformId);
-    const isFile = platformId === 'file';
-
-    return {
-      ...form,
-      platform: platformId,
-      display: { ...form.display, kind: undefined },
-      linkType: isFile ? 'file' : 'url',
-      title: form.title || (isFile ? getDefaultTitleByCategory(form.fileCategory) : platform?.name || ''),
-      url: isFile ? form.url : keepOwnFieldUrl(platformId, form.url) ?? (form.url || platform?.placeholder || ''),
-      fileName: isFile ? form.fileName : '',
-      fileMimeType: isFile ? form.fileMimeType : '',
-      fileSize: isFile ? form.fileSize : undefined,
-    };
+  const openForm = (next: FormState, id?: string) => {
+    setForm(next);
+    formStart.current = JSON.stringify(next);
+    setFileError('');
+    setIconError('');
+    setIconsOpen(false);
+    setIconQuery('');
+    setActionsFor(null);
+    setScreen({ name: 'form', id });
   };
 
-  const handleFilePicked = async (
-    file: File,
-    setForm: React.Dispatch<React.SetStateAction<LinkFormState>>,
-    setError: (value: string) => void,
-  ) => {
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      setError('نوع الملف غير مدعوم. المسموح: الصور (PNG, JPG, WebP, GIF) وملفات PDF فقط.');
-      return;
-    }
+  const formChanged = screen.name === 'form' && JSON.stringify(form) !== formStart.current;
+  useEffect(() => onPendingChange?.(formChanged), [formChanged, onPendingChange]);
+  useEffect(() => () => onPendingChange?.(false), [onPendingChange]);
+  const backToList = () => setScreen({ name: 'list' });
+  const leaveForm = () => (formChanged ? setConfirm({ kind: 'leave' }) : backToList());
 
-    if (file.size > MAX_FILE_SIZE) {
-      setError('حجم الملف كبير. الحد الأقصى 3MB.');
-      return;
-    }
+  const update = (changes: Partial<FormState>) => setForm((prev) => {
+    const next = { ...prev, ...changes };
+    return next.titleTouched || next.kind !== 'link' ? next : { ...next, title: suggestedTitle(next) };
+  });
 
-    setError('');
+  const setLinkMode = (mode: LinkMode) => update({
+    mode,
+    platform: mode === 'url' ? detectPlatform(form.url) && form.mode === 'url' ? form.platform : 'website' : mode,
+    url: mode === form.mode ? form.url : '',
+    display: { ...form.display, kind: undefined },
+  });
 
+  const submit = () => {
+    if (!isReady(form)) return;
+    const isHeading = form.kind === 'group' || (form.kind === 'text' && form.textStyle === 'heading');
+    const display: LinkDisplay = form.kind === 'group'
+      ? { ...form.display, kind: 'heading', sectionId: form.display.sectionId || crypto.randomUUID() }
+      : isHeading
+        ? { kind: 'heading' }
+        : form.kind === 'text'
+          ? { kind: 'text', body: form.display.body, bodyEn: form.display.bodyEn, sectionId: form.display.sectionId }
+          : form.display;
+    const isFile = form.kind === 'file';
+    const values: Omit<Link, 'id'> = {
+      display,
+      title: form.kind === 'text' && !isHeading ? form.display.body!.trim().slice(0, 80) : form.title.trim(),
+      titleEn: form.titleEn.trim() || undefined,
+      url: isHeading || form.kind === 'text' ? '' : form.url.trim(),
+      platform: (isHeading || form.kind === 'text' ? 'custom' : isFile ? 'file' : form.platform) as Link['platform'],
+      iconStyle: form.iconStyle,
+      textPosition: form.textPosition,
+      linkType: isFile ? 'file' : 'url',
+      fileCategory: isFile ? form.fileCategory : undefined,
+      fileName: isFile ? form.fileName.trim() || undefined : undefined,
+      fileMimeType: isFile ? form.fileMimeType.trim() || undefined : undefined,
+      fileSize: isFile ? form.fileSize : undefined,
+      customIcon: ICON_PLATFORMS.includes(isFile ? 'file' : form.platform) && (form.kind === 'link' || isFile) ? form.customIcon || undefined : undefined,
+    };
+    const members = form.kind === 'group' ? form.sectionMembers : undefined;
+    if (screen.name === 'form' && screen.id) updateLink(screen.id, values, members);
+    else addLink(values, members);
+    backToList();
+  };
+
+  const pickFile = async (file: File) => {
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) { setFileError('اختر صورة (PNG أو JPG أو WebP أو GIF) أو ملف PDF.'); return; }
+    if (file.size > MAX_FILE_SIZE) { setFileError('حجم الملف كبير. الحد الأقصى 3MB.'); return; }
+    setFileError('');
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      const url = await readFileAsDataUrl(file);
       setForm((prev) => ({
         ...prev,
-        platform: 'file',
-        linkType: 'file',
-        url: dataUrl,
-        fileName: prev.fileName || file.name,
-        fileMimeType: file.type || prev.fileMimeType,
+        url,
+        fileName: file.name,
+        fileMimeType: file.type,
         fileSize: file.size,
-        title: prev.title.trim() ? prev.title : getDefaultTitleByCategory(prev.fileCategory),
+        // The file's own name is a good first title; it stays editable.
+        title: prev.titleTouched ? prev.title : file.name.replace(/\.[^.]+$/, '').slice(0, 120),
       }));
     } catch {
-      setError('تعذر قراءة الملف. حاول مرة أخرى.');
+      setFileError('تعذر قراءة الملف. حاول مرة أخرى.');
     }
   };
 
-  const handleAddLink = () => {
-    if (!isFormReady(newLink)) return;
-
-    addLink({
-      display: newLink.display,
-      title: newLink.display.kind === 'text' ? newLink.display.body!.trim().slice(0, 80) : newLink.title.trim(),
-      titleEn: newLink.titleEn.trim() || undefined,
-      url: newLink.url.trim(),
-      platform: newLink.platform as any,
-      iconStyle: newLink.iconStyle,
-      textPosition: newLink.textPosition,
-      linkType: newLink.linkType,
-      fileCategory: newLink.linkType === 'file' ? newLink.fileCategory : undefined,
-      fileName: newLink.fileName.trim() || undefined,
-      fileMimeType: newLink.fileMimeType.trim() || undefined,
-      fileSize: newLink.fileSize,
-      customIcon: ICON_PLATFORMS.includes(newLink.platform) ? newLink.customIcon || undefined : undefined,
-    }, newLink.sectionMembers);
-
-    setNewLink(createInitialFormState());
-    setNewPlatformQuery('');
-    setShowMorePlatformsForNew(false);
-    setNewFileError('');
-    setIsAdding(false);
+  const deleteItem = (link: Link) => {
+    setActionsFor(null);
+    if (link.display?.kind === 'heading' && link.display.sectionId) {
+      const count = links.filter((item) => item.display?.kind !== 'heading' && item.display?.sectionId === link.display?.sectionId).length;
+      if (count) { setConfirm({ kind: 'deleteGroup', link, count }); return; }
+    }
+    removeLink(link.id);
+    if (screen.name === 'form') backToList();
   };
 
-  const handleEditLink = (id: string) => {
-    if (!isFormReady(editLink)) return;
+  // Drag and drop with a finger or a mouse, from the handle (dropping onto an
+  // item of a group moves the dragged item into that group, data intact).
+  const dragHandlers = (id: string) => ({
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setDragId(id);
+      setOverId(null);
+      setActionsFor(null);
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
+      if (dragId !== id) return;
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-item-id]');
+      const next = target?.dataset.itemId ?? null;
+      setOverId(next && next !== id ? next : null);
+    },
+    onPointerUp: () => {
+      if (dragId && overId) reorderLink(dragId, overId);
+      setDragId(null);
+      setOverId(null);
+    },
+    onPointerCancel: () => { setDragId(null); setOverId(null); },
+  });
 
-    updateLink(id, {
-      display: editLink.display,
-      title: editLink.display.kind === 'text' ? editLink.display.body!.trim().slice(0, 80) : editLink.title.trim(),
-      titleEn: editLink.titleEn.trim() || undefined,
-      url: editLink.url.trim(),
-      platform: editLink.platform as any,
-      iconStyle: editLink.iconStyle,
-      textPosition: editLink.textPosition,
-      linkType: editLink.linkType,
-      fileCategory: editLink.linkType === 'file' ? editLink.fileCategory : undefined,
-      fileName: editLink.fileName.trim() || undefined,
-      fileMimeType: editLink.fileMimeType.trim() || undefined,
-      fileSize: editLink.fileSize,
-      customIcon: ICON_PLATFORMS.includes(editLink.platform) ? editLink.customIcon || undefined : undefined,
-    }, editLink.sectionMembers);
-
-    setEditingId(null);
-    setEditLink(createInitialFormState());
-    setEditPlatformQuery('');
-    setShowMorePlatformsForEdit(false);
-    setEditFileError('');
-  };
-
-  const startEdit = (id: string) => {
-    const link = pageData.links.find((item) => item.id === id);
-    if (!link) return;
-
-    setEditingId(id);
-    setPrevEditPlatform(link.platform || 'custom');
-    setEditLink({
-      title: link.title,
-      titleEn: link.titleEn || '',
-      url: link.url,
-      platform: link.platform || 'custom',
-      iconStyle: link.iconStyle || 'color',
-      textPosition: link.textPosition || 'center',
-      linkType: link.linkType || (link.platform === 'file' ? 'file' : 'url'),
-      fileCategory: link.fileCategory || 'other',
-      fileName: link.fileName || '',
-      fileMimeType: link.fileMimeType || '',
-      fileSize: link.fileSize,
-      fileKind: link.fileMimeType?.startsWith('image/') ? 'image' : 'pdf',
-      customIcon: link.customIcon || '',
-      display: link.display?.kind === 'heading' ? { ...link.display, sectionId: link.display.sectionId || crypto.randomUUID() } : link.display || {},
-      sectionMembers: link.display?.kind === 'heading' && link.display.sectionId ? pageData.links.filter(item => item.display?.kind !== 'heading' && item.display?.sectionId === link.display?.sectionId).map(item => item.id) : [],
-    });
-    setEditPlatformQuery('');
-    setShowMorePlatformsForEdit(false);
-    setEditFileError('');
-  };
-
-  const renderQuickTypePicker = (
-    form: LinkFormState,
-    setForm: React.Dispatch<React.SetStateAction<LinkFormState>>,
-  ) => (
-    <div className="grid grid-cols-3 gap-2 p-3">
-      {quickSocialPlatforms.map((platform) => {
-        const isActive = form.display.kind !== 'video' && form.platform === platform.id;
-        return (
-          <button
-            key={platform.id}
-            type="button"
-            onClick={() => setForm((prev) => applyPlatformToForm(prev, platform.id))}
-            className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-2.5 text-[11px] font-bold transition-all ${
-              isActive ? 'border-[#0a84ff] bg-[#0a84ff]/5 text-[#1d1d1f]' : 'border-transparent bg-[#f2f2f7] text-[#3a3a3c]'
-            }`}
-            style={{ fontFamily: 'Cairo, sans-serif' }}
-          >
-            <SocialIcon platform={platform.id as any} iconStyle="color" className="h-6 w-6" />
-            {platform.id === 'twitter' ? 'X' : platform.name}
-          </button>
-        );
-      })}
-      <button type="button" onClick={() => setForm(prev => ({ ...prev, platform: 'custom', linkType: 'url', title: prev.title || 'فيديو تعريفي', url: parseYouTubeVideoSource(prev.url) ? prev.url : '', display: { kind: 'video', sectionId: prev.display.sectionId } }))} className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-2.5 text-[11px] font-bold ${form.display.kind === 'video' ? 'border-[#0a84ff] bg-blue-50' : 'border-transparent bg-[#f2f2f7]'}`}><PlayCircle className="h-6 w-6" />فيديو يوتيوب داخل الصفحة</button>
-      {/* Image and PDF are two tiles; both are stored as a file button. */}
-      {([
-        { kind: 'image', label: 'صورة', icon: 'image' },
-        { kind: 'pdf', label: 'ملف PDF', icon: 'file' },
-      ] as const).map((tile) => {
-        const isActive = form.platform === 'file' && form.fileKind === tile.kind;
-        return (
-          <button
-            key={tile.kind}
-            type="button"
-            onClick={() =>
-              setForm((prev) => {
-                const next = applyPlatformToForm(prev, 'file');
-                // switching kind drops a file of the other kind
-                const keep = prev.platform === 'file' && prev.fileKind === tile.kind;
-                return { ...next, fileKind: tile.kind, ...(keep ? {} : { url: '', fileName: '', fileMimeType: '', fileSize: undefined }) };
-              })
-            }
-            className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-2.5 text-[11px] font-bold transition-all ${
-              isActive ? 'border-[#0a84ff] bg-[#0a84ff]/5 text-[#1d1d1f]' : 'border-transparent bg-[#f2f2f7] text-[#3a3a3c]'
-            }`}
-            style={{ fontFamily: 'Cairo, sans-serif' }}
-          >
-            <SocialIcon platform={tile.icon} iconStyle="color" className="h-6 w-6" />
-            {tile.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  const renderAllPlatforms = (
-    form: LinkFormState,
-    setForm: React.Dispatch<React.SetStateAction<LinkFormState>>,
-    platformQuery: string,
-    setPlatformQuery: (value: string) => void,
-    showMorePlatforms: boolean,
-    setShowMorePlatforms: (value: boolean) => void,
-    filteredPlatforms: readonly (typeof SOCIAL_PLATFORMS)[number][],
-  ) => (
-    <>
-      <button
-        type="button"
-        onClick={() => setShowMorePlatforms(!showMorePlatforms)}
-        className="flex min-h-[44px] w-full items-center justify-between px-4 text-[15px] text-[#0a84ff]"
-      >
-        {showMorePlatforms ? 'إخفاء المنصات' : 'منصات أخرى'}
-        <ChevronDown className={`h-4 w-4 transition-transform ${showMorePlatforms ? 'rotate-180' : ''}`} />
-      </button>
-
-      {showMorePlatforms && (
-        <div className="space-y-1 px-3 pb-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-[#8e8e93]" />
-            <input
-              value={platformQuery}
-              onChange={(e) => setPlatformQuery(e.target.value)}
-              placeholder="بحث"
-              className="w-full rounded-[10px] bg-[#e9e9ee] py-2 pl-3 pr-8 text-sm focus:outline-none"
-            />
-          </div>
-          <div className="max-h-44 overflow-y-auto">
-            {filteredPlatforms.map((platform) => (
-              <button
-                key={platform.id}
-                type="button"
-                onClick={() => setForm((prev) => applyPlatformToForm(prev, platform.id))}
-                className="flex min-h-[44px] w-full items-center gap-3 border-b border-[#e5e5ea] px-1 text-right text-[15px] text-[#1d1d1f] last:border-0"
-              >
-                <SocialIcon platform={platform.id as any} iconStyle="color" className="h-5 w-5" />
-                <span className="flex-1">{platform.name}</span>
-                {form.platform === platform.id && <Check className="h-4 w-4 text-[#0a84ff]" />}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
-  );
-
-  const renderFileFields = (
-    form: LinkFormState,
-    setForm: React.Dispatch<React.SetStateAction<LinkFormState>>,
-    fileError: string,
-    setFileError: (value: string) => void,
-  ) => (
-    <div className="px-4 py-3">
-      <label className="flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#f2f2f7] text-[15px] text-[#0a84ff]">
-        <Upload className="h-4 w-4" />
-        {form.fileKind === 'image' ? (form.url ? 'تغيير الصورة' : 'اختيار صورة') : form.url ? 'تغيير الملف' : 'اختيار ملف PDF'}
-        <input
-          type="file"
-          accept={form.fileKind === 'image' ? IMAGE_TYPES.join(',') : 'application/pdf'}
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (!file) return;
-            const isImage = file.type.startsWith('image/');
-            if (isImage !== (form.fileKind === 'image')) {
-              setFileError(form.fileKind === 'image' ? 'اختر صورة (PNG أو JPG أو WebP أو GIF).' : 'اختر ملف PDF.');
-              return;
-            }
-            handleFilePicked(file, setForm, setFileError);
-          }}
-        />
-      </label>
-
-      {!!form.fileMimeType && (
-        <div className="mt-2 truncate text-center text-xs text-[#8e8e93]" dir="ltr">
-          {form.fileName || form.fileMimeType}
-          {form.fileSize ? ` • ${formatFileSize(form.fileSize)}` : ''}
-        </div>
-      )}
-
-      {!!fileError && (
-        <div className="mt-2 flex items-center gap-1 text-xs text-[#ff3b30]">
-          <AlertCircle className="h-4 w-4" />
-          <span>{fileError}</span>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderFormFields = (
-    form: LinkFormState,
-    setForm: React.Dispatch<React.SetStateAction<LinkFormState>>,
-    fileError: string,
-    setFileError: (value: string) => void,
-  ) => {
-    if (form.display.kind === 'text') return <div className="space-y-3 p-4">
-      <label className="block text-sm text-[#1d1d1f]">النص<textarea aria-label="نص الفقرة" rows={5} maxLength={2000} value={form.display.body ?? ''} onChange={event => setForm(prev => ({ ...prev, display: { ...prev.display, body: event.target.value } }))} placeholder="اكتب نبذة أو إعلانًا أو شرحًا بين الروابط…" className="mt-2 w-full resize-y rounded-xl bg-[#f2f2f7] p-3 leading-relaxed" /></label>
-      <p className="text-left text-xs text-[#8e8e93]">{form.display.body?.length ?? 0} / 2000</p>
-      {hasEnglish && <label className="block text-sm text-[#1d1d1f]">English<textarea aria-label="English paragraph" dir="ltr" rows={4} maxLength={2000} value={form.display.bodyEn ?? ''} onChange={event => setForm(prev => ({ ...prev, display: { ...prev.display, bodyEn: event.target.value } }))} placeholder="Optional English paragraph" className="mt-2 w-full resize-y rounded-xl bg-[#f2f2f7] p-3 leading-relaxed" /></label>}
-    </div>;
-    if (form.display.kind === 'heading') return <>
-      <FieldRow label="عنوان القسم" value={form.title} maxLength={120} onChange={event => setForm(prev => ({ ...prev, title: event.target.value }))} placeholder="مثل: خدماتنا" />
-      {hasEnglish && <FieldRow label="English" dir="ltr" value={form.titleEn} maxLength={255} onChange={event => setForm(prev => ({ ...prev, titleEn: event.target.value }))} placeholder="Section title (optional)" />}
-    </>;
-    if (form.display.kind === 'video') return <>
-      <FieldRow label="عنوان الفيديو" value={form.title} maxLength={120} onChange={event => setForm(prev => ({ ...prev, title: event.target.value }))} placeholder="مثل: تعرّف على الجهة" />
-      {hasEnglish && <FieldRow label="English" dir="ltr" value={form.titleEn} onChange={event => setForm(prev => ({ ...prev, titleEn: event.target.value }))} placeholder="Video title (optional)" />}
-      <FieldRow label="رابط الفيديو" aria-label="رابط الفيديو يوتيوب داخل الصفحة" type="url" dir="ltr" value={form.url} onChange={event => setForm(prev => ({ ...prev, url: event.target.value }))} placeholder="https://www.youtube.com/watch?v=…" />
-      <p className="px-4 py-2 text-xs text-[#6e6e73]">ضع رابط فيديو محدد من يوتيوب، وليس رابط قناة. يشاهده الزائر داخل الصفحة.</p>
-      {!!form.url && !parseYouTubeVideoSource(form.url) && <p role="alert" className="px-4 pb-3 text-xs text-[#ff3b30]">أدخل رابط فيديو يوتيوب صالحًا، وليس رابط قناة أو قائمة تشغيل.</p>}
-    </>;
-    const isFile = form.platform === 'file' || form.linkType === 'file';
-
-    return (
-      <>
-        <FieldRow label="العنوان" maxLength={120} value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} placeholder={isFile ? 'مثل: التقرير السنوي' : 'العنوان'} style={{ fontFamily: 'Cairo, sans-serif' }} />
-        {hasEnglish && (
-          <FieldRow label="English" dir="ltr" value={form.titleEn} onChange={(e) => setForm((prev) => ({ ...prev, titleEn: e.target.value }))} placeholder="Button title (optional)" />
-        )}
-        {isFile ? (
-          renderFileFields(form, setForm, fileError, setFileError)
-        ) : form.platform === 'email' ? (
-          // The visitor taps the button and their mail app opens; «mailto:» is added here, never typed.
-          <>
-            <FieldRow
-              label="البريد"
-              type="email"
-              inputMode="email"
-              dir="ltr"
-              value={form.url.replace(/^mailto:/i, '')}
-              onChange={(e) => {
-                const address = e.target.value.trim();
-                setForm((prev) => ({ ...prev, url: address ? `mailto:${address}` : '', linkType: 'url' }));
-              }}
-              placeholder="name@example.com"
-            />
-            {/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.url) && <Confirmation text="يفتح رسالة بريد جديدة إليك" />}
-          </>
-        ) : form.platform === 'whatsapp' ? (
-          // A phone number in; the wa.me link is built here.
-          <>
-            <label className="flex min-h-[48px] items-center gap-3 px-4">
-              <span className="w-20 shrink-0 text-[15px] text-[#1d1d1f]">الجوال</span>
-              <span className="flex min-w-0 flex-1 items-center gap-2" dir="ltr">
-                <span className="text-[15px] text-[#8e8e93]">+966</span>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  value={form.url.startsWith(WHATSAPP_PREFIX) ? form.url.slice(WHATSAPP_PREFIX.length) : ''}
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, '').replace(/^(966|0)/, '').slice(0, 9);
-                    setForm((prev) => ({ ...prev, url: digits ? `${WHATSAPP_PREFIX}${digits}` : '', linkType: 'url' }));
-                  }}
-                  placeholder="5X XXX XXXX"
-                  className="min-w-0 flex-1 bg-transparent py-3 text-[15px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none"
-                />
-              </span>
-            </label>
-            {/^https:\/\/wa\.me\/9665\d{8}$/.test(form.url) && <Confirmation text="يفتح محادثة واتساب معك" />}
-          </>
-        ) : (
-          <FieldRow
-            label="الرابط"
-            type="url"
-            dir="ltr"
-            value={form.url}
-            onChange={(e) => {
-              const value = e.target.value;
-              const detected = detectPlatformFromUrl(value);
-              setForm((prev) => ({ ...prev, url: value, platform: detected || prev.platform, linkType: 'url' }));
-            }}
-            placeholder="https://example.com"
-          />
-        )}
-      </>
-    );
-  };
-
-  // «الأيقونة»: the default icon, an uploaded image (D) or one from the library (A).
-  const renderIconPicker = (form: LinkFormState, setForm: React.Dispatch<React.SetStateAction<LinkFormState>>) => {
+  // ——— «الأيقونة» ———
+  const renderIconChooser = () => {
+    const isFile = form.kind === 'file';
+    const platform = isFile ? 'file' : form.platform;
+    const canCustom = ICON_PLATFORMS.includes(platform);
     const uploaded = form.customIcon.startsWith('data:');
     const subject = `${form.title} ${form.url}`.toLowerCase();
-    const suggestions = form.linkType === 'file'
-      ? (form.fileKind === 'image' ? ['image', 'camera', 'download', 'file'] : ['file', 'download', 'book', 'menu'])
+    const suggestions = isFile
+      ? (form.fileMimeType.startsWith('image/') ? ['image', 'camera', 'download', 'file'] : ['file', 'download', 'book', 'menu'])
       : /تبرع|دعم|donat/.test(subject) ? ['donate', 'heart', 'gift', 'team']
       : /متجر|تسوق|shop|store/.test(subject) ? ['store', 'cart', 'offer', 'delivery']
       : /حجز|موعد|book|reserv/.test(subject) ? ['booking', 'ticket', 'phone', 'location']
       : /موقع|خريطة|maps|location/.test(subject) ? ['location', 'globe', 'car', 'company']
       : ['globe', 'link', 'info', 'phone', 'location', 'store', 'booking', 'file'];
     const selected = form.customIcon.startsWith('icon:') ? form.customIcon.slice(5) : '';
-    const suggestedIcons = [...new Set([selected, ...suggestions])].filter(Boolean).map(id => LINK_ICONS.find(icon => icon.id === id)).filter((icon): icon is (typeof LINK_ICONS)[number] => Boolean(icon));
-    const visibleIcons = expandedIcons ? LINK_ICONS.filter(icon => `${icon.label} ${icon.id}`.toLowerCase().includes(iconQuery.trim().toLowerCase())) : suggestedIcons;
-
-    const tile = (active: boolean) =>
-      `flex aspect-square items-center justify-center rounded-xl border-2 transition-all ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`;
+    const query = iconQuery.trim().toLowerCase();
+    const library = query
+      ? LINK_ICONS.filter((icon) => `${icon.label} ${icon.id}`.toLowerCase().includes(query))
+      : [...new Set([selected, ...suggestions])].filter(Boolean).map((id) => LINK_ICONS.find((icon) => icon.id === id)).filter((icon): icon is (typeof LINK_ICONS)[number] => Boolean(icon));
+    const platforms = SOCIAL_PLATFORMS.filter((item) => !['file', 'email', 'whatsapp', 'custom'].includes(item.id) && (!query || `${item.name} ${item.id}`.toLowerCase().includes(query)));
+    const tile = (active: boolean) => `flex flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 transition-colors ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`;
 
     return (
-      <Group title="الأيقونة" footer="ارفع شعارًا أو صورة صغيرة، أو اختر أيقونة تعبّر عن الزر.">
-        <div className="flex items-center gap-3 p-3">
-          <button type="button" onClick={() => setForm((prev) => ({ ...prev, customIcon: '' }))} className={`${tile(!form.customIcon)} h-11 w-11 shrink-0`} aria-label="الأيقونة الافتراضية">
-            <SocialIcon platform={form.platform === 'file' && form.fileKind === 'image' ? 'image' : form.platform} iconStyle="color" className="h-5 w-5" />
-          </button>
-          <label className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#0a84ff]/30 bg-blue-50 px-3 py-2 text-sm font-semibold text-[#0a84ff] focus-within:ring-2 focus-within:ring-[#0a84ff]">
-            {uploaded ? <img src={form.customIcon} alt="" className="h-7 w-7 rounded-md object-contain" /> : <Upload className="h-5 w-5 text-[#0a84ff]" />}
-            <span>{uploaded ? 'تغيير الشعار المرفق' : 'إرفاق شعار أو أيقونة خاصة'}</span>
-            <input
-              type="file"
-              aria-label="إرفاق شعار أو أيقونة خاصة"
-              accept="image/png,image/jpeg,image/webp"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (!file) return;
-                if (file.size > MAX_ICON_SOURCE_SIZE) {
-                  setIconError('الصورة كبيرة جدًا. الحد الأقصى 8MB.');
-                  return;
-                }
-                setIconError('');
-                const reader = new FileReader();
-                reader.onloadend = () => setIconCrop({ src: String(reader.result || ''), setForm });
-                reader.onerror = () => setIconError('تعذّر قراءة الصورة. حاول مجددًا.');
-                reader.readAsDataURL(file);
-              }}
-            />
-          </label>
-        </div>
-        <div className="px-3 pb-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-xs text-[#6e6e73]">{expandedIcons ? 'مكتبة الأيقونات' : 'أيقونات مقترحة لهذا الزر'}</span>
-            <button type="button" aria-expanded={expandedIcons} onClick={() => { setExpandedIcons(!expandedIcons); setIconQuery(''); }} className="min-h-10 text-xs font-semibold text-[#0a84ff]">{expandedIcons ? 'عرض المقترحة فقط' : 'إظهار كل الأيقونات'}</button>
+      <Group title="الأيقونة">
+        <button type="button" aria-expanded={iconsOpen} onClick={() => setIconsOpen(!iconsOpen)} className="flex min-h-[52px] w-full items-center gap-3 px-4 text-right">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-[#f2f2f7]">
+            <SocialIcon platform={isFile && form.fileMimeType.startsWith('image/') ? 'image' : platform} iconStyle="color" customIcon={canCustom ? form.customIcon || undefined : undefined} color={form.customIcon.startsWith('icon:') ? '#3a3a3c' : undefined} className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1 text-[15px] text-[#1d1d1f]">{form.customIcon && canCustom ? 'أيقونة مختارة' : !isFile && form.platform !== 'website' && form.platform !== 'custom' ? `${platformName(form.platform)} · تلقائيًا` : 'الأيقونة الافتراضية'}</span>
+          <span className="text-sm font-bold text-[#0a84ff]">{iconsOpen ? 'إخفاء' : 'تغيير'}</span>
+        </button>
+        {iconsOpen && (
+          <div className="space-y-3 p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8e8e93]" />
+              <input type="search" aria-label="البحث في الأيقونات" placeholder="ابحث عن أيقونة أو منصة…" value={iconQuery} onChange={(event) => setIconQuery(event.target.value)} className="h-10 w-full rounded-xl bg-[#f2f2f7] pl-3 pr-9 text-sm focus:outline-none" />
+            </div>
+            {!isFile && form.mode === 'url' && platforms.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs text-[#6e6e73]">شعار منصة</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {platforms.map((item) => (
+                    <button key={item.id} type="button" aria-pressed={form.platform === item.id} onClick={() => update({ platform: item.id, customIcon: '' })} className={`${tile(form.platform === item.id)} min-h-16`}>
+                      <SocialIcon platform={item.id} iconStyle="color" className="h-5 w-5" />
+                      <span className="max-w-full truncate text-[10px] text-[#6e6e73]">{item.id === 'twitter' ? 'X' : item.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {canCustom ? (
+              <div>
+                <p className="mb-2 text-xs text-[#6e6e73]">{query ? 'من المكتبة' : 'مقترحة لهذا العنصر'}</p>
+                <div className="grid grid-cols-4 gap-2">
+                  <button type="button" onClick={() => update({ customIcon: '' })} aria-pressed={!form.customIcon} className={`${tile(!form.customIcon)} min-h-16`}>
+                    <SocialIcon platform={isFile ? 'file' : platform} iconStyle="color" className="h-5 w-5" />
+                    <span className="text-[10px] text-[#6e6e73]">الافتراضية</span>
+                  </button>
+                  {library.map(({ id, label, Icon }) => (
+                    <button key={id} type="button" onClick={() => update({ customIcon: `icon:${id}` })} aria-pressed={form.customIcon === `icon:${id}`} aria-label={label} className={`${tile(form.customIcon === `icon:${id}`)} min-h-16`}>
+                      <Icon className="h-5 w-5 text-[#3a3a3c]" />
+                      <span className="max-w-full truncate text-[10px] text-[#6e6e73]">{label}</span>
+                    </button>
+                  ))}
+                </div>
+                {!library.length && <p className="py-2 text-center text-xs text-[#6e6e73]">لا توجد أيقونة مطابقة.</p>}
+                <label className="mt-3 flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0a84ff]/10 text-sm font-bold text-[#0a84ff] focus-within:ring-2 focus-within:ring-[#0a84ff]">
+                  {uploaded ? <img src={form.customIcon} alt="" className="h-6 w-6 rounded-md object-contain" /> : <Upload className="h-4 w-4" />}
+                  {uploaded ? 'تغيير الشعار المرفق' : 'إرفاق شعار خاص'}
+                  <input type="file" aria-label="إرفاق شعار خاص" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (!file) return;
+                    if (file.size > MAX_ICON_SOURCE_SIZE) { setIconError('الصورة كبيرة جدًا. الحد الأقصى 8MB.'); return; }
+                    setIconError('');
+                    readFileAsDataUrl(file).then(setIconCrop).catch(() => setIconError('تعذّر قراءة الصورة. حاول مجددًا.'));
+                  }} />
+                </label>
+              </div>
+            ) : (
+              <button type="button" onClick={() => update({ platform: 'website', customIcon: '' })} className="w-full text-center text-xs font-bold text-[#0a84ff]">استخدام أيقونة عامة بدل شعار المنصة</button>
+            )}
+            {!!iconError && <p className="text-xs text-[#ff3b30]">{iconError}</p>}
           </div>
-          {expandedIcons && <input type="search" aria-label="البحث في الأيقونات" placeholder="ابحث عن أيقونة…" value={iconQuery} onChange={event => setIconQuery(event.target.value)} className="mb-3 w-full rounded-xl bg-[#f2f2f7] px-3 py-2 text-sm" />}
-          <div className={`grid grid-cols-4 gap-2 ${expandedIcons ? 'max-h-64 overflow-y-auto' : ''}`}>
-          {visibleIcons.map(({ id, label, Icon }) => (
-            <button key={id} type="button" onClick={() => setForm((prev) => ({ ...prev, customIcon: `icon:${id}` }))} className={`${tile(form.customIcon === `icon:${id}`)} min-h-16 flex-col gap-1 p-1`} aria-pressed={form.customIcon === `icon:${id}`} aria-label={label} title={label}>
-              <Icon className="h-5 w-5 text-[#3a3a3c]" />
-              <span className="text-[10px] text-[#6e6e73]">{label}</span>
-            </button>
-          ))}
-          </div>
-          {!visibleIcons.length && <p className="py-3 text-center text-xs text-[#6e6e73]">لا توجد أيقونة مطابقة. جرّب كلمة أخرى أو أرفق شعارك.</p>}
-        </div>
-        {!!iconError && <p className="px-4 pb-3 text-xs text-[#ff3b30]">{iconError}</p>}
+        )}
       </Group>
     );
   };
 
-  // The add / edit form: a sheet-like card with Cancel and the main action, as in iOS.
-  const renderForm = (
-    title: string,
-    actionLabel: string,
-    form: LinkFormState,
-    setForm: React.Dispatch<React.SetStateAction<LinkFormState>>,
-    fileError: string,
-    setFileError: (value: string) => void,
-    platforms: Parameters<typeof renderAllPlatforms>,
-    onSubmit: () => void,
-    onCancel: () => void,
-  ) => (
-    <div className="space-y-4 rounded-2xl bg-[#e9e9ee]/60 p-2">
-      <div className="flex items-center justify-between px-2 pt-1">
-        <button onClick={onCancel} className="text-[15px] text-[#0a84ff]">إلغاء</button>
-        <span className="text-[15px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</span>
-        <button
-          onClick={onSubmit}
-          disabled={!isFormReady(form)}
-          className="text-[15px] font-bold text-[#0a84ff] disabled:text-[#c7c7cc]"
-        >
-          {actionLabel}
-        </button>
-      </div>
-      {form.display.kind !== 'heading' && form.display.kind !== 'text' && <Group title="النوع">
-        {renderQuickTypePicker(form, setForm)}
-        {renderAllPlatforms(...platforms)}
-      </Group>}
-      <Group
-        title="التفاصيل"
-        footer={form.platform === 'file' ? 'العنوان هو النص الذي يراه الزوار على الزر.' : undefined}
-      >
-        {renderFormFields(form, setForm, fileError, setFileError)}
-      </Group>
-      {form.display.kind === 'heading' && <Group title={form.display.sectionId ? 'روابط القسم' : 'تجميع الروابط'} footer="نقل القسم ينقل روابطه معه. إخفاؤه يخفيها عن الزوار، وحذفه يُبقي الروابط خارج الأقسام.">
-        {!form.display.sectionId ? <button type="button" onClick={() => setForm(prev => ({ ...prev, display: { ...prev.display, sectionId: crypto.randomUUID() } }))} className="min-h-11 px-4 text-sm text-[#0a84ff]">تجميع روابط تحت هذا العنوان</button> : <div className="p-3">
-          <div className="mb-4 space-y-2"><p className="text-xs text-[#6e6e73]">طريقة عرض القسم</p><Segmented options={[{ id: 'list', label: 'قائمة' }, { id: 'grid', label: 'شبكة' }, { id: 'carousel', label: 'شرائح أفقية' }]} value={form.display.sectionLayout ?? 'list'} onChange={sectionLayout => setForm(prev => ({ ...prev, display: { ...prev.display, sectionLayout: sectionLayout as 'list' | 'grid' | 'carousel' } }))} /></div>
-          <p className="mb-2 text-xs text-[#6e6e73]">اختياري: اختر محتوى القسم، أو اتركه فارغًا ليظهر العنوان فقط.</p>
-          {pageData.links.filter(item => item.display?.kind !== 'heading').map(item => <label key={item.id} className="flex min-h-11 cursor-pointer items-center gap-3 border-b border-gray-100 py-2 text-sm text-[#1d1d1f]">
-            <input type="checkbox" checked={form.sectionMembers.includes(item.id)} onChange={event => setForm(prev => ({ ...prev, sectionMembers: event.target.checked ? [...prev.sectionMembers, item.id] : prev.sectionMembers.filter(id => id !== item.id) }))} className="h-4 w-4 accent-[#0a84ff]" />
-            <span className="min-w-0 flex-1 truncate">{item.title}</span>
-            {item.display?.sectionId && item.display.sectionId !== form.display.sectionId && <span className="text-[10px] text-[#8e8e93]">من قسم آخر</span>}
-          </label>)}
-          {!pageData.links.some(item => item.display?.kind !== 'heading') && <p className="py-2 text-xs text-[#6e6e73]">يمكنك إضافة القسم كعنوان فقط الآن، وربط المحتوى به لاحقًا.</p>}
-        </div>}
-      </Group>}
-      {form.display.kind !== 'heading' && <>
-        <Group title="القسم">
-          <label className="flex items-center gap-3 p-3 text-sm text-[#1d1d1f]">
-            <span>ضمن قسم</span><select aria-label="قسم الرابط" value={form.display.sectionId ?? ''} onChange={event => setForm(prev => ({ ...prev, display: { ...prev.display, sectionId: event.target.value || undefined } }))} className="min-w-0 flex-1 rounded-lg bg-[#f2f2f7] px-2 py-2">
-              <option value="">خارج الأقسام</option>
-              {pageData.links.filter(item => item.display?.kind === 'heading' && item.display.sectionId).map(item => <option key={item.id} value={item.display!.sectionId}>{item.title}{item.hidden ? ' (مخفي)' : ''}</option>)}
-            </select>
-          </label>
-        </Group>
-        {form.display.kind !== 'video' && form.display.kind !== 'text' && <>
-          <LinkAppearanceEditor display={form.display} onChange={display => setForm(prev => ({ ...prev, display }))} />
-          {ICON_PLATFORMS.includes(form.platform) && renderIconPicker(form, setForm)}
-        </>}
-      </>}
-    </div>
+  const groupSelect = form.kind !== 'group' && !(form.kind === 'text' && form.textStyle === 'heading') && groups.length > 0 && (
+    <Group title="المجموعة" footer="اختياري. نقل العنصر بين المجموعات يحافظ على بياناته.">
+      <label className="flex min-h-[48px] items-center gap-3 px-4">
+        <span className="shrink-0 text-[15px] text-[#1d1d1f]">ضمن</span>
+        <select aria-label="مجموعة العنصر" value={form.display.sectionId ?? ''} onChange={(event) => update({ display: { ...form.display, sectionId: event.target.value || undefined } })} className="min-w-0 flex-1 rounded-lg bg-[#f2f2f7] px-2 py-2 text-[15px]">
+          <option value="">بدون مجموعة</option>
+          {groups.map((item) => <option key={item.id} value={item.display!.sectionId}>{item.title}{item.hidden ? ' (مخفية)' : ''}</option>)}
+        </select>
+      </label>
+    </Group>
   );
 
-  const resetNew = () => {
-    setIsAdding(false);
-    setNewLink(createInitialFormState());
-    setNewPlatformQuery('');
-    setShowMorePlatformsForNew(false);
-    setNewFileError('');
+  const englishTitle = hasEnglish && form.kind !== 'text' && (
+    <Group title="بالإنجليزية (اختياري)">
+      <div dir="ltr" className="px-4 py-1"><input value={form.titleEn} maxLength={255} onChange={(event) => update({ titleEn: event.target.value })} placeholder="Title in English" className="w-full bg-transparent py-3 text-[15px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" /></div>
+    </Group>
+  );
+
+  // ——— the form of each kind ———
+  const renderLinkFields = () => {
+    const detected = form.mode === 'url' ? detectPlatform(form.url) : null;
+    const youtube = form.mode === 'url' && parseYouTubeVideoSource(form.url);
+    return (
+      <>
+        <Segmented options={[{ id: 'url', label: 'رابط' }, { id: 'whatsapp', label: 'واتساب' }, { id: 'email', label: 'بريد' }] as const} value={form.mode} onChange={setLinkMode} />
+        <Group title={form.mode === 'whatsapp' ? 'رقم الواتساب' : form.mode === 'email' ? 'البريد الإلكتروني' : 'الرابط'}>
+          {form.mode === 'url' && (
+            <div className="px-4 py-1">
+              <input
+                type="url"
+                dir="ltr"
+                inputMode="url"
+                autoFocus={!form.url}
+                aria-label="الرابط"
+                value={form.url}
+                onChange={(event) => {
+                  const url = event.target.value;
+                  const platform = detectPlatform(url) ?? 'website';
+                  // A YouTube video stays a link unless chosen to play inside the page.
+                  update({ url, platform, display: { ...form.display, kind: form.display.kind === 'video' && parseYouTubeVideoSource(url) ? 'video' : undefined }, customIcon: ICON_PLATFORMS.includes(platform) ? form.customIcon : '' });
+                }}
+                placeholder="الصق الرابط هنا"
+                className="w-full bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-right placeholder:text-[#c7c7cc] focus:outline-none"
+              />
+            </div>
+          )}
+          {form.mode === 'whatsapp' && (
+            <label className="flex min-h-[48px] items-center gap-2 px-4" dir="ltr">
+              <span className="text-[16px] text-[#8e8e93]">+966</span>
+              <input type="tel" inputMode="numeric" aria-label="رقم الواتساب" autoFocus value={form.url.startsWith(WHATSAPP_PREFIX) ? form.url.slice(WHATSAPP_PREFIX.length) : ''} onChange={(event) => {
+                const digits = event.target.value.replace(/\D/g, '').replace(/^(966|0)/, '').slice(0, 9);
+                update({ url: digits ? `${WHATSAPP_PREFIX}${digits}` : '' });
+              }} placeholder="5X XXX XXXX" className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
+            </label>
+          )}
+          {form.mode === 'email' && (
+            <div className="px-4 py-1">
+              <input type="email" inputMode="email" dir="ltr" aria-label="البريد الإلكتروني" autoFocus value={form.url.replace(/^mailto:/i, '')} onChange={(event) => {
+                const address = event.target.value.trim();
+                update({ url: address ? `mailto:${address}` : '' });
+              }} placeholder="name@example.com" className="w-full bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
+            </div>
+          )}
+          {detected && detected !== 'website' && (
+            <p className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-[#1f8a3b]"><Check className="h-4 w-4" />تعرّفنا على {platformName(detected)} وأضفنا شعاره</p>
+          )}
+          {youtube && (
+            <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#1d1d1f]">
+              <span>تشغيل الفيديو داخل الصفحة</span>
+              <input type="checkbox" checked={form.display.kind === 'video'} onChange={(event) => update({ display: { ...form.display, kind: event.target.checked ? 'video' : undefined, layout: undefined } })} className="h-5 w-5 accent-[#0a84ff]" />
+            </label>
+          )}
+          {form.mode === 'url' && !!form.url && form.display.kind === 'video' && !youtube && <p role="alert" className="px-4 py-2 text-xs text-[#ff3b30]">ضع رابط فيديو يوتيوب محدد، وليس رابط قناة.</p>}
+        </Group>
+        <Group title="العنوان" footer="النص الذي يراه زوارك على الزر.">
+          <div className="px-4 py-1"><input aria-label="عنوان الزر" maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="عنوان الزر" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+        </Group>
+        {form.display.kind !== 'video' && renderIconChooser()}
+        <Advanced>
+          {englishTitle}
+          {groupSelect}
+          {form.display.kind !== 'video' && <LinkAppearanceEditor display={form.display} onChange={(display) => update({ display })} />}
+          {!englishTitle && !groupSelect && form.display.kind === 'video' && <p className="px-4 text-xs text-[#8e8e93]">لا توجد خيارات إضافية لهذا العنصر.</p>}
+        </Advanced>
+      </>
+    );
   };
 
-  const resetEdit = () => {
-    setEditingId(null);
-    setEditLink(createInitialFormState());
-    setEditPlatformQuery('');
-    setShowMorePlatformsForEdit(false);
-    setEditFileError('');
+  const renderFileFields = () => (
+    <>
+      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-[#c7c7cc] bg-white px-4 py-7 text-center focus-within:border-[#0a84ff]">
+        {form.url ? (
+          <>
+            <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-[#f2f2f7]">
+              {form.fileMimeType.startsWith('image/') ? <img src={form.url} alt="" className="h-full w-full object-cover" /> : <FileText className="h-6 w-6 text-[#c76a00]" />}
+            </span>
+            <span className="flex max-w-full items-center gap-1.5 text-xs text-[#6e6e73]">
+              <span className="min-w-0 truncate" dir="ltr">{form.fileName || 'ملف'}</span>
+              {form.fileSize ? <><span aria-hidden="true">·</span><span className="shrink-0" dir="ltr">{formatFileSize(form.fileSize)}</span></> : null}
+            </span>
+            <span className="text-sm font-bold text-[#0a84ff]">تغيير الملف</span>
+          </>
+        ) : (
+          <>
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ff9500]/12 text-[#c76a00]"><Upload className="h-5 w-5" /></span>
+            <span className="text-[15px] font-bold text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>اختيار صورة أو ملف PDF</span>
+            <span className="text-xs text-[#8e8e93]">حتى 3MB</span>
+          </>
+        )}
+        <input type="file" aria-label="اختيار الملف" accept={ALLOWED_FILE_TYPES.join(',')} className="sr-only" onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) void pickFile(file);
+        }} />
+      </label>
+      {!!fileError && <p role="alert" className="flex items-center gap-1 px-4 text-xs text-[#ff3b30]"><AlertCircle className="h-4 w-4" />{fileError}</p>}
+      <Group title="العنوان" footer="النص الذي يراه زوارك على الزر.">
+        <div className="px-4 py-1"><input aria-label="عنوان الملف" maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="مثل: الملف التعريفي" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+      </Group>
+      {renderIconChooser()}
+      <Advanced>
+        {englishTitle}
+        {groupSelect}
+        <LinkAppearanceEditor display={form.display} onChange={(display) => update({ display })} />
+      </Advanced>
+    </>
+  );
+
+  const renderTextFields = () => (
+    <>
+      <Segmented options={[{ id: 'body', label: 'نبذة' }, { id: 'heading', label: 'عنوان' }] as const} value={form.textStyle} onChange={(textStyle) => update({ textStyle })} />
+      {form.textStyle === 'heading' ? (
+        <Group title="العنوان" footer="عنوان يفصل بين أجزاء صفحتك.">
+          <div className="px-4 py-1"><input aria-label="نص العنوان" autoFocus maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+        </Group>
+      ) : (
+        <Group title="النبذة">
+          <div className="px-4 py-3">
+            <textarea aria-label="نص النبذة" autoFocus rows={5} maxLength={2000} value={form.display.body ?? ''} onChange={(event) => update({ display: { ...form.display, kind: 'text', body: event.target.value } })} placeholder="اكتب نبذة أو إعلانًا أو شرحًا يظهر في صفحتك…" className="w-full resize-y bg-transparent text-[16px] leading-relaxed text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
+            <span className="block text-left text-xs text-[#8e8e93]" dir="ltr">{form.display.body?.length ?? 0}/2000</span>
+          </div>
+        </Group>
+      )}
+      {(hasEnglish || groupSelect) && (
+        <Advanced>
+          {hasEnglish && (form.textStyle === 'heading' ? (
+            <Group title="بالإنجليزية (اختياري)">
+              <div dir="ltr" className="px-4 py-1"><input value={form.titleEn} maxLength={255} onChange={(event) => update({ titleEn: event.target.value })} placeholder="Heading in English" className="w-full bg-transparent py-3 text-[15px] placeholder:text-[#c7c7cc] focus:outline-none" /></div>
+            </Group>
+          ) : (
+            <Group title="بالإنجليزية (اختياري)">
+              <div dir="ltr" className="px-4 py-3"><textarea rows={4} maxLength={2000} value={form.display.bodyEn ?? ''} onChange={(event) => update({ display: { ...form.display, bodyEn: event.target.value } })} placeholder="Optional English paragraph" className="w-full resize-y bg-transparent text-[15px] placeholder:text-[#c7c7cc] focus:outline-none" /></div>
+            </Group>
+          ))}
+          {groupSelect}
+        </Advanced>
+      )}
+    </>
+  );
+
+  const renderGroupFields = () => {
+    const candidates = links.filter((item) => item.display?.kind !== 'heading');
+    return (
+      <>
+        <Group title="اسم المجموعة">
+          <div className="px-4 py-1"><input aria-label="اسم المجموعة" autoFocus={!form.title} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+        </Group>
+        <Group title="عناصر المجموعة" footer={candidates.length ? 'اختياري. يمكنك أيضًا إضافة العناصر إليها لاحقًا أو سحبها إليها.' : 'أضف روابط أو ملفات، ثم اجمعها هنا.'}>
+          {candidates.map((item) => {
+            const elsewhere = item.display?.sectionId && item.display.sectionId !== form.display.sectionId ? groups.find((group) => group.display?.sectionId === item.display?.sectionId) : undefined;
+            return (
+              <label key={item.id} className="flex min-h-[48px] cursor-pointer items-center gap-3 px-4 py-2 text-[15px] text-[#1d1d1f]">
+                <input type="checkbox" checked={form.sectionMembers.includes(item.id)} onChange={(event) => update({ sectionMembers: event.target.checked ? [...form.sectionMembers, item.id] : form.sectionMembers.filter((id) => id !== item.id) })} className="h-5 w-5 shrink-0 accent-[#0a84ff]" />
+                <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                {elsewhere && <span className="shrink-0 text-[11px] text-[#8e8e93]">في «{elsewhere.title}»</span>}
+              </label>
+            );
+          })}
+        </Group>
+        <Advanced>
+          {englishTitle}
+          <Group title="طريقة عرض المجموعة">
+            <div className="p-3"><Segmented options={[{ id: 'list', label: 'قائمة' }, { id: 'grid', label: 'شبكة' }, { id: 'carousel', label: 'شرائح أفقية' }] as const} value={form.display.sectionLayout ?? 'list'} onChange={(sectionLayout) => update({ display: { ...form.display, sectionLayout } })} /></div>
+          </Group>
+        </Advanced>
+      </>
+    );
   };
+
+  const editing = screen.name === 'form' && screen.id ? links.find((item) => item.id === screen.id) : undefined;
+  const kindInfo = KINDS.find((item) => item.id === form.kind)!;
 
   return (
     <Panel>
+      <div ref={topRef} className="-mt-5 h-0" aria-hidden="true" />
       {!!iconCrop && (
         // Square and small: an icon only needs 128 px.
         <ImageCropper
-          src={iconCrop.src}
+          src={iconCrop}
           aspect={1}
           outputWidth={128}
           onUseOriginal={() => {
-            const pending = iconCrop;
             const image = new Image();
             image.onerror = () => { setIconError('تعذّر فتح الشعار. جرّب صورة أخرى.'); setIconCrop(null); };
             image.onload = () => {
@@ -777,132 +694,154 @@ export function LinkEditor() {
               const context = canvas.getContext('2d');
               if (!context) { setIconError('تعذّر تجهيز الشعار. حاول مجددًا.'); setIconCrop(null); return; }
               const scale = Math.min(128 / image.width, 128 / image.height);
-              const width = image.width * scale;
-              const height = image.height * scale;
-              context.drawImage(image, (128 - width) / 2, (128 - height) / 2, width, height);
-              pending.setForm(prev => ({ ...prev, customIcon: canvas.toDataURL('image/png') }));
+              context.drawImage(image, (128 - image.width * scale) / 2, (128 - image.height * scale) / 2, image.width * scale, image.height * scale);
+              update({ customIcon: canvas.toDataURL('image/png') });
               setIconCrop(null);
             };
-            image.src = pending.src;
+            image.src = iconCrop;
           }}
           onCancel={() => setIconCrop(null)}
-          onConfirm={(value) => {
-            iconCrop.setForm((prev) => ({ ...prev, customIcon: value }));
-            setIconCrop(null);
-          }}
+          onConfirm={(value) => { update({ customIcon: value }); setIconCrop(null); }}
         />
       )}
-      {isAdding &&
-        renderForm(newLink.display.kind === 'text' ? 'فقرة نصية جديدة' : newLink.display.kind === 'heading' ? 'قسم جديد' : 'رابط جديد', 'إضافة', newLink, setNewLink, newFileError, setNewFileError,
-          [newLink, setNewLink, newPlatformQuery, setNewPlatformQuery, showMorePlatformsForNew, setShowMorePlatformsForNew, filteredPlatformsForNew],
-          handleAddLink, resetNew)}
 
-      <Group
-        title={`المحتوى · ${pageData.links.length} من ${MAX_LINKS}`}
-        footer="رتّب بالأسهم أو بالسحب على الكمبيوتر. العين تخفي الزر عن الزوار دون حذفه. الفيديو يمكن عرضه بمشغّل داخل الصفحة."
-      >
-        {!isAdding && (
-          limitReached ? (
-            <p className="px-4 py-3 text-sm text-[#8e8e93]">وصلت للحد الأقصى ({MAX_LINKS} عنصرًا). احذف عنصرًا لإضافة آخر.</p>
-          ) : (
-            <div>
-            <button onClick={() => { setNewLink(createInitialFormState()); setIsAdding(true); }} className="flex min-h-[48px] w-full items-center gap-3 px-4 text-[15px] text-[#0a84ff]">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0a84ff] text-white"><Plus className="h-4 w-4" /></span>
-              إضافة رابط أو ملف
-            </button>
-            <button onClick={() => { setNewLink({ ...createInitialFormState(), platform: 'custom', display: { kind: 'text', body: '' } }); setIsAdding(true); }} className="flex min-h-11 w-full items-center gap-3 px-4 pb-2 text-sm text-[#0a84ff]"><Plus className="h-4 w-4" />إضافة فقرة نصية</button>
-            <button onClick={() => { setNewLink({ ...createInitialFormState(), platform: 'custom', display: { kind: 'heading', sectionId: crypto.randomUUID() } }); setIsAdding(true); }} className="flex min-h-11 w-full items-center gap-3 px-4 pb-2 text-sm text-[#0a84ff]">
-              <Plus className="h-4 w-4" />إضافة قسم
-            </button>
-            </div>
-          )
-        )}
-
-        {pageData.links.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-[#8e8e93]">لا توجد أزرار بعد.</p>
-        )}
-
-        {pageData.links.map((link, index) => {
-          const isFile = link.linkType === 'file';
-          const sectionKey = link.display?.sectionId;
-          const isMember = Boolean(sectionKey && link.display?.kind !== 'heading');
-          const section = isMember ? pageData.links.find(item => item.display?.kind === 'heading' && item.display.sectionId === sectionKey) : undefined;
-          const siblings = pageData.links.filter(item => isMember ? item.display?.kind !== 'heading' && item.display?.sectionId === sectionKey : item.display?.kind === 'heading' || !item.display?.sectionId);
-          const siblingIndex = siblings.findIndex(item => item.id === link.id);
-
-          if (editingId === link.id) {
-            return (
-              <div key={link.id} className="p-2">
-                {renderForm(link.display?.kind === 'text' ? 'تعديل الفقرة النصية' : link.display?.kind === 'heading' ? 'تعديل القسم' : 'تعديل الزر', 'تم', editLink, setEditLink, editFileError, setEditFileError,
-                  [editLink, setEditLink, editPlatformQuery, setEditPlatformQuery, showMorePlatformsForEdit, setShowMorePlatformsForEdit, filteredPlatformsForEdit],
-                  () => handleEditLink(link.id), resetEdit)}
-              </div>
-            );
-          }
-
-          return (
-            <div
-              key={link.id}
-              draggable
-              onDragStart={(e) => {
-                setDraggedId(link.id);
-                e.dataTransfer.effectAllowed = 'move';
-              }}
-              onDragOver={(e) => {
-                if (!draggedId || draggedId === link.id) return;
-                e.preventDefault();
-                setDragOverId(link.id);
-              }}
-              onDragLeave={() => setDragOverId((current) => (current === link.id ? null : current))}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (draggedId) reorderLink(draggedId, link.id);
-                setDraggedId(null);
-                setDragOverId(null);
-              }}
-              onDragEnd={() => {
-                setDraggedId(null);
-                setDragOverId(null);
-              }}
-              className={`flex min-h-[60px] items-center gap-2 px-3 py-2 transition-all ${dragOverId === link.id ? 'bg-[#0a84ff]/10' : ''} ${draggedId === link.id ? 'opacity-50' : ''} ${isMember ? 'mr-5 border-r-2 border-blue-100 bg-blue-50/20' : sectionKey ? 'bg-blue-50/50' : ''}`}
+      {screen.name === 'list' && (
+        <>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setScreen({ name: 'choose' })}
+              disabled={limitReached}
+              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
             >
-              <GripVertical className="hidden h-4 w-4 shrink-0 cursor-grab text-[#c7c7cc] lg:block" />
-              <div className="flex flex-col">
-                <button onClick={() => moveLink(link.id, 'up')} disabled={siblingIndex === 0} aria-label="أعلى" className="p-0.5 text-[#8e8e93] disabled:text-[#e5e5ea]"><ChevronUp className="h-4 w-4" /></button>
-                <button onClick={() => moveLink(link.id, 'down')} disabled={siblingIndex === siblings.length - 1} aria-label="أسفل" className="p-0.5 text-[#8e8e93] disabled:text-[#e5e5ea]"><ChevronDown className="h-4 w-4" /></button>
-              </div>
+              <Plus className="h-5 w-5" strokeWidth={2.5} />
+              إضافة محتوى
+            </button>
+            <p className="px-1 text-center text-xs text-[#8e8e93]">
+              {limitReached ? `وصلت إلى الحد (${MAX_LINKS}). احذف عنصرًا لتضيف غيره.` : `${links.length} من ${MAX_LINKS}`}
+            </p>
+          </div>
 
-              <button onClick={() => startEdit(link.id)} className={`flex min-w-0 flex-1 items-center gap-3 text-right ${link.hidden ? 'opacity-40' : ''}`}>
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#f2f2f7]">
-                  {link.display?.kind === 'text' ? <span className="text-lg font-bold">ن</span> : link.display?.kind === 'video' ? <PlayCircle className="h-5 w-5" /> : link.display?.kind === 'heading' ? <span className="text-lg font-bold text-[#6e6e73]">ع</span> : link.display?.layout === 'card' && link.display.image ? <img src={link.display.image} alt="" className="h-full w-full rounded-[10px] object-cover" /> : <SocialIcon platform={link.linkType === 'file' && link.fileMimeType?.startsWith('image/') ? 'image' : link.platform || 'custom'} iconStyle={link.iconStyle || 'color'} customIcon={link.customIcon} color={link.customIcon?.startsWith('icon:') ? '#3a3a3c' : undefined} className="h-5 w-5" />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] text-[#1d1d1f]">{link.title}</span>
-                  <span className="block truncate text-xs text-[#8e8e93]" dir={isFile ? undefined : 'ltr'}>
-                    {link.hidden ? 'مخفي عن الزوار' : link.display?.kind === 'text' ? 'فقرة نصية · بدون رابط' : link.display?.kind === 'video' ? 'فيديو يوتيوب داخل الصفحة' : link.display?.kind === 'heading' ? sectionKey ? `قسم روابط · ${pageData.links.filter(item => item.display?.kind !== 'heading' && item.display?.sectionId === sectionKey).length} روابط` : 'عنوان فقط · بدون رابط' : link.display?.layout === 'card' ? 'بطاقة مصوّرة' : isFile ? `${getCategoryLabel(link.fileCategory)}${link.fileSize ? ` • ${formatFileSize(link.fileSize)}` : ''}` : link.url.replace(/^mailto:/i, '')}
-                  </span>
-                  {section && <span className="block text-[10px] text-[#0a84ff]">ضمن {section.title}{section.hidden ? ' · القسم مخفي عن الزوار' : ''}</span>}
-                </span>
-              </button>
-
-              <button
-                onClick={() => updateLink(link.id, { hidden: !link.hidden })}
-                aria-label={link.hidden ? 'إظهار الزر للجمهور' : 'إخفاء الزر دون حذفه'}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-[#8e8e93] active:bg-[#f2f2f7]"
-              >
-                {link.hidden ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
-              </button>
-              <button
-                onClick={() => removeLink(link.id)}
-                aria-label="حذف"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-[#ff3b30] active:bg-[#ff3b30]/10"
-              >
-                <Trash2 className="h-[18px] w-[18px]" />
-              </button>
+          {links.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 rounded-2xl bg-white px-6 py-10 text-center">
+              <span className="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-[#0a84ff]/10 text-[#0a84ff]"><Link2 className="h-7 w-7" /></span>
+              <p className="text-[16px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>صفحتك جاهزة لأول عنصر</p>
+              <p className="text-sm leading-6 text-[#6e6e73]">أضف حساباتك أو موقعك أو ملفًا يحتاجه زوارك، وسيظهر هنا بالترتيب الذي تختاره.</p>
             </div>
-          );
-        })}
-      </Group>
+          ) : (
+            <section>
+              <div className="divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-white" onPointerLeave={() => dragId && setOverId(null)}>
+                {links.map((link) => {
+                  const sectionKey = link.display?.sectionId;
+                  const isMember = Boolean(sectionKey && link.display?.kind !== 'heading');
+                  const siblings = links.filter((item) => (isMember ? item.display?.kind !== 'heading' && item.display?.sectionId === sectionKey : item.display?.kind === 'heading' || !item.display?.sectionId));
+                  const index = siblings.findIndex((item) => item.id === link.id);
+                  const showActions = actionsFor === link.id;
+                  return (
+                    <div key={link.id} data-item-id={link.id} className={`transition-colors ${overId === link.id ? 'bg-[#0a84ff]/10' : ''} ${dragId === link.id ? 'opacity-50' : ''} ${isMember ? 'border-r-[3px] border-r-[#af52de]/30 pr-3' : ''}`}>
+                      <div className="flex min-h-[60px] items-center gap-1 pl-1.5 pr-1">
+                        <span {...dragHandlers(link.id)} className="flex h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center text-[#c7c7cc] active:cursor-grabbing" aria-label={`اسحب لنقل «${link.title}»`} role="button" tabIndex={-1}>
+                          <GripVertical className="h-5 w-5" />
+                        </span>
+                        <button type="button" onClick={() => openForm(formFromLink(link, links), link.id)} className={`flex min-w-0 flex-1 items-center gap-3 py-2 text-right ${link.hidden ? 'opacity-45' : ''}`}>
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-[#f2f2f7]"><ItemIcon link={link} /></span>
+                          <span className="min-w-0 flex-1">
+                            <span className={`block truncate text-[15px] text-[#1d1d1f] ${link.display?.kind === 'heading' ? 'font-bold' : ''}`}>{link.title}</span>
+                            <span className="block truncate text-xs text-[#8e8e93]">{itemSubtitle(link, links)}</span>
+                          </span>
+                        </button>
+                        <button type="button" onClick={() => updateLink(link.id, { hidden: !link.hidden })} aria-label={link.hidden ? `إظهار «${link.title}»` : `إخفاء «${link.title}» دون حذفه`} className="flex h-11 w-10 shrink-0 items-center justify-center rounded-full text-[#8e8e93] active:bg-[#f2f2f7]">
+                          {link.hidden ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
+                        </button>
+                        <button type="button" onClick={() => setActionsFor(showActions ? null : link.id)} aria-expanded={showActions} aria-label={`خيارات «${link.title}»`} className={`flex h-11 w-10 shrink-0 items-center justify-center rounded-full ${showActions ? 'bg-[#f2f2f7] text-[#1d1d1f]' : 'text-[#8e8e93]'}`}>
+                          <MoreHorizontal className="h-5 w-5" />
+                        </button>
+                      </div>
+                      {showActions && (
+                        <div className="grid grid-cols-3 gap-2 px-3 pb-3">
+                          <button type="button" disabled={index <= 0} onClick={() => moveLink(link.id, 'up')} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#f2f2f7] text-sm font-bold text-[#1d1d1f] disabled:opacity-35"><ArrowUp className="h-4 w-4" />لأعلى</button>
+                          <button type="button" disabled={index === siblings.length - 1} onClick={() => moveLink(link.id, 'down')} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#f2f2f7] text-sm font-bold text-[#1d1d1f] disabled:opacity-35"><ArrowDown className="h-4 w-4" />لأسفل</button>
+                          <button type="button" onClick={() => deleteItem(link)} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#ff3b30]/10 text-sm font-bold text-[#ff3b30]"><Trash2 className="h-4 w-4" />حذف</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 px-4 text-xs leading-5 text-[#8e8e93]">اضغط على أي عنصر لتعديله، واسحبه من المقبض لتغيير ترتيبه. العين تخفيه عن الزوار دون حذفه.</p>
+            </section>
+          )}
+        </>
+      )}
+
+      {screen.name === 'choose' && (
+        <>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={backToList} className="flex h-10 items-center gap-1 rounded-full pl-3 text-[15px] text-[#0a84ff]"><ChevronRight className="h-5 w-5" />رجوع</button>
+          </div>
+          <h3 className="px-1 text-xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>ماذا تريد أن تضيف؟</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {KINDS.map(({ id, label, hint, Icon, tone }) => (
+              <button key={id} type="button" onClick={() => openForm(emptyForm(id))} className="flex min-h-[132px] flex-col items-start gap-3 rounded-2xl bg-white p-4 text-right shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-transform active:scale-[0.97]">
+                <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone}`}><Icon className="h-6 w-6" /></span>
+                <span>
+                  <span className="block text-[16px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{label}</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-[#6e6e73]">{hint}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="px-1 text-xs leading-5 text-[#8e8e93]">المجموعات اختيارية؛ يمكنك إضافة أي محتوى مباشرة دون إنشاء مجموعة.</p>
+        </>
+      )}
+
+      {screen.name === 'form' && (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <button type="button" onClick={leaveForm} className="flex h-10 items-center gap-1 rounded-full pl-3 text-[15px] text-[#0a84ff]"><ChevronRight className="h-5 w-5" />رجوع</button>
+            <span className="flex items-center gap-2 text-[15px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${kindInfo.tone}`}><kindInfo.Icon className="h-4 w-4" /></span>
+              {editing ? `تعديل ${kindInfo.label}` : `${kindInfo.label} جديد${form.kind === 'group' ? 'ة' : ''}`}
+            </span>
+            <span className="w-16" />
+          </div>
+
+          {form.kind === 'link' && renderLinkFields()}
+          {form.kind === 'file' && renderFileFields()}
+          {form.kind === 'text' && renderTextFields()}
+          {form.kind === 'group' && renderGroupFields()}
+
+          <div className="space-y-3 pt-1">
+            <button type="button" onClick={submit} disabled={!isReady(form)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              {editing ? 'تطبيق التعديل' : 'إضافة إلى الصفحة'}
+            </button>
+            {editing && (
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => updateLink(editing.id, { hidden: !editing.hidden })} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white text-sm font-bold text-[#1d1d1f]">
+                  {editing.hidden ? <><Eye className="h-4 w-4" />إظهار للزوار</> : <><EyeOff className="h-4 w-4" />إخفاء عن الزوار</>}
+                </button>
+                <button type="button" onClick={() => deleteItem(editing)} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white text-sm font-bold text-[#ff3b30]"><Trash2 className="h-4 w-4" />حذف</button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {confirm?.kind === 'leave' && (
+        <ConfirmSheet title="تجاهل ما كتبته؟" message="لم تُضف هذه التعديلات بعد." confirmLabel="تجاهل والرجوع" cancelLabel="متابعة التعديل" onConfirm={() => { setConfirm(null); backToList(); }} onCancel={() => setConfirm(null)} />
+      )}
+      {confirm?.kind === 'deleteGroup' && (
+        <ConfirmSheet
+          title={`حذف مجموعة «${confirm.link.title}»؟`}
+          message={`العناصر التي فيها (${confirm.count}) لن تُحذف؛ ستبقى في صفحتك خارج أي مجموعة.`}
+          confirmLabel="حذف المجموعة فقط"
+          cancelLabel="إلغاء"
+          onConfirm={() => { removeLink(confirm.link.id); setConfirm(null); if (screen.name === 'form') backToList(); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </Panel>
   );
 }
+

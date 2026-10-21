@@ -70,7 +70,7 @@ test('query and JSON request bodies reach real handlers', async () => {
 });
 test('protected beneficiary endpoints reject missing tokens and other token kinds', async () => {
   for (const route of ['/api/page/me', '/api/account', '/api/auth/email-code', '/api/video-upload']) {
-    const method = ['/api/account', '/api/auth/email-code'].includes(route) ? 'POST' : 'GET';
+    const method = ['/api/account', '/api/auth/email-code', '/api/video-upload'].includes(route) ? 'POST' : 'GET';
     for (const bearer of [undefined, token('staff'), token('partner')]) {
       assert.equal((await call(route, { method, bearer, body: method === 'POST' ? { action: 'send' } : undefined })).status, 401, route);
     }

@@ -1,7 +1,12 @@
 export type VideoSource = { kind: 'youtube' | 'vimeo' | 'file'; src: string; url: string };
 
 // Only known providers become iframes. User-supplied HTML is never embedded.
+// Background videos uploaded to our own storage (Cloudflare R2), served by the
+// Worker from the page's own domain under /media/.
+export const MEDIA_VIDEO_PATH = /^\/media\/wallpapers\/[a-zA-Z0-9-]{1,64}\/[a-f0-9-]{36}\.(mp4|webm)$/;
+
 export function parseVideoSource(raw: string, background = false): VideoSource | null {
+  if (background && MEDIA_VIDEO_PATH.test(raw.trim())) return { kind: 'file', src: raw.trim(), url: raw.trim() };
   try {
     const url = new URL(raw.trim());
     if (url.protocol !== 'https:' || url.username || url.password) return null;

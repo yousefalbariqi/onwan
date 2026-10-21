@@ -18,6 +18,11 @@ export function getEnv(name: string): string | undefined {
   const value = scope ? scope.env[name] : process.env[name];
   return typeof value === 'string' ? value : undefined;
 }
+// A Cloudflare binding (e.g. the R2 bucket MEDIA); undefined outside a Worker.
+export function getBinding<T>(name: string): T | undefined {
+  const value = requestRuntime()?.env[name];
+  return value && typeof value === 'object' ? (value as T) : undefined;
+}
 export function withRuntime<T>(scope: RequestRuntime, callback: () => T): T {
   return requests.run(scope, callback);
 }

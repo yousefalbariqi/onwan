@@ -6,6 +6,7 @@ import { loadFont } from '../lib/fonts';
 import { SectionLayout } from './SectionLayout';
 import { VideoBlock } from './VideoBlock';
 import { VideoBackground } from './VideoBackground';
+import { WallpaperImage } from './WallpaperImage';
 import { ProfileImageDisplay } from './ProfileImageDisplay';
 import { SocialIcon, brandColor } from './SocialIcons';
 
@@ -91,13 +92,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
   const backgroundStyle =
     wallpaper.type === 'gradient'
       ? { background: wallpaper.value }
-      : wallpaper.type === 'image'
-        ? {
-            backgroundImage: `url(${wallpaper.value})`,
-            backgroundSize: 'cover',
-            backgroundPosition: wallpaper.position ?? 'center',
-          }
-        : { backgroundColor: wallpaper.type === 'video' ? theme.background : wallpaper.value };
+      : { backgroundColor: wallpaper.type === 'video' || wallpaper.type === 'image' ? theme.background : wallpaper.value };
 
   const accentColor =
     buttonStyle.useCustomColor && buttonStyle.customColor ? buttonStyle.customColor : theme.buttonColor;
@@ -197,6 +192,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
       style={{ ...backgroundStyle, color: theme.textColor, fontFamily }}
       dir={lang === 'en' ? 'ltr' : 'rtl'}
     >
+      {wallpaper.type === 'image' && <WallpaperImage wallpaper={wallpaper} />}
       {wallpaper.type === 'video' && <VideoBackground src={wallpaper.value} poster={wallpaper.poster} position={wallpaper.position} />}
       {(wallpaper.type === 'image' || wallpaper.type === 'video') && !!wallpaper.dim && (
         <div

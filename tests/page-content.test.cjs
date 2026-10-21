@@ -17,20 +17,27 @@ function loadVideos() {
   return module.exports;
 }
 
+function loadShared(file) {
+  const module = { exports: {} };
+  const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function('module', 'exports', code)(module, module.exports);
+  return module.exports;
+}
+
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
 function api() {
   const db = { links: [], reviews: [] };
   const page = { id: 'page', username: 'example', status: 'published' };
   const query = async (sql, values = []) => {
     const text = sql.replace(/\s+/g, ' ').trim();
-    if (text.startsWith('update pages')) { page.wallpaper_json = JSON.parse(values[5]); return { rows: [{ id: page.id }] }; }
+    if (text.startsWith('update pages')) { page.profile_image_url = values[3]; page.wallpaper_json = JSON.parse(values[5]); return { rows: [{ id: page.id }] }; }
     if (text.startsWith('delete from page_links')) { db.links = []; return { rows: [] }; }
     if (text.startsWith('insert into page_links')) {
-      const names = text.match(/page_links \((.*?)\)/)[1].split(',').map(value => value.trim());
-      const row = Object.fromEntries(names.map((name, index) => [name, name === 'display_json' ? JSON.parse(values[index]) : values[index]]));
-      db.links.push({ id: `row-${db.links.length}`, ...row });
+      // One batched insert: the rows arrive as a JSON array (jsonb_to_recordset).
+      for (const row of JSON.parse(values[1])) db.links.push({ ...row, id: row.id || `row-${db.links.length}-${Math.random().toString(36).slice(2)}`, page_id: values[0] });
       return { rows: [] };
     }
+    if (text.startsWith('select id, profile_image_url, wallpaper_json from pages')) return { rows: [{ id: page.id, profile_image_url: page.profile_image_url ?? '', wallpaper_json: page.wallpaper_json ?? null }] };
     if (text.startsWith('insert into content_reviews')) { db.reviews.push(JSON.parse(values[1])); return { rows: [] }; }
     if (text.startsWith('select id from page_links')) return { rows: [] };
     if (text.includes('from page_links')) return { rows: db.links.filter(row => !text.includes('is_hidden = false') || !row.is_hidden) };
@@ -46,8 +53,8 @@ function api() {
     name = name.replace(/\.js$/, '');
     if (name === '../../shared/videoSources') return loadVideos();
     if (name === '../../shared/linkSections') return loadSections();
-    if (name === '@vercel/blob') return { head: async () => db.blobHead };
-    if (name === './runtime') return { getEnv: name => process.env[name] };
+    if (name === '../../shared/pageTransfer') return loadShared('shared/pageTransfer.ts');
+    if (name === './runtime') return { getBinding: name => (name === 'MEDIA' && db.media ? db.media : undefined) };
     if (name === './db') return { pool };
     if (name === './http') return { HttpError: class extends Error { constructor(status, message) { super(message); this.status = status; } } };
     throw new Error(name);
@@ -209,63 +216,80 @@ test('content videos accept only YouTube; 20 MB background file boundary is enfo
   const normalize = api().testNormalize;
   for (const url of ['https://vimeo.com/123456789', 'https://example.com/movie.mp4']) assert.throws(() => normalize([{ title: 'فيديو', url, display: { kind: 'video' } }]), { status: 400 });
 });
-test('save verifies uploaded video ownership, content type and size using storage metadata', async () => {
+test('save verifies uploaded video ownership, content type and size in R2, once per file', async () => {
   const service = api();
-  const valid = { type: 'video', uploaded: true, value: 'https://store.public.blob.vercel-storage.com/wallpapers/owner/file.mp4' };
-  service.db.blobHead = { size: 20 * 1024 * 1024, contentType: 'video/mp4' };
+  const objects = { 'wallpapers/owner/12345678-1234-1234-1234-123456789abc.mp4': { size: 20 * 1024 * 1024, httpMetadata: { contentType: 'video/mp4' } } };
+  let heads = 0;
+  service.db.media = { head: async key => { heads++; return objects[key] ?? null; } };
+  const valid = { type: 'video', uploaded: true, value: '/media/wallpapers/owner/12345678-1234-1234-1234-123456789abc.mp4' };
   const saved = await service.savePageData('owner', { wallpaper: valid });
   assert.equal(saved.wallpaper.fileSize, 20 * 1024 * 1024);
-  service.db.blobHead.size++;
-  await assert.rejects(() => service.savePageData('owner', { wallpaper: valid }), { status: 400 });
-  service.db.blobHead = { size: 100, contentType: 'text/html' };
-  await assert.rejects(() => service.savePageData('owner', { wallpaper: valid }), { status: 400 });
+  // The same stored file is not asked about again (names are never reused).
+  assert.equal((await service.savePageData('owner', { wallpaper: valid })).wallpaper.fileSize, 20 * 1024 * 1024);
+  assert.equal(heads, 1);
+  const other = { ...valid, value: valid.value.replace('123456789abc', '123456789abd') };
+  await assert.rejects(() => service.savePageData('owner', { wallpaper: other }), { status: 400 });
+  objects['wallpapers/owner/12345678-1234-1234-1234-123456789abd.mp4'] = { size: 20 * 1024 * 1024 + 1, httpMetadata: { contentType: 'video/mp4' } };
+  await assert.rejects(() => service.savePageData('owner', { wallpaper: other }), { status: 400 });
+  objects['wallpapers/owner/12345678-1234-1234-1234-123456789abd.mp4'] = { size: 100, httpMetadata: { contentType: 'text/html' } };
+  await assert.rejects(() => service.savePageData('owner', { wallpaper: other }), { status: 400 });
   await assert.rejects(() => service.savePageData('another-owner', { wallpaper: valid }), { status: 403 });
 });
 
-test('upload token endpoint authenticates, scopes paths and sets the 20 MB storage limit', async () => {
-  const previousToken = process.env.BLOB_READ_WRITE_TOKEN;
+test('upload endpoint authenticates, stores in the owner folder of R2 and enforces type and the 20 MB limit', async () => {
   let signedIn = true;
-  let issued;
+  let media;
+  const stored = {};
   const module = { exports: {} };
   const code = ts.transpileModule(fs.readFileSync('api/video-upload.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const http = {
     HttpError: class extends Error { constructor(status, message) { super(message); this.status = status; } },
     allowMethods: () => true,
-    readJsonBody: async req => req.body,
     sendJson: (res, status, body) => { res.status = status; res.body = body; res.headersSent = true; },
     handleApiError: (res, error) => { res.status = error.status || 500; res.body = { error: error.message }; },
   };
   new Function('require', 'module', 'exports', code)(name => {
     name = name.replace(/\.js$/, '');
-    if (name === '@vercel/blob/client') return { handleUpload: async options => { issued = await options.onBeforeGenerateToken(options.body.pathname); return { ok: true }; } };
     if (name === '../shared/videoSources') return loadVideos();
-    if (name === './_lib/runtime') return { getEnv: name => process.env[name] };
+    if (name === './_lib/runtime') return { getBinding: () => media };
     if (name === './_lib/http') return http;
     if (name === './_lib/session') return { requireUser: async (req, res) => { if (signedIn) return { id: 'owner' }; http.sendJson(res, 401, {}); return null; } };
     throw new Error(name);
   }, module, module.exports);
   const handler = module.exports.default;
-  try {
-    delete process.env.BLOB_READ_WRITE_TOKEN;
-    let res = {};
-    await handler({ method: 'GET' }, res);
-    assert.equal(res.status, 503);
-    process.env.BLOB_READ_WRITE_TOKEN = 'test-only-not-a-credential';
-    res = {};
-    await handler({ method: 'POST', body: { pathname: 'wallpapers/owner/12345678-1234-1234-1234-123456789abc.mp4' } }, res);
-    assert.equal(res.status, 200);
-    assert.equal(issued.maximumSizeInBytes, 20 * 1024 * 1024);
-    assert.deepEqual(issued.allowedContentTypes, ['video/mp4', 'video/webm']);
-    assert.equal(issued.allowOverwrite, false);
-    res = {};
-    await handler({ method: 'POST', body: { pathname: 'wallpapers/another-owner/12345678-1234-1234-1234-123456789abc.mp4' } }, res);
-    assert.equal(res.status, 400);
-    signedIn = false;
-    res = {};
-    await handler({ method: 'GET' }, res);
-    assert.equal(res.status, 401);
-  } finally {
-    if (previousToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
-    else process.env.BLOB_READ_WRITE_TOKEN = previousToken;
-  }
+  const send = async (type, size) => {
+    const res = {};
+    await handler({ method: 'POST', headers: { 'content-type': type, 'content-length': String(size) }, arrayBuffer: async () => new ArrayBuffer(size) }, res);
+    return res;
+  };
+  assert.equal((await send('video/mp4', 10)).status, 503);
+  media = { put: async (key, body, options) => { stored[key] = { size: body.byteLength, type: options.httpMetadata.contentType }; } };
+  const ok = await send('video/mp4', 1000);
+  assert.equal(ok.status, 200);
+  assert.match(ok.body.url, /^\/media\/wallpapers\/owner\/[a-f0-9-]{36}\.mp4$/);
+  assert.deepEqual(stored[ok.body.url.slice('/media/'.length)], { size: 1000, type: 'video/mp4' });
+  assert.ok(loadVideos().parseVideoSource(ok.body.url, true));
+  assert.equal((await send('video/quicktime', 10)).status, 400);
+  assert.equal((await send('video/webm', 20 * 1024 * 1024 + 1)).status, 413);
+  assert.equal((await send('video/webm', 0)).status, 400);
+  signedIn = false;
+  assert.equal((await send('video/mp4', 10)).status, 401);
+});
+
+test('unchanged files travel as KEPT, link ids stay stable and the response is slimmed', async () => {
+  const service = api();
+  const { KEPT, slimPageData, expandPageData } = loadShared('shared/pageTransfer.ts');
+  const id = '11111111-2222-4333-8444-555555555555';
+  const first = { profileImage: image, links: [{ id, title: 'الملف', url: 'data:application/pdf;base64,JVBERi0x', linkType: 'file' }] };
+  const saved = await service.savePageData('owner', first);
+  assert.equal(saved.links[0].id, id);
+  const slim = slimPageData({ ...saved, name: 'جديد' }, saved);
+  assert.equal(slim.profileImage, KEPT);
+  assert.equal(slim.links[0].url, KEPT);
+  const again = await service.savePageData('owner', slim, { slimResponse: true });
+  assert.equal(again.profileImage, KEPT);
+  assert.equal(again.links[0].id, id);
+  assert.equal(service.db.links[0].url, 'data:application/pdf;base64,JVBERi0x');
+  assert.equal(expandPageData(again, saved).profileImage, image);
+  await assert.rejects(() => service.savePageData('owner', { links: [{ id: '99999999-2222-4333-8444-555555555555', title: 'x', url: KEPT, linkType: 'file' }] }), { status: 409 });
 });
