@@ -119,7 +119,7 @@ export function checkUsername(username: string) {
   }>(`/api/username/check?username=${encodeURIComponent(username)}`);
 }
 
-export function signup(input: { username: string; phone: string; email: string; password: string; nonprofit?: boolean }) {
+export function signup(input: { username: string; phone: string; email: string; password: string; nonprofit?: boolean; organizationName?: string }) {
   const partnerRef = sessionStorage.getItem('onwan_partner_ref');
   return request<AuthResponse>('/api/auth/signup', { method: 'POST', body: { ...input, partnerRef, turnstileToken: takeTurnstileToken() } }).then(response => {
     sessionStorage.removeItem('onwan_partner_ref');

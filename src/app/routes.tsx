@@ -1,4 +1,5 @@
-import { NonprofitAuth, NonprofitAccount, NonprofitBuilder, NonprofitQuote } from './pages/NonprofitPortal';
+import { NonprofitAuth, NonprofitAccount, NonprofitBuilder, NonprofitQuote, NonprofitGate } from './pages/NonprofitPortal';
+import { NonprofitOnboarding } from './pages/NonprofitOnboarding';
 import PartnerOrderEditor from './partner/PartnerOrderEditor';
 import PartnerSale from './partner/PartnerSale';
 import PartnerStorefront from './partner/PartnerStorefront';
@@ -92,6 +93,7 @@ export const router = createBrowserRouter(isNonprofitHost() ? [
     { path: 'reset-password', element: <ResetPassword /> },
     { path: 'account', element: <NonprofitAccount /> },
     { path: 'builder', element: <NonprofitBuilder /> },
+    { path: 'onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate> },
     { path: 'quote', element: <NonprofitQuote /> },
   ] },
   { path: '*', element: <Navigate to="/" replace /> },
@@ -117,6 +119,7 @@ export const router = createBrowserRouter(isNonprofitHost() ? [
       }, { path: 'nonprofit/login', element: <NonprofitAuth mode="login" />,
       }, { path: 'nonprofit/account', element: <NonprofitAccount />,
       }, { path: 'nonprofit/builder', element: <NonprofitBuilder />,
+      }, { path: 'nonprofit/onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate>,
       }, { path: 'nonprofit/quote', element: <NonprofitQuote />,
       }, { path: 'nonprofit/reset-password', element: <ResetPassword />,
       }, {

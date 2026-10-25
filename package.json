@@ -11,7 +11,8 @@
     "check:worker": "tsc -p worker/tsconfig.json --noEmit",
     "test:content": "node --test tests/page-content.test.cjs",
     "test:worker": "wrangler deploy --dry-run --outdir .worker-build && node --test tests/worker.test.cjs tests/worker-runtime.test.cjs",
-    "build:worker": "npm run build && wrangler deploy --dry-run --outdir .worker-build"
+    "build:worker": "npm run build && wrangler deploy --dry-run --outdir .worker-build",
+    "dev:local": "sh scripts/dev-local.sh"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

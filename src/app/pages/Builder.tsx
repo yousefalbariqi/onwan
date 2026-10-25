@@ -19,16 +19,22 @@ import AuthModal from '../components/AuthModal';
 import { DesignServiceSheet } from '../components/DesignServiceSheet';
 import { TemporaryPasswordGate } from '../components/TemporaryPasswordGate';
 
-type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account';
+export type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account';
+
+// A product built on this editor (e.g. the nonprofit editor) narrows or
+// renames its sections here. Without it the general editor is unchanged.
+export type EditorConfig = { sections?: Tab[]; labels?: Partial<Record<Tab, string>>; logoZoomOut?: boolean; logoBanner?: boolean };
 
 // `staffEdit` is set when an employee edits a customer's page from the
 // administration panel (PERM-01): same editor, without the owner-only parts.
-export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => void; title?: string; onContinue?: () => void; continueLabel?: string; exitLabel?: string } }) {
+export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: () => void; title?: string; onContinue?: () => void; continueLabel?: string; exitLabel?: string }; editor?: EditorConfig }) {
+  const showSection = (item: { id: Tab }) => !editor?.sections || editor.sections.includes(item.id);
+  const withLabel = <T extends { id: Tab; label: string }>(item: T): T => ({ ...item, label: editor?.labels?.[item.id] ?? item.label });
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const guestPreview = searchParams.get('onboarding') === 'signup';
   const guestUsername = (searchParams.get('username') || '').trim().toLowerCase();
-  const [activeTab, setActiveTab] = useState<Tab>('header');
+  const [activeTab, setActiveTab] = useState<Tab>(editor?.sections?.[0] ?? 'header');
   const [mobilePanel, setMobilePanel] = useState<Tab | null>(null);
   const [designNotice, setDesignNotice] = useState('');
   const { pageData, savedHistory, restoreVersion, restoreDraft, undo, redo, canUndo, canRedo, account, isAuthenticated, loadingPage, isDirty, saving, save, updateTheme, updateWallpaper, draftState } = usePageContext();
@@ -372,7 +378,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon },
     { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles },
     { id: 'account' as Tab, label: 'الإعدادات', icon: Settings },
-  ].filter((tab) => (!staffEdit && !guestPreview) || tab.id !== 'account');
+  ].filter((tab) => (!staffEdit && !guestPreview) || tab.id !== 'account').filter(showSection).map(withLabel);
 
   const renderActivePanel = () => {
     // Themes live inside «الخلفية» now; 'theme' just opens it on that segment.
@@ -381,7 +387,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     }
 
     if (activeTab === 'header') {
-      return <HeaderEditor />;
+      return <HeaderEditor logoZoomOut={editor?.logoZoomOut} logoBanner={editor?.logoBanner} />;
     }
 
     if (activeTab === 'links') {
@@ -493,7 +499,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
               ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
-            ].map((item) => {
+            ].filter(showSection).map(withLabel).map((item) => {
               const Icon = item.icon;
               return (
                 <button key={item.id} onClick={() => openPanel(item.id)} className="flex w-[68px] shrink-0 snap-start flex-col items-center gap-2 transition-transform active:scale-95">
@@ -625,7 +631,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
               ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
-            ].map((item) => {
+            ].filter(showSection).map(withLabel).map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.id || (item.id === 'wallpaper' && activeTab === 'theme');
               return (
@@ -670,6 +676,21 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
         </div>
         {/* Note 3: the themes gallery, a calm extension below the editor. */}
         <div className="mx-auto max-w-[1400px] space-y-8 px-6 pb-10 pt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          {/* Note 16: the saved earlier versions, as on the phone. */}
+          <section>
+            <h2 className="mb-3 text-2xl font-black text-[#1d1d1f]">الأشكال السابقة</h2>
+            {savedHistory.length > 0 ? (
+              <>
+                <p className="mb-3 text-xs text-[#6e6e73]">اضغط على تصميم لإرجاعه إلى المحرر، ثم احفظ إن أعجبك.</p>
+                <div className="grid grid-cols-6 gap-4 xl:grid-cols-8">{savedHistory.map((version) => renderVersion(version, true))}</div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 rounded-2xl bg-[#e9e9ee] px-4 py-5 text-sm font-bold text-[#8e8e93]">
+                <History className="h-5 w-5 text-[#aeaeb2]" />
+                لا توجد تصاميم سابقة
+              </div>
+            )}
+          </section>
           {renderGalleries(true)}
         </div>
       </div>

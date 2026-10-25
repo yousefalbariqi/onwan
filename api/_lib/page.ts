@@ -297,6 +297,14 @@ function inlineContentMatches(dataUrl: string) {
   return contentMatchesType(dataUrlHead(dataUrl), declared);
 }
 
+// Note 21: the banner is one more image, checked like the logo.
+function normalizeProfileStyle(value: any) {
+  const style = value && typeof value === 'object' && !Array.isArray(value) ? { ...value } : { ...DEFAULT_PAGE_DATA.profileStyle };
+  if (style.bannerImage !== undefined) style.bannerImage = validateImageValue(style.bannerImage, 'صورة البنر') || undefined;
+  if (style.logoSize !== undefined) style.logoSize = Math.min(160, Math.max(56, Number(style.logoSize) || 112));
+  return style;
+}
+
 function validateImageValue(value: unknown, label: string) {
   if (value != null && typeof value !== 'string') throw new HttpError(400, `${label}: المسموح صورة واحدة فقط.`);
   const image = String(value ?? '').trim();
@@ -536,6 +544,7 @@ export function validatePartnerPageDraft(input: any, partnerId?: string) {
   rejectInlineFiles(data);
   if (JSON.stringify(data).length > 30_000_000) throw new HttpError(413, 'حجم تصميم الصفحة كبير جدًا.');
   const profileImage = validateImageValue(data.profileImage, 'الصورة / الشعار');
+  if (data.profileStyle) data.profileStyle = normalizeProfileStyle(data.profileStyle);
   const links = normalizeLinks(data.links);
   if (data.wallpaper?.type === 'image') validateImageValue(data.wallpaper.value, 'صورة الخلفية');
   if (data.wallpaper?.type === 'video') {
@@ -622,7 +631,7 @@ export async function savePageData(userId: string, sentPageData: any, options: {
         JSON.stringify(pageData.theme ?? DEFAULT_PAGE_DATA.theme),
         JSON.stringify(wallpaper),
         JSON.stringify(pageData.buttonStyle ?? DEFAULT_PAGE_DATA.buttonStyle),
-        JSON.stringify(pageData.profileStyle ?? DEFAULT_PAGE_DATA.profileStyle),
+        JSON.stringify(normalizeProfileStyle(pageData.profileStyle)),
         JSON.stringify(pageData.customColors ?? {}),
         JSON.stringify(pageData.extractedColors ?? []),
         JSON.stringify(normalizeTypography(pageData.typography)),

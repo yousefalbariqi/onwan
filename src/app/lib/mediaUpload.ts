@@ -62,6 +62,7 @@ export async function moveInlineMedia(page: PageData, token = getSessionToken())
   const values = new Set<string>();
   const collect = (value: unknown) => { if (isInline(value)) values.add(value); };
   collect(page.profileImage);
+  collect(page.profileStyle?.bannerImage);
   if (page.wallpaper.type === 'image') collect(page.wallpaper.value);
   if (page.wallpaper.type === 'video') collect(page.wallpaper.poster);
   for (const link of page.links) { collect(link.url); collect(link.customIcon); collect(link.display?.image); }
@@ -81,6 +82,7 @@ export async function moveInlineMedia(page: PageData, token = getSessionToken())
   return {
     ...page,
     profileImage: swap(page.profileImage),
+    profileStyle: page.profileStyle?.bannerImage ? { ...page.profileStyle, bannerImage: swap(page.profileStyle.bannerImage) } : page.profileStyle,
     wallpaper: { ...page.wallpaper, value: page.wallpaper.type === 'image' ? swap(page.wallpaper.value) : page.wallpaper.value, poster: swap(page.wallpaper.poster) },
     links: page.links.map((link) => ({ ...link, url: swap(link.url), customIcon: swap(link.customIcon), display: link.display ? { ...link.display, image: swap(link.display.image) } : link.display })),
   };

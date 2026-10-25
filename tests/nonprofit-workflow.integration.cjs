@@ -14,7 +14,7 @@ test('nonprofit requests: ownership, snapshot, concurrency, email failure/retry 
  let design={name:'جمعية اختبار',links:[],wallpaper:{type:'color',value:'#fff'}};
  const service=load('api/_lib/nonprofit.ts',{'./db.js':{pool},'./http.js':http,'./page.js':{getPageDataByUserId:async()=>({...design})},'./runtime.js':{getEnv:k=>k==='ADMIN_EMAIL'?'admin@example.invalid':undefined},'./email.js':{sendNoticeEmail:async()=>{sent++;return mailOk;}}});
  try{
-  await pool.query(`create table if not exists users(id uuid primary key,email text,phone text);
+  await pool.query(`create table if not exists users(id uuid primary key,email text,phone text,email_verified_at timestamptz);
    create table if not exists pages(id uuid primary key default gen_random_uuid(),user_id uuid unique references users(id),status text default 'draft',draft_json jsonb);
    create table if not exists subscriptions(user_id uuid primary key,status text);
    create or replace function media_check_references(data jsonb) returns void language plpgsql as $$ begin if data::text like '%data:image%' then raise exception 'inline'; end if; end $$;`);
@@ -23,6 +23,8 @@ test('nonprofit requests: ownership, snapshot, concurrency, email failure/retry 
   await pool.query("insert into users(id,email,phone,account_kind) values($1,'a@example.invalid','0500000000','nonprofit'),($2,'b@example.invalid','0500000001','nonprofit'),($3,'standard@example.invalid','0500000002','standard')",[a,b,standard]);
   await pool.query('insert into pages(user_id) values($1),($2),($3)',[a,b,standard]);
   await assert.rejects(()=>service.nonprofitStatus(standard),{status:403});
+  await assert.rejects(()=>service.submitNonprofit(a,{organizationName:'جمعية',contactName:'مسؤول'}),{status:403},'unconfirmed email cannot request a quote');
+  await pool.query('update users set email_verified_at=now()');
   await assert.rejects(()=>service.submitNonprofit(a,{organizationName:'',contactName:''}),{status:400});
   const form={organizationName:'جمعية اختبار',contactName:'مسؤول اختبار',notes:'ملاحظة'};
   const requests=await Promise.all([service.submitNonprofit(a,form),service.submitNonprofit(a,form)]);

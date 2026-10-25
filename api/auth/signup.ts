@@ -63,6 +63,10 @@ export default async function handler(req: any, res: any) {
       await reserveUsername(client, userId, availability.normalized);
 
       await ensurePageForUser(userId, client);
+      // Note 22: the Arabic name the association typed becomes its page name.
+      if (body.nonprofit === true && typeof body.organizationName === 'string' && body.organizationName.trim()) {
+        await client.query('update pages set display_name = $2 where user_id = $1', [userId, body.organizationName.trim().slice(0, 160)]);
+      }
       await attachReferral(client, userId, body.partnerRef);
       await client.query('commit');
     } catch (error: any) {

@@ -10,8 +10,10 @@ import { ImageProblem, compressImage } from '../lib/compressImage';
 // The stored logo must fit the server limit (1,000 KB); compressImage does that.
 
 const MAX_IMAGE_SIZE = 1_000_000;
+const MIN_LOGO_ZOOM = 0.3;
+const zoomStep = (zoom: number | undefined, by: number) => Math.round(Math.min(3, Math.max(MIN_LOGO_ZOOM, (zoom ?? 1) + by)) * 100) / 100;
 
-export function HeaderEditor() {
+export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logoZoomOut?: boolean; logoBanner?: boolean } = {}) {
   const { pageData, updatePageData, updateProfileStyle } = usePageContext();
   const style = pageData.profileStyle;
   // Zoom and position stay at hand in both «تظهر كاملة» and «تملأ الشكل» (note 10).
@@ -21,6 +23,9 @@ export function HeaderEditor() {
   // The builder mounts this editor twice (mobile and desktop layouts), so a
   // fixed id would point the desktop label at the hidden mobile input.
   const uploadId = useId();
+  const bannerId = useId();
+  const [bannerError, setBannerError] = useState('');
+  const isBanner = style.type === 'banner';
 
   const applyProfileImage = async (imageUrl: string) => {
 
@@ -86,7 +91,14 @@ export function HeaderEditor() {
               <Camera className="h-4 w-4" />
             </span>
           </label>
-          {canAdjust && <VerticalSlider label="تكبير" min={1} max={3} step={0.01} value={style.zoom ?? 1} icon="zoom" onChange={(value) => updateProfileStyle({ zoom: value })} />}
+          {canAdjust && (logoZoomOut ? (
+            // Note 10 (nonprofit editor): − / + beside the slider, down to 30 % so a wide logo fits whole.
+            <div className="flex flex-col items-center gap-1">
+              <button type="button" aria-label="تكبير الشعار" onClick={() => updateProfileStyle({ zoom: zoomStep(style.zoom, 0.1) })} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f2f2f7] text-lg font-bold text-[#1d1d1f]">+</button>
+              <VerticalSlider label="تكبير" min={MIN_LOGO_ZOOM} max={3} step={0.01} value={style.zoom ?? 1} icon="zoom" onChange={(value) => updateProfileStyle({ zoom: value })} />
+              <button type="button" aria-label="تصغير الشعار" onClick={() => updateProfileStyle({ zoom: zoomStep(style.zoom, -0.1) })} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f2f2f7] text-lg font-bold text-[#1d1d1f]">−</button>
+            </div>
+          ) : <VerticalSlider label="تكبير" min={1} max={3} step={0.01} value={style.zoom ?? 1} icon="zoom" onChange={(value) => updateProfileStyle({ zoom: value })} />)}
         </div>
         {canAdjust && (
           <EndsSlider label="يمين / يسار" start="يمين" end="يسار" min={0} max={100} value={style.positionX ?? 50} onChange={(value) => updateProfileStyle({ positionX: value })} />
@@ -105,9 +117,51 @@ export function HeaderEditor() {
       </section>
 
       {/* Note 24: every tool of the profile photo lives here, beside the photo. */}
-      <Group title="شكل الصورة" footer="تظهر النتيجة في المعاينة مباشرة، وتغيير الشكل يحافظ على الصورة المرفوعة.">
-        <div className="p-4"><ProfileImageControls /></div>
-      </Group>
+      {/* Note 21 (nonprofit editor): two layouts only — plain logo, or logo with banner. */}
+      {logoBanner && (
+        <Group title="طريقة العرض">
+          <div className="grid grid-cols-2 gap-2 p-4" role="radiogroup" aria-label="طريقة عرض الشعار">
+            {([['plain', 'شعار عادي'], ['banner', 'شعار مع بنر']] as const).map(([id, label]) => {
+              const active = id === 'banner' ? isBanner : !isBanner;
+              return (
+                <button key={id} type="button" role="radio" aria-checked={active} onClick={() => !active && updateProfileStyle({ type: id === 'banner' ? 'banner' : 'circle' })} className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-3 transition-colors ${active ? 'border-[#173c36]' : 'border-[#ececec]'}`}>
+                  <span className="relative block h-14 w-full overflow-hidden rounded-xl bg-[#f2f2f7]">
+                    {id === 'banner' && <span className="absolute inset-x-0 top-0 block h-8 bg-[#c9d5c2]" />}
+                    <span className="absolute left-1/2 top-1/2 block h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#6c8050]" style={id === 'banner' ? { top: '62%' } : undefined} />
+                  </span>
+                  <span className="text-sm font-bold text-[#1d1d1f]">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Group>
+      )}
+
+      {logoBanner && isBanner ? (
+        <Group title="البنر" footer="تتغير صورة البنر والشعار كلٌّ على حدة. «يمين / يسار» تحت الصورة يحدد موضع الشعار.">
+          <div className="space-y-4 p-4">
+            <input id={bannerId} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              setBannerError('');
+              compressImage(file).then((image) => updateProfileStyle({ bannerImage: image })).catch((problem) => setBannerError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'));
+            }} />
+            <label htmlFor={bannerId} className="block cursor-pointer overflow-hidden rounded-2xl bg-[#f2f2f7]">
+              {style.bannerImage
+                ? <img src={style.bannerImage} alt="صورة البنر" className="aspect-[2.4/1] w-full object-cover" />
+                : <span className="flex aspect-[2.4/1] w-full items-center justify-center gap-2 text-sm font-bold text-[#6e6e73]"><Camera className="h-5 w-5" />رفع صورة البنر</span>}
+            </label>
+            {style.bannerImage && <label htmlFor={bannerId} className="block cursor-pointer text-center text-sm font-bold text-[#0a84ff]">تغيير صورة البنر</label>}
+            {!!bannerError && <p className="text-xs text-[#ff3b30]">{bannerError}</p>}
+            <EndsSlider label="حجم الشعار" start="أصغر" end="أكبر" min={56} max={160} value={style.logoSize ?? 112} onChange={(value) => updateProfileStyle({ logoSize: value })} />
+          </div>
+        </Group>
+      ) : (
+        <Group title="شكل الصورة" footer="تظهر النتيجة في المعاينة مباشرة، وتغيير الشكل يحافظ على الصورة المرفوعة.">
+          <div className="p-4"><ProfileImageControls /></div>
+        </Group>
+      )}
 
       <Group title="الاسم">
         <div className="px-4 py-1">

@@ -122,8 +122,12 @@ export interface PageData {
     iconCustomColor?: string;
   };
   profileStyle: {
-    type: 'circle' | 'rounded' | 'square' | 'hero' | 'hero_safe' | 'premium';
+    type: 'circle' | 'rounded' | 'square' | 'hero' | 'hero_safe' | 'premium' | 'banner';
     fit?: 'cover' | 'contain';
+    // Note 21 «شعار مع بنر»: a wide photo on top, the logo over its lower edge.
+    // positionX places the logo across the banner; logoSize is its width in px.
+    bannerImage?: string;
+    logoSize?: number;
     positionX?: number;
     positionY?: number;
     zoom?: number;
@@ -736,7 +740,8 @@ export function PageProvider({ children, source }: { children: ReactNode; source
           const expanded = expandPageData(response.pageData, prepared);
           savedData = mergeWithDefaults(expanded ?? (await fetchMyPage()).pageData);
           setAccount(response.account);
-          if (previous) {
+          // Note 16: a save that changed nothing, or a version already on top, is not filed again.
+          if (previous && JSON.stringify(previous) !== JSON.stringify(savedData) && JSON.stringify(previous) !== JSON.stringify(historyRef.current[0]?.data)) {
             const owner = draftOwner.current;
             const next = [{ savedAt: new Date().toISOString(), data: previous }, ...historyRef.current].slice(0, HISTORY_LIMIT);
             setSavedHistory(next);

@@ -80,6 +80,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
   const bio = english?.bio || data.bio;
   const isPublic = variant === 'public';
   const isHeroLayout = data.profileStyle.type === 'hero' || data.profileStyle.type === 'hero_safe';
+  const isBannerLayout = data.profileStyle.type === 'banner';
   const builtInFamily = (FONT_OPTIONS.find((font) => font.id === data.typography?.font) ?? FONT_OPTIONS[0]).family;
   // Note (9): an uploaded font, with the chosen built-in one as its fallback.
   const customFont = data.typography?.customFont?.url;
@@ -219,13 +220,14 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
         {isHeroLayout && (
           <div className="overflow-hidden rounded-t-3xl relative">{profileImage}</div>
         )}
+        {isBannerLayout && <div className="relative">{profileImage}</div>}
 
         <div
           className={`flex flex-col items-center ${
-            `px-4 ${isHeroLayout ? 'pt-6' : 'pt-10'} pb-8`
+            `px-4 ${isHeroLayout ? 'pt-6' : isBannerLayout ? 'pt-3' : 'pt-10'} pb-8`
           }`}
         >
-          {!isHeroLayout && profileImage}
+          {!isHeroLayout && !isBannerLayout && profileImage}
 
           {(name || !isPublic) && (
             <h1

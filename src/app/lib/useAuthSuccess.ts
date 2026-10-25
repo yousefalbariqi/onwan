@@ -14,7 +14,7 @@ export function useAuthSuccess(options: { keepDraft?: boolean } = {}) {
   const navigate = useNavigate();
   const { pageData, replacePageData, restoreDraft, setAccount, setAuthenticated } = usePageContext();
 
-  return (response: AuthResponse, call: { keepDraft?: boolean } = {}) => {
+  return (response: AuthResponse, call: { keepDraft?: boolean; newNonprofit?: boolean } = {}) => {
     const draft = pageData;
     const keepDraft = (call.keepDraft ?? options.keepDraft) && sessionOwner() === 'guest';
     setSessionToken(response.token);
@@ -22,6 +22,8 @@ export function useAuthSuccess(options: { keepDraft?: boolean } = {}) {
     if (keepDraft) restoreDraft({ ...draft, username: response.pageData.username ?? draft.username });
     setAccount(response.account);
     setAuthenticated(true);
+    // Note 19: a nonprofit that has just signed up picks its platforms first.
+    if (call.newNonprofit) { navigate(isNonprofitHost() ? '/onboarding' : '/nonprofit/onboarding', { replace: true }); return; }
     navigate(isNonprofitHost() ? '/account' : response.account?.kind === 'nonprofit' ? '/nonprofit/account' : '/builder', { replace: true });
   };
 }

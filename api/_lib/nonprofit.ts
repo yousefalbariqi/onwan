@@ -31,7 +31,9 @@ export async function submitNonprofit(userId: string, input: any) {
       const organization = field(input.organizationName, 'اسم الجمعية', 160);
       const contact = field(input.contactName, 'اسم مسؤول التواصل', 160);
       // Contact is taken from the authenticated account, never an arbitrary recipient.
-      const account = await client.query('select email, phone from users where id=$1', [userId]);
+      const account = await client.query('select email, phone, email_verified_at from users where id=$1', [userId]);
+      // Note 18: the quote request follows a confirmed email; the saved design is kept either way.
+      if (!account.rows[0]?.email_verified_at) throw new HttpError(403, 'أكّد بريدك الإلكتروني أولًا، ثم أرسل طلب عرض السعر.');
       await client.query('select id from pages where user_id=$1 for update', [userId]);
       const page = await getPageDataByUserId(userId);
       // Explicit editor save validates the design; autosaved drafts are not the submitted version.
