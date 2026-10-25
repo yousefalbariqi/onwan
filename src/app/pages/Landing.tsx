@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { checkUsername } from '../lib/api';
 import { BRAND_NAME, ROOT_DOMAIN, USERNAME_PATTERN, pageHost } from '../lib/site';
 import AuthModal from '../components/AuthModal';
+import { usePageContext } from '../context/PageContext';
 
 // During UI testing the landing page can proceed using local name validation
 // only, without asking the API (and therefore the database) for availability.
@@ -91,6 +92,10 @@ export default function Landing() {
   const [searchParams] = useSearchParams();
   const requestedUsername = (searchParams.get('username') || '').trim().toLowerCase();
   const [username, setUsername] = useState(requestedUsername);
+  // Notes (2) and (3): a signed-in visitor sees that they are signed in, and
+  // a new account needs signing out first — so no earlier design is carried over.
+  const { isAuthenticated, pageData, logout } = usePageContext();
+  const [confirmNew, setConfirmNew] = useState(false);
   const [status, setStatus] = useState<UsernameStatus>('idle');
   const [serviceMessage, setServiceMessage] = useState('');
   const normalizedUsername = username.trim().toLowerCase();
@@ -130,9 +135,9 @@ export default function Landing() {
   }, [normalizedUsername]);
 
   const handleStart = () => {
-    if (canProceed) {
-      navigate(`/builder?onboarding=signup&username=${encodeURIComponent(normalizedUsername)}`);
-    }
+    if (!canProceed) return;
+    if (isAuthenticated) { setConfirmNew(true); return; }
+    navigate(`/builder?onboarding=signup&username=${encodeURIComponent(normalizedUsername)}`);
   };
 
   const authMode = searchParams.get('auth');
@@ -154,15 +159,31 @@ export default function Landing() {
             {BRAND_NAME}
           </div>
           <div className="flex gap-3">
-            <button
-              onClick={() => navigate('/?auth=login')}
-              className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition-all"
-            >
-              تسجيل الدخول
-            </button>
+            {isAuthenticated ? (
+              <button
+                onClick={() => navigate('/builder')}
+                className="px-6 py-2 bg-white text-emerald-700 font-bold rounded-full shadow transition-all hover:bg-white/90"
+              >
+                افتح صفحتي
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/?auth=login')}
+                className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition-all"
+              >
+                تسجيل الدخول
+              </button>
+            )}
           </div>
         </div>
 
+        {isAuthenticated && (
+          <div className="mb-8 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-white/20 px-4 py-3 text-white backdrop-blur-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+            <span>أنت مسجّل الدخول{pageData.username ? <> — <span dir="ltr" className="font-bold">{pageHost(pageData.username)}</span></> : ''}</span>
+            <button onClick={() => navigate('/builder')} className="rounded-full bg-white px-4 py-1.5 text-sm font-bold text-emerald-700">متابعة التعديل</button>
+            <button onClick={() => { logout(); }} className="text-sm underline opacity-90">تسجيل الخروج</button>
+          </div>
+        )}
         {/* Hero Section */}
         <div className="text-center space-y-8">
 
@@ -274,6 +295,18 @@ export default function Landing() {
       </div>
       {showSignup && <AuthModal mode="signup" username={normalizedUsername} />}
       {showLogin && <AuthModal mode="login" />}
+      {confirmNew && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setConfirmNew(false)} style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          <div className="w-full max-w-[340px] rounded-[22px] bg-white p-5 text-center shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <p className="text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>إنشاء حساب جديد؟</p>
+            <p className="mt-1 text-sm leading-6 text-[#6e6e73]">أنت مسجّل الدخول بحساب آخر. سجّل الخروج منه أولًا، ثم تبدأ صفحة جديدة فارغة.</p>
+            <div className="mt-4 space-y-2">
+              <button onClick={() => { logout(); setConfirmNew(false); navigate(`/builder?onboarding=signup&username=${encodeURIComponent(normalizedUsername)}`); }} className="block w-full rounded-xl bg-emerald-600 py-3 text-[15px] font-bold text-white">تسجيل الخروج والمتابعة</button>
+              <button onClick={() => { setConfirmNew(false); navigate('/builder'); }} className="block w-full rounded-xl bg-[#f2f2f7] py-3 text-[15px] font-bold text-[#1d1d1f]">العودة لصفحتي</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

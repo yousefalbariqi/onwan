@@ -4,7 +4,8 @@ import { BUTTON_LIMITS, buttonMetrics } from '../lib/buttonSizes';
 import { Segmented, Toggle } from './ios';
 import { pageHost } from '../lib/site';
 import { FONT_OPTIONS, PageData, usePageContext } from '../context/PageContext';
-import { loadFont } from '../lib/fonts';
+import { customFontFamily, loadCustomFont, loadFont } from '../lib/fonts';
+import { uploadFont } from '../lib/fontUpload';
 import { PhonePreview } from './PhonePreview';
 
 // «الأسلوب»: buttons, text and colours (the profile photo is in «الهوية», note 24). Laid out like
@@ -88,6 +89,10 @@ export function StyleEditor() {
   const { buttonStyle } = pageData;
   const colors = pageData.customColors ?? {};
   const [fineOpen, setFineOpen] = useState(false);
+  const customFont = pageData.typography?.customFont;
+  const [fontBusy, setFontBusy] = useState(false);
+  const [fontError, setFontError] = useState('');
+  useEffect(() => loadCustomFont(customFont?.url), [customFont?.url]);
   const metrics = buttonMetrics(buttonStyle);
   const exactSizes = buttonStyle.heightPx !== undefined || buttonStyle.fontPx !== undefined || buttonStyle.iconPx !== undefined;
   const buttonFill = buttonStyle.useCustomColor && buttonStyle.customColor ? buttonStyle.customColor : pageData.theme.buttonColor;
@@ -185,10 +190,32 @@ export function StyleEditor() {
                 <ToolLabel>الخط</ToolLabel>
                 <div>
                   <Scroller>
+                    {/* Note (9): the page's own font, uploaded — first in the row. */}
+                    {customFont && (
+                      <button type="button" aria-pressed="true" className="w-[104px] shrink-0 rounded-2xl border-2 border-[#0a84ff] bg-[#0a84ff]/5 px-2 py-2.5 text-center">
+                        <span className="block truncate text-lg font-bold text-[#1d1d1f]" style={{ fontFamily: customFontFamily(customFont.url) }}>{pageData.name.trim() || 'اسم الجهة'}</span>
+                        <span className="block truncate text-[10px] text-[#8e8e93]">{customFont.name}</span>
+                      </button>
+                    )}
+                    <label className={`flex w-[104px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-2 py-2.5 text-center ${fontBusy ? 'border-[#c7c7cc] text-[#8e8e93]' : 'border-[#0a84ff]/40 text-[#0a84ff]'}`}>
+                      <span className="text-lg font-bold">{fontBusy ? '…' : '+'}</span>
+                      <span className="text-[11px] font-bold">{fontBusy ? 'جارٍ الرفع' : 'رفع خط مخصص'}</span>
+                      <input type="file" accept=".ttf,.otf,.woff2,.woff" className="sr-only" disabled={fontBusy} aria-label="رفع خط مخصص" onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = '';
+                        if (!file) return;
+                        setFontBusy(true);
+                        setFontError('');
+                        uploadFont(file)
+                          .then((font) => { loadCustomFont(font.url); updateTypography({ customFont: font }); })
+                          .catch((error) => setFontError(error instanceof Error ? error.message : 'تعذّر رفع الخط.'))
+                          .finally(() => setFontBusy(false));
+                      }} />
+                    </label>
                     {FONT_OPTIONS.map((font) => {
-                      const active = currentFont === font.id;
+                      const active = !customFont && currentFont === font.id;
                       return (
-                        <button key={font.id} onClick={() => updateTypography({ font: font.id })} className={`w-[104px] shrink-0 rounded-2xl border-2 px-2 py-2.5 text-center transition-all ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
+                        <button key={font.id} onClick={() => updateTypography({ font: font.id, customFont: undefined })} className={`w-[104px] shrink-0 rounded-2xl border-2 px-2 py-2.5 text-center transition-all ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
                           {/* the entity's own name, so they see their name in each font */}
                           <span className="block truncate text-lg font-bold text-[#1d1d1f]" style={{ fontFamily: font.family }}>{pageData.name.trim() || 'اسم الجهة'}</span>
                           <span className="block text-[10px] text-[#8e8e93]" dir="ltr">{font.name}</span>
@@ -197,6 +224,8 @@ export function StyleEditor() {
                     })}
                   </Scroller>
                 </div>
+                {fontError && <p role="alert" className="mt-2 text-xs text-[#ff3b30]">{fontError}</p>}
+                {customFont && <button type="button" onClick={() => updateTypography({ customFont: undefined })} className="mt-2 text-xs text-[#0a84ff]">الرجوع إلى الخطوط الجاهزة</button>}
               </div>
               <div>
                 <ToolLabel>الحجم</ToolLabel>

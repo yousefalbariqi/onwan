@@ -1,3 +1,5 @@
+import nonprofit from '../api/nonprofit.js';
+import { retryNonprofitNotifications } from '../api/_lib/nonprofit.js';
 import signup from '../api/auth/signup.js';
 import login from '../api/auth/login.js';
 import resetPassword from '../api/auth/reset-password.js';
@@ -34,6 +36,7 @@ export const routes: Record<string, (req: any, res: any) => Promise<void>> = {
   '/api/account': account,
   '/api/admin': admin,
   '/api/partner': partner,
+  '/api/nonprofit': nonprofit,
   '/api/video-upload': videoUpload,
   '/api/media-upload': mediaUpload,
   '/api/stream-video': streamVideo,
@@ -83,7 +86,7 @@ type MediaReader = { get(key: string, options?: { range?: Headers; onlyIf?: Head
 export async function serveMedia(request: Request, env: RuntimeEnv, key: string) {
   const media = env.MEDIA as MediaReader | undefined;
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
-  if (!media || !(/^wallpapers\/[a-zA-Z0-9-]{1,64}\/[a-f0-9-]{36}\.(mp4|webm)$/.test(key) || /^files\/[a-zA-Z0-9-]{1,64}\/[a-f0-9]{64}\.(png|jpg|webp|gif|pdf)$/.test(key))) return new Response('Not found', { status: 404 });
+  if (!media || !(/^wallpapers\/[a-zA-Z0-9-]{1,64}\/[a-f0-9-]{36}\.(mp4|webm)$/.test(key) || /^files\/[a-zA-Z0-9-]{1,64}\/[a-f0-9]{64}\.(png|jpg|webp|gif|pdf|ttf|otf|woff2|woff)$/.test(key))) return new Response('Not found', { status: 404 });
   // Note 53: whole-file GETs are kept in Cloudflare's edge cache (the CDN);
   // names never change content, so a cached copy never goes stale.
   const edge = (globalThis as { caches?: { default?: Cache } }).caches?.default;
@@ -150,6 +153,11 @@ async function dispatch(request: Request, env: RuntimeEnv): Promise<Response> {
   const root = typeof env.ROOT_DOMAIN === 'string' ? env.ROOT_DOMAIN : 'onwan.link';
   const suffix = `.${root}`;
   const label = url.hostname.endsWith(suffix) ? url.hostname.slice(0, -suffix.length) : '';
+  // Dedicated association landing bypasses public customer lookup and its cache.
+  if (label === 'nonprofit' && path === '/') {
+    if (!env.ASSETS) return new Response('Static assets unavailable', { status: 503 });
+    return env.ASSETS.fetch(request);
+  }
   if (path === '/' && label !== 'www' && /^(?=.{1,30}$)(?!.*--)[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(label)) {
     // Override query values, just as the former host rewrite did.
     return cachedPublic(request, () => invokeHandler(request, publicPage, { render: 'html', username: label }));
@@ -182,6 +190,9 @@ export default {
       } catch (error) {
         console.error('[media-cleanup] failed', error);
       }
+      try {
+        await retryNonprofitNotifications();
+      } catch (error) { console.error('[nonprofit-notifications] failed', error); }
       try {
         console.log('[visit-rollup]', JSON.stringify(await rollUpOldVisits()));
       } catch (error) {

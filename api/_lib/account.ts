@@ -33,6 +33,7 @@ export async function getAccountSummary(userId: string) {
     `
       select
         u.email,
+        to_jsonb(u)->>'account_kind' as account_kind,
         u.phone,
         u.email_verified_at,
         to_jsonb(u)->>'must_change_password' as must_change_password,
@@ -72,6 +73,7 @@ export async function getAccountSummary(userId: string) {
   }
 
   return {
+    kind: row.account_kind === 'nonprofit' ? 'nonprofit' : 'standard',
     email: row.email ?? '',
     phone: row.phone ?? '',
     emailVerified: Boolean(row.email_verified_at),

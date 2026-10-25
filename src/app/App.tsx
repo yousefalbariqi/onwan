@@ -1,5 +1,6 @@
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
+import { EdgeColors } from './lib/edgeColors';
 import { ROOT_DOMAIN, getSubdomainUsername } from './lib/site';
 
 // Note 75: a customer's subdomain is only their public page. Any other path
@@ -10,5 +11,10 @@ if (typeof window !== 'undefined' && getSubdomainUsername() && window.location.p
 }
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <EdgeColors />
+      <RouterProvider router={router} />
+    </>
+  );
 }

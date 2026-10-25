@@ -52,6 +52,7 @@ export function handleApiError(res: any, error: unknown) {
   const databaseError = error as { code?: string; message?: string } | null;
   if (databaseError?.code === 'P0001') {
     const messages: Record<string, [number, string]> = {
+      nonprofit_manual_activation: [403, 'حساب الجمعية يتطلب تفعيلًا يدويًا من الإدارة بعد مراجعة العرض.'],
       media_replacement_limit: [429, 'وصلت إلى حد 20 استبدال ملف يوميًا. حاول غدًا.'],
       media_file_deleted: [409, 'أحد الملفات حُذف بعد انتهاء مهلة الاحتفاظ. أعد رفعه ثم احفظ.'],
       media_inline_forbidden: [400, 'يجب رفع الملفات إلى Cloudflare قبل الحفظ.'],

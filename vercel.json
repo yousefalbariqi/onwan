@@ -5,6 +5,16 @@
       "has": [
         {
           "type": "host",
+          "value": "nonprofit.onwan.link"
+        }
+      ],
+      "destination": "/index.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
           "value": "(?<name>(?!www\\.)[a-z0-9-]+)\\.onwan\\.link"
         }
       ],

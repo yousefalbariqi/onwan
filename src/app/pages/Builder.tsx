@@ -1,3 +1,4 @@
+import { nonprofitPath } from '../lib/nonprofit';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { PageData, SavedVersion, themes, usePageContext } from '../context/PageContext';
@@ -22,7 +23,7 @@ type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account';
 
 // `staffEdit` is set when an employee edits a customer's page from the
 // administration panel (PERM-01): same editor, without the owner-only parts.
-export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => void; title?: string; onContinue?: () => void; continueLabel?: string } }) {
+export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => void; title?: string; onContinue?: () => void; continueLabel?: string; exitLabel?: string } }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const guestPreview = searchParams.get('onboarding') === 'signup';
@@ -51,6 +52,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
   const [designOffer, setDesignOffer] = useState<{ priceSar: number | null } | null>(null);
   const [designSheet, setDesignSheet] = useState(false);
   const isDraft = !guestPreview && account?.pageStatus === 'draft';
+  useEffect(() => { if (!staffEdit && account?.kind === 'nonprofit') navigate(nonprofitPath('builder'), { replace: true }); }, [account?.kind, staffEdit, navigate]);
   const hasAccount = Boolean(account) && !guestPreview && !staffEdit;
 
   useEffect(() => {
@@ -239,6 +241,90 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     );
   };
 
+  // «مميزة» and «الخلفيات المقترحة»: on the phone under the current look; on
+  // the desktop (note 3) as a gallery under the editor, more cards in a row.
+  const renderGalleries = (desktop: boolean) => {
+    const card = desktop ? 'w-[132px]' : 'w-[31%]';
+    return (
+      <>
+            <section>
+              <div className="mb-3 flex items-end justify-between px-1">
+                <h2 className="text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>مميزة</h2>
+                <button onClick={() => (desktop ? setActiveTab('theme') : openPanel('theme'))} className="text-sm font-bold text-emerald-700">عرض الكل</button>
+              </div>
+              <div className={desktop ? "flex snap-x gap-4 overflow-x-auto pb-3" : "-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}>
+                {themes.map((theme) => {
+                  const isSelected = pageData.theme.id === theme.id;
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => {
+                        if (isSelected) return;
+                        noteThemeChange(theme.name);
+                        updateTheme(theme);
+                      }}
+                      className={`${card} shrink-0 snap-start text-right transition-transform active:scale-[0.97]`}
+                    >
+                      <span className={`relative block aspect-[9/19] overflow-hidden rounded-[22px] border shadow-[0_8px_18px_rgba(15,23,42,0.14)] ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-400/70 ring-offset-2' : 'border-black/5'}`} style={{ background: theme.background }}>
+                        <span className="absolute inset-x-0 top-3 text-center text-lg font-bold tracking-tight" style={{ color: theme.textColor }}>9:41</span>
+                        <span className="absolute left-1/2 top-12 h-7 w-7 -translate-x-1/2 rounded-full opacity-30" style={{ backgroundColor: theme.textColor }} />
+                        {[0, 1, 2].map((row) => (
+                          <span key={row} className="absolute inset-x-3 h-4 rounded-lg" style={{ top: `${50 + row * 13}%`, backgroundColor: theme.buttonColor }} />
+                        ))}
+                        {isSelected && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow"><Check className="h-3.5 w-3.5" /></span>}
+                      </span>
+                      <span className="mt-2 block truncate text-center text-xs font-bold text-[#3a3a3c]">{theme.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section>
+              <div className="mb-3 flex items-end justify-between px-1">
+                <h2 className="text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>الخلفيات المقترحة</h2>
+                <button onClick={() => (desktop ? setActiveTab('wallpaper') : openPanel('wallpaper'))} className="text-sm font-bold text-emerald-700">عرض الكل</button>
+              </div>
+              <div className={desktop ? "flex snap-x gap-4 overflow-x-auto pb-3" : "-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}>
+                {[
+                  { name: 'الخلفية الحالية', style: pageData.wallpaper.type === 'gradient' ? { background: pageData.wallpaper.value } : pageData.wallpaper.type === 'image' ? { backgroundImage: `url(${pageData.wallpaper.value})`, backgroundPosition: `${wallpaperFocus(pageData.wallpaper).x}% ${wallpaperFocus(pageData.wallpaper).y}%`, backgroundSize: 'cover' } : { backgroundColor: pageData.wallpaper.type === 'video' ? pageData.theme.background : pageData.wallpaper.value, ...(pageData.wallpaper.type === 'video' && pageData.wallpaper.poster ? { backgroundImage: `url(${pageData.wallpaper.poster})`, backgroundSize: 'cover' } : {}) } },
+                  { name: 'بحر هادئ', value: 'linear-gradient(145deg, #c4ecff 0%, #61a6ff 45%, #1e4ba8 100%)', style: { background: 'linear-gradient(145deg, #c4ecff 0%, #61a6ff 45%, #1e4ba8 100%)' } },
+                  { name: 'فجر دافئ', value: 'linear-gradient(145deg, #fedb8c 0%, #f5a0b6 45%, #ad78d1 100%)', style: { background: 'linear-gradient(145deg, #fedb8c 0%, #f5a0b6 45%, #ad78d1 100%)' } },
+                  { name: 'ليل أنيق', value: 'linear-gradient(145deg, #334155 0%, #0f172a 55%, #020617 100%)', style: { background: 'linear-gradient(145deg, #334155 0%, #0f172a 55%, #020617 100%)' } },
+                  { name: 'غابة هادئة', value: 'linear-gradient(145deg, #d9f99d 0%, #34d399 52%, #047857 100%)', style: { background: 'linear-gradient(145deg, #d9f99d 0%, #34d399 52%, #047857 100%)' } },
+                  { name: 'رمل ناعم', value: 'linear-gradient(145deg, #fef3c7 0%, #f4c98a 50%, #c49b75 100%)', style: { background: 'linear-gradient(145deg, #fef3c7 0%, #f4c98a 50%, #c49b75 100%)' } },
+                ].map((wallpaper) => {
+                  const isSelected = !!wallpaper.value && pageData.wallpaper.type === 'gradient' && pageData.wallpaper.value === wallpaper.value;
+                  return (
+                  <button
+                    key={wallpaper.name}
+                    onClick={() => {
+                      if (wallpaper.value) {
+                        applyQuickWallpaper(wallpaper.value);
+                        return;
+                      }
+                      if (desktop) setActiveTab('wallpaper'); else openPanel('wallpaper');
+                    }}
+                    className={`${card} shrink-0 snap-start text-right transition-transform active:scale-[0.97]`}
+                  >
+                    <span className={`relative block aspect-[9/19] overflow-hidden rounded-[22px] border shadow-[0_10px_20px_rgba(15,23,42,0.14)] transition-all ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-400/70 ring-offset-2' : 'border-white/70'}`} style={wallpaper.style}>
+                      <span className="absolute inset-x-3 top-3 text-center text-lg font-bold tracking-tight text-white/90 drop-shadow-sm">9:41</span>
+                      <span className="absolute inset-x-4 top-10 h-1.5 rounded-full bg-white/45" />
+                      <span className="absolute inset-x-3 bottom-8 h-7 rounded-2xl bg-white/35 backdrop-blur-sm" />
+                      <span className="absolute inset-x-3 bottom-3 h-4 rounded-full bg-white/35" />
+                      {isSelected && <span className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white shadow"><Check className="h-4 w-4" /></span>}
+                    </span>
+                    <span className="mt-2 block truncate px-0.5 text-center text-xs font-bold text-[#3a3a3c]">{wallpaper.name}</span>
+                  </button>
+                  );
+                })}
+              </div>
+            </section>
+
+      </>
+    );
+  };
+
   const openPanel = (tab: Tab) => {
     setActiveTab(tab);
     setMobilePanel(tab);
@@ -327,20 +413,22 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     );
   }
 
+  if (!staffEdit && account?.kind === 'nonprofit') return null;
+
   if (!isAuthenticated && staffEdit) {
     return null;
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50" dir="rtl">
+    <div className="flex h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col bg-gray-50" dir="rtl">
       <div className="flex items-center justify-between gap-2 border-b border-black/5 bg-white px-3 py-2 sm:px-4 sm:py-3">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Exit, first in the header (top right in RTL), on every screen size. */}
           <button
             onClick={() => leave(() => (staffEdit ? staffEdit.onExit() : navigate('/')))}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform active:scale-95"
-            aria-label={staffEdit ? 'العودة إلى لوحة الإدارة' : 'الخروج من المحرر'}
-            title={staffEdit ? 'العودة إلى لوحة الإدارة' : 'الخروج من المحرر'}
+            aria-label={staffEdit ? (staffEdit.exitLabel ?? 'العودة إلى لوحة الإدارة') : 'الخروج من المحرر'}
+            title={staffEdit ? (staffEdit.exitLabel ?? 'العودة إلى لوحة الإدارة') : 'الخروج من المحرر'}
           >
             <X className="h-5 w-5" />
           </button>
@@ -373,7 +461,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
                   صمّم لي
                 </button>
               )}
-              {!guestPreview && account?.pageStatus === 'draft' && (
+              {!staffEdit && !guestPreview && account?.pageStatus === 'draft' && (
                 <button
                   onClick={() => leave(handleShare)}
                   className="flex h-10 w-[104px] items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-lime-500 to-emerald-500 text-sm font-bold text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)] transition-all active:scale-95"
@@ -444,79 +532,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
             </div>
           </section>
 
-          <section>
-            <div className="mb-3 flex items-end justify-between px-1">
-              <h2 className="text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>مميزة</h2>
-              <button onClick={() => openPanel('theme')} className="text-sm font-bold text-emerald-700">عرض الكل</button>
-            </div>
-            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {themes.map((theme) => {
-                const isSelected = pageData.theme.id === theme.id;
-                return (
-                  <button
-                    key={theme.id}
-                    onClick={() => {
-                      if (isSelected) return;
-                      noteThemeChange(theme.name);
-                      updateTheme(theme);
-                    }}
-                    className="w-[31%] shrink-0 snap-start text-right transition-transform active:scale-[0.97]"
-                  >
-                    <span className={`relative block aspect-[9/19] overflow-hidden rounded-[22px] border shadow-[0_8px_18px_rgba(15,23,42,0.14)] ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-400/70 ring-offset-2' : 'border-black/5'}`} style={{ background: theme.background }}>
-                      <span className="absolute inset-x-0 top-3 text-center text-lg font-bold tracking-tight" style={{ color: theme.textColor }}>9:41</span>
-                      <span className="absolute left-1/2 top-12 h-7 w-7 -translate-x-1/2 rounded-full opacity-30" style={{ backgroundColor: theme.textColor }} />
-                      {[0, 1, 2].map((row) => (
-                        <span key={row} className="absolute inset-x-3 h-4 rounded-lg" style={{ top: `${50 + row * 13}%`, backgroundColor: theme.buttonColor }} />
-                      ))}
-                      {isSelected && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow"><Check className="h-3.5 w-3.5" /></span>}
-                    </span>
-                    <span className="mt-2 block truncate text-center text-xs font-bold text-[#3a3a3c]">{theme.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section>
-            <div className="mb-3 flex items-end justify-between px-1">
-              <h2 className="text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>الخلفيات المقترحة</h2>
-              <button onClick={() => openPanel('wallpaper')} className="text-sm font-bold text-emerald-700">تخصيص</button>
-            </div>
-            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {[
-                { name: 'الخلفية الحالية', style: pageData.wallpaper.type === 'gradient' ? { background: pageData.wallpaper.value } : pageData.wallpaper.type === 'image' ? { backgroundImage: `url(${pageData.wallpaper.value})`, backgroundPosition: `${wallpaperFocus(pageData.wallpaper).x}% ${wallpaperFocus(pageData.wallpaper).y}%`, backgroundSize: 'cover' } : { backgroundColor: pageData.wallpaper.type === 'video' ? pageData.theme.background : pageData.wallpaper.value, ...(pageData.wallpaper.type === 'video' && pageData.wallpaper.poster ? { backgroundImage: `url(${pageData.wallpaper.poster})`, backgroundSize: 'cover' } : {}) } },
-                { name: 'بحر هادئ', value: 'linear-gradient(145deg, #c4ecff 0%, #61a6ff 45%, #1e4ba8 100%)', style: { background: 'linear-gradient(145deg, #c4ecff 0%, #61a6ff 45%, #1e4ba8 100%)' } },
-                { name: 'فجر دافئ', value: 'linear-gradient(145deg, #fedb8c 0%, #f5a0b6 45%, #ad78d1 100%)', style: { background: 'linear-gradient(145deg, #fedb8c 0%, #f5a0b6 45%, #ad78d1 100%)' } },
-                { name: 'ليل أنيق', value: 'linear-gradient(145deg, #334155 0%, #0f172a 55%, #020617 100%)', style: { background: 'linear-gradient(145deg, #334155 0%, #0f172a 55%, #020617 100%)' } },
-                { name: 'غابة هادئة', value: 'linear-gradient(145deg, #d9f99d 0%, #34d399 52%, #047857 100%)', style: { background: 'linear-gradient(145deg, #d9f99d 0%, #34d399 52%, #047857 100%)' } },
-                { name: 'رمل ناعم', value: 'linear-gradient(145deg, #fef3c7 0%, #f4c98a 50%, #c49b75 100%)', style: { background: 'linear-gradient(145deg, #fef3c7 0%, #f4c98a 50%, #c49b75 100%)' } },
-              ].map((wallpaper) => {
-                const isSelected = !!wallpaper.value && pageData.wallpaper.type === 'gradient' && pageData.wallpaper.value === wallpaper.value;
-                return (
-                <button
-                  key={wallpaper.name}
-                  onClick={() => {
-                    if (wallpaper.value) {
-                      applyQuickWallpaper(wallpaper.value);
-                      return;
-                    }
-                    openPanel('wallpaper');
-                  }}
-                  className="w-[31%] shrink-0 snap-start text-right transition-transform active:scale-[0.97]"
-                >
-                  <span className={`relative block aspect-[9/19] overflow-hidden rounded-[22px] border shadow-[0_10px_20px_rgba(15,23,42,0.14)] transition-all ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-400/70 ring-offset-2' : 'border-white/70'}`} style={wallpaper.style}>
-                    <span className="absolute inset-x-3 top-3 text-center text-lg font-bold tracking-tight text-white/90 drop-shadow-sm">9:41</span>
-                    <span className="absolute inset-x-4 top-10 h-1.5 rounded-full bg-white/45" />
-                    <span className="absolute inset-x-3 bottom-8 h-7 rounded-2xl bg-white/35 backdrop-blur-sm" />
-                    <span className="absolute inset-x-3 bottom-3 h-4 rounded-full bg-white/35" />
-                    {isSelected && <span className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white shadow"><Check className="h-4 w-4" /></span>}
-                  </span>
-                  <span className="mt-2 block truncate px-0.5 text-center text-xs font-bold text-[#3a3a3c]">{wallpaper.name}</span>
-                </button>
-                );
-              })}
-            </div>
-          </section>
+          {renderGalleries(false)}
 
         </main>
 
@@ -551,7 +567,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
                   )}
                 </div>
               </div>
-              <div className="h-[calc(94dvh-64px)] overflow-y-auto scroll-smooth bg-[#f2f2f7]">{renderActivePanel()}</div>
+              <div className="h-[calc(94dvh-64px)] overflow-y-auto scroll-smooth bg-[#f2f2f7] pb-[env(safe-area-inset-bottom)]">{renderActivePanel()}</div>
             </section>
           </div>
         )}
@@ -600,7 +616,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
 
       {/* Desktop: the phone layout's language on a wide screen — a rail of the
           same round sections, the open panel beside it, and the page large. */}
-      <div className="hidden min-h-0 flex-1 bg-[#f5f5f7] lg:block" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+      <div className="hidden min-h-0 flex-1 overflow-y-auto bg-[#f5f5f7] lg:block" style={{ fontFamily: 'Tajawal, sans-serif' }}>
         <div className="mx-auto grid h-full max-w-[1400px] grid-cols-[96px_minmax(380px,440px)_minmax(0,1fr)] gap-6 px-6 py-6">
           <nav className="flex flex-col items-center gap-5 pt-2">
             {[
@@ -651,6 +667,10 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
               </button>
             )}
           </section>
+        </div>
+        {/* Note 3: the themes gallery, a calm extension below the editor. */}
+        <div className="mx-auto max-w-[1400px] space-y-8 px-6 pb-10 pt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          {renderGalleries(true)}
         </div>
       </div>
 

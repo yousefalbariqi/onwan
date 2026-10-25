@@ -136,6 +136,8 @@ export interface PageData {
     // Optional exact sizes in pixels; when set they win over the presets.
     namePx?: number;
     bioPx?: number;
+    // Note (9): an uploaded font (stored file + its name); wins over `font`.
+    customFont?: { url: string; name: string };
   };
   customColors?: {
     nameColor?: string;
@@ -442,12 +444,38 @@ export function mergeWithDefaults(candidate?: Partial<PageData> | null): PageDat
   };
 }
 
+// Note (2), 25 Oct 2026: a guest's design (before signing up) lives only in
+// this tab, and only for the page name being signed up for — a new sign-up on
+// the same computer never starts from someone's earlier design.
+function guestDraftKey() {
+  const params = new URLSearchParams(window.location.search);
+  return `${LOCAL_STORAGE_KEY}:guest:${(params.get('username') || '').toLowerCase()}`;
+}
+
+// Leftovers from before accounts were kept apart: a guest draft in the shared
+// storage, and earlier versions filed under a page name. Removed once, freeing
+// the space they took (often megabytes of images).
+function purgeLegacyStorage() {
+  try {
+    const shared = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (shared && JSON.parse(shared)?.owner === 'guest') localStorage.removeItem(LOCAL_STORAGE_KEY);
+    for (let index = localStorage.length - 1; index >= 0; index--) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(HISTORY_KEY_PREFIX) && !key.startsWith(`${HISTORY_KEY_PREFIX}user:`)) localStorage.removeItem(key);
+    }
+  } catch {
+    // storage unavailable: nothing to clean
+  }
+}
+
 function loadLocalPageData() {
   if (typeof window === 'undefined') {
     return defaultPageData;
   }
 
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+  purgeLegacyStorage();
+  const guest = sessionOwner() === 'guest';
+  const saved = guest ? sessionStorage.getItem(guestDraftKey()) : localStorage.getItem(LOCAL_STORAGE_KEY);
 
   if (!saved) {
     return defaultPageData;
@@ -458,7 +486,7 @@ function loadLocalPageData() {
   try {
     const stored = JSON.parse(saved);
     if (!stored || typeof stored !== 'object' || stored.owner !== sessionOwner() || !stored.data) {
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      if (!guest) localStorage.removeItem(LOCAL_STORAGE_KEY);
       return defaultPageData;
     }
     return mergeWithDefaults(stored.data);
@@ -503,7 +531,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
       // Never file one account's page under another session (or the guest).
       if (draftOwner.current !== sessionOwner()) return;
       try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ owner: draftOwner.current, data: pageData }));
+        const record = JSON.stringify({ owner: draftOwner.current, data: pageData });
+        if (draftOwner.current === 'guest') sessionStorage.setItem(guestDraftKey(), record);
+        else localStorage.setItem(LOCAL_STORAGE_KEY, record);
       } catch (error) {
         // Uploaded images can exceed the localStorage quota; the draft still
         // lives in memory until it is saved.
@@ -548,7 +578,15 @@ export function PageProvider({ children, source }: { children: ReactNode; source
           draftOwner.current = sessionOwner();
           const loaded = mergeWithDefaults(response.pageData);
           // REQ-015: unpublished edits saved earlier (from any device) come back.
-          const draft = response.draft?.pageData ? mergeWithDefaults({ ...response.draft.pageData, username: loaded.username }) : null;
+          // Critical note (4): if they never reached the server (offline, closed
+          // within seconds, drafts not enabled yet), this browser's own copy of
+          // the same account is used — edits are never replaced by the old page,
+          // whether or not the email is confirmed yet.
+          const local = draftOwner.current === sessionOwner() && pageDataRef.current !== defaultPageData
+            && JSON.stringify({ ...pageDataRef.current, username: '' }) !== JSON.stringify({ ...loaded, username: '' })
+            ? mergeWithDefaults({ ...pageDataRef.current, username: loaded.username })
+            : null;
+          const draft = response.draft?.pageData ? mergeWithDefaults({ ...response.draft.pageData, username: loaded.username }) : local;
           setPageData(draft ?? loaded);
           setSavedPageData(loaded);
           setSavedHistory(readHistory(sessionOwner()));

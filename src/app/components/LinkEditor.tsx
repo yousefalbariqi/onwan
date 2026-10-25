@@ -35,7 +35,8 @@ import { MAX_LINKS } from '../lib/site';
 // (link, file, text paragraph, heading / section), so nothing new is saved.
 
 type ContentKind = 'link' | 'file' | 'text' | 'group';
-type LinkMode = 'url' | 'whatsapp' | 'email';
+// Note (5): «تواصل اجتماعي» picks a platform (searchable); its logo follows.
+type LinkMode = 'url' | 'social' | 'whatsapp' | 'email';
 type FileCategory = 'cv' | 'menu' | 'other';
 
 type FormState = {
@@ -111,6 +112,9 @@ function detectPlatform(raw: string) {
   return PLATFORM_HOSTS.find(([pattern]) => pattern.test(host))?.[1] ?? 'website';
 }
 
+// Social platforms offered in «تواصل اجتماعي» (WhatsApp and email have their own tabs).
+const SOCIAL_IDS: string[] = SOCIAL_PLATFORMS.map((platform) => platform.id as string).filter((id) => !['file', 'email', 'whatsapp', 'custom', 'website'].includes(id));
+
 const platformName = (id: string) => (id === 'twitter' ? 'X' : SOCIAL_PLATFORMS.find((platform) => platform.id === id)?.name ?? '');
 
 function suggestedTitle(form: FormState) {
@@ -152,7 +156,7 @@ function formFromLink(link: Link, links: Link[]): FormState {
   const sectionId = link.display?.sectionId;
   return {
     kind,
-    mode: link.platform === 'whatsapp' && link.url.startsWith(WHATSAPP_PREFIX) ? 'whatsapp' : link.platform === 'email' && link.url.startsWith('mailto:') ? 'email' : 'url',
+    mode: link.platform === 'whatsapp' && link.url.startsWith(WHATSAPP_PREFIX) ? 'whatsapp' : link.platform === 'email' && link.url.startsWith('mailto:') ? 'email' : SOCIAL_IDS.includes(link.platform || '') ? 'social' : 'url',
     textStyle: link.display?.kind === 'heading' ? 'heading' : 'body',
     title: link.title,
     titleTouched: true,
@@ -287,12 +291,15 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
     return next.titleTouched || next.kind !== 'link' ? next : { ...next, title: suggestedTitle(next) };
   });
 
+  const webMode = (mode: LinkMode) => mode === 'url' || mode === 'social';
   const setLinkMode = (mode: LinkMode) => update({
     mode,
-    platform: mode === 'url' ? detectPlatform(form.url) && form.mode === 'url' ? form.platform : 'website' : mode,
-    url: mode === form.mode ? form.url : '',
+    // Moving between «رابط» and «تواصل اجتماعي» keeps the link and its platform.
+    platform: webMode(mode) ? (webMode(form.mode) ? form.platform : 'website') : mode,
+    url: mode === form.mode || (webMode(mode) && webMode(form.mode)) ? form.url : '',
     display: { ...form.display, kind: undefined },
   });
+  const [platformQuery, setPlatformQuery] = useState('');
 
   const submit = () => {
     if (!isReady(form)) return;
@@ -398,7 +405,8 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
     const query = iconQuery.trim().toLowerCase();
     const library = query
       ? LINK_ICONS.filter((icon) => `${icon.label} ${icon.id}`.toLowerCase().includes(query))
-      : [...new Set([selected, ...suggestions])].filter(Boolean).map((id) => LINK_ICONS.find((icon) => icon.id === id)).filter((icon): icon is (typeof LINK_ICONS)[number] => Boolean(icon));
+      // Note (7): a fixed order — choosing an icon only moves the blue frame, never the icons.
+      : [...new Set([...suggestions, selected])].filter(Boolean).map((id) => LINK_ICONS.find((icon) => icon.id === id)).filter((icon): icon is (typeof LINK_ICONS)[number] => Boolean(icon));
     const platforms = SOCIAL_PLATFORMS.filter((item) => !['file', 'email', 'whatsapp', 'custom'].includes(item.id) && (!query || `${item.name} ${item.id}`.toLowerCase().includes(query)));
     const tile = (active: boolean) => `flex flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 transition-colors ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`;
 
@@ -489,34 +497,49 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
 
   // ——— the form of each kind ———
   const renderLinkFields = () => {
-    const detected = form.mode === 'url' ? detectPlatform(form.url) : null;
-    const youtube = form.mode === 'url' && parseYouTubeVideoSource(form.url);
+    const web = webMode(form.mode);
+    const detected = web ? detectPlatform(form.url) : null;
+    const youtube = web && parseYouTubeVideoSource(form.url);
+    const chosen = SOCIAL_PLATFORMS.find((platform) => platform.id === form.platform);
+    const query = platformQuery.trim().toLowerCase();
+    const platforms = SOCIAL_IDS.map((id) => SOCIAL_PLATFORMS.find((platform) => platform.id === id)!).filter((platform) => !query || `${platform.name} ${platform.id}`.toLowerCase().includes(query));
     return (
       <>
-        <Segmented options={[{ id: 'url', label: 'رابط' }, { id: 'whatsapp', label: 'واتساب' }, { id: 'email', label: 'بريد' }] as const} value={form.mode} onChange={setLinkMode} />
-        <Group title={form.mode === 'whatsapp' ? 'رقم الواتساب' : form.mode === 'email' ? 'البريد الإلكتروني' : 'الرابط'}>
-          {form.mode === 'url' && (
-            <div className="px-4 py-1">
+        <Segmented options={[{ id: 'url', label: 'رابط' }, { id: 'social', label: 'تواصل اجتماعي' }, { id: 'whatsapp', label: 'واتساب' }, { id: 'email', label: 'بريد' }] as const} value={form.mode} onChange={setLinkMode} />
+
+        {/* Note (5): the title first — what visitors read on the button. */}
+        <Group title="العنوان" footer="النص الذي يراه زوارك على الزر.">
+          <div className="px-4 py-1"><input aria-label="عنوان الزر" maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder={form.mode === 'social' && chosen && SOCIAL_IDS.includes(chosen.id) ? platformName(chosen.id) : 'عنوان الزر'} className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+        </Group>
+
+        <Group title={form.mode === 'whatsapp' ? 'رقم الواتساب' : form.mode === 'email' ? 'البريد الإلكتروني' : form.mode === 'social' ? 'رابط الحساب أو القناة' : 'الرابط'}>
+          {web && (
+            <div className="flex items-center gap-2 px-4 py-1">
+              {/* The chosen platform's logo shows beside its link. */}
+              {(form.mode === 'social' || (detected && detected !== 'website')) && <SocialIcon platform={form.platform} iconStyle="color" className="h-5 w-5 shrink-0" />}
               <input
                 type="url"
                 dir="ltr"
                 inputMode="url"
-                autoFocus={!form.url}
+                autoFocus={!form.url && form.mode === 'url'}
                 aria-label="الرابط"
                 value={form.url}
                 onChange={(event) => {
                   const url = event.target.value;
-                  const platform = detectPlatform(url) ?? 'website';
+                  // A known address sets its platform; otherwise a chosen platform stays.
+                  const found = detectPlatform(url);
+                  const platform = found && found !== 'website' ? found : form.mode === 'social' && SOCIAL_IDS.includes(form.platform) ? form.platform : found ?? 'website';
                   // A YouTube video stays a link unless chosen to play inside the page.
                   update({ url, platform, display: { ...form.display, kind: form.display.kind === 'video' && parseYouTubeVideoSource(url) ? 'video' : undefined }, customIcon: ICON_PLATFORMS.includes(platform) ? form.customIcon : '' });
                 }}
-                placeholder="الصق الرابط هنا"
-                className="w-full bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-right placeholder:text-[#c7c7cc] focus:outline-none"
+                placeholder={form.mode === 'social' && chosen?.placeholder && SOCIAL_IDS.includes(chosen.id) ? chosen.placeholder : 'الصق الرابط هنا'}
+                className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-right placeholder:text-[#c7c7cc] focus:outline-none"
               />
             </div>
           )}
           {form.mode === 'whatsapp' && (
             <label className="flex min-h-[48px] items-center gap-2 px-4" dir="ltr">
+              <SocialIcon platform="whatsapp" iconStyle="color" className="h-5 w-5 shrink-0" />
               <span className="text-[16px] text-[#8e8e93]">+966</span>
               <input type="tel" inputMode="numeric" aria-label="رقم الواتساب" autoFocus value={form.url.startsWith(WHATSAPP_PREFIX) ? form.url.slice(WHATSAPP_PREFIX.length) : ''} onChange={(event) => {
                 const digits = event.target.value.replace(/\D/g, '').replace(/^(966|0)/, '').slice(0, 9);
@@ -525,14 +548,15 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
             </label>
           )}
           {form.mode === 'email' && (
-            <div className="px-4 py-1">
-              <input type="email" inputMode="email" dir="ltr" aria-label="البريد الإلكتروني" autoFocus value={form.url.replace(/^mailto:/i, '')} onChange={(event) => {
+            <div className="flex items-center gap-2 px-4 py-1" dir="ltr">
+              <SocialIcon platform="email" iconStyle="color" className="h-5 w-5 shrink-0" />
+              <input type="email" inputMode="email" aria-label="البريد الإلكتروني" autoFocus value={form.url.replace(/^mailto:/i, '')} onChange={(event) => {
                 const address = event.target.value.trim();
                 update({ url: address ? `mailto:${address}` : '' });
-              }} placeholder="name@example.com" className="w-full bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
+              }} placeholder="name@example.com" className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
             </div>
           )}
-          {detected && detected !== 'website' && (
+          {form.mode === 'url' && detected && detected !== 'website' && (
             <p className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-[#1f8a3b]"><Check className="h-4 w-4" />تعرّفنا على {platformName(detected)} وأضفنا شعاره</p>
           )}
           {youtube && (
@@ -541,11 +565,33 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
               <input type="checkbox" checked={form.display.kind === 'video'} onChange={(event) => update({ display: { ...form.display, kind: event.target.checked ? 'video' : undefined, layout: undefined } })} className="h-5 w-5 accent-[#0a84ff]" />
             </label>
           )}
-          {form.mode === 'url' && !!form.url && form.display.kind === 'video' && !youtube && <p role="alert" className="px-4 py-2 text-xs text-[#ff3b30]">ضع رابط فيديو يوتيوب محدد، وليس رابط قناة.</p>}
+          {web && !!form.url && form.display.kind === 'video' && !youtube && <p role="alert" className="px-4 py-2 text-xs text-[#ff3b30]">ضع رابط فيديو يوتيوب محدد، وليس رابط قناة.</p>}
         </Group>
-        <Group title="العنوان" footer="النص الذي يراه زوارك على الزر.">
-          <div className="px-4 py-1"><input aria-label="عنوان الزر" maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="عنوان الزر" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
-        </Group>
+
+        {/* Note (5): the platform — chosen and searchable in «تواصل اجتماعي»; never required for a plain link. */}
+        {form.mode === 'social' && (
+          <Group title="المنصة" footer="يظهر شعارها على الزر تلقائيًا، ويمكنك تغيير الأيقونة من الأسفل.">
+            <div className="space-y-3 p-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8e8e93]" />
+                <input type="search" aria-label="ابحث عن منصة" placeholder="ابحث: يوتيوب، سناب، تيك توك…" value={platformQuery} onChange={(event) => setPlatformQuery(event.target.value)} className="h-10 w-full rounded-xl bg-[#f2f2f7] pl-3 pr-9 text-sm focus:outline-none" />
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {platforms.map((platform) => {
+                  const active = form.platform === platform.id;
+                  return (
+                    <button key={platform.id} type="button" aria-pressed={active} onClick={() => update({ platform: platform.id, customIcon: '' })} className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
+                      <SocialIcon platform={platform.id} iconStyle="color" className="h-6 w-6" />
+                      <span className="max-w-full truncate text-[10px] text-[#3a3a3c]">{platformName(platform.id)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {!platforms.length && <p className="py-2 text-center text-xs text-[#6e6e73]">لا توجد منصة بهذا الاسم. استخدم «رابط» لأي موقع آخر.</p>}
+            </div>
+          </Group>
+        )}
+
         {form.display.kind !== 'video' && renderIconChooser()}
         <Advanced>
           {englishTitle}
@@ -736,6 +782,11 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
                             <span className="block truncate text-xs text-[#8e8e93]">{itemSubtitle(link, links)}</span>
                           </span>
                         </button>
+                        {/* Note (8): one step up or down per tap; dragging still works. */}
+                        <span className="flex shrink-0 flex-col">
+                          <button type="button" disabled={index <= 0} onClick={() => moveLink(link.id, 'up')} aria-label={`نقل «${link.title}» للأعلى`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#3a3a3c] active:bg-[#f2f2f7] disabled:text-[#d1d1d6]"><ArrowUp className="h-4 w-4" /></button>
+                          <button type="button" disabled={index === siblings.length - 1} onClick={() => moveLink(link.id, 'down')} aria-label={`نقل «${link.title}» للأسفل`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#3a3a3c] active:bg-[#f2f2f7] disabled:text-[#d1d1d6]"><ArrowDown className="h-4 w-4" /></button>
+                        </span>
                         <button type="button" onClick={() => updateLink(link.id, { hidden: !link.hidden })} aria-label={link.hidden ? `إظهار «${link.title}»` : `إخفاء «${link.title}» دون حذفه`} className="flex h-11 w-10 shrink-0 items-center justify-center rounded-full text-[#8e8e93] active:bg-[#f2f2f7]">
                           {link.hidden ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                         </button>
@@ -744,17 +795,15 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
                         </button>
                       </div>
                       {showActions && (
-                        <div className="grid grid-cols-3 gap-2 px-3 pb-3">
-                          <button type="button" disabled={index <= 0} onClick={() => moveLink(link.id, 'up')} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#f2f2f7] text-sm font-bold text-[#1d1d1f] disabled:opacity-35"><ArrowUp className="h-4 w-4" />لأعلى</button>
-                          <button type="button" disabled={index === siblings.length - 1} onClick={() => moveLink(link.id, 'down')} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#f2f2f7] text-sm font-bold text-[#1d1d1f] disabled:opacity-35"><ArrowDown className="h-4 w-4" />لأسفل</button>
-                          <button type="button" onClick={() => deleteItem(link)} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#ff3b30]/10 text-sm font-bold text-[#ff3b30]"><Trash2 className="h-4 w-4" />حذف</button>
+                        <div className="px-3 pb-3">
+                          <button type="button" onClick={() => deleteItem(link)} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-[#ff3b30]/10 text-sm font-bold text-[#ff3b30]"><Trash2 className="h-4 w-4" />حذف</button>
                         </div>
                       )}
                     </div>
                   );
                 })}
               </div>
-              <p className="mt-1.5 px-4 text-xs leading-5 text-[#8e8e93]">اضغط على أي عنصر لتعديله، واسحبه من المقبض لتغيير ترتيبه. العين تخفيه عن الزوار دون حذفه.</p>
+              <p className="mt-1.5 px-4 text-xs leading-5 text-[#8e8e93]">اضغط على أي عنصر لتعديله، ورتّبه بالسهمين ↑↓ أو اسحبه من المقبض. العين تخفيه عن الزوار دون حذفه.</p>
             </section>
           )}
         </>

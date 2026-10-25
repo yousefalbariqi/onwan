@@ -17,10 +17,16 @@ export const MEDIA_FILE_TYPES: Record<string, string> = {
   'image/webp': 'webp',
   'image/gif': 'gif',
   'application/pdf': 'pdf',
+  // Note (9): a custom font for the page.
+  'font/ttf': 'ttf',
+  'font/otf': 'otf',
+  'font/woff2': 'woff2',
+  'font/woff': 'woff',
 };
 // REQ-001/002: PDFs allow 10 MiB; stored images allow 1,000 KB (decimal).
 export const MAX_MEDIA_FILE_BYTES = 1_000_000;
 export const MAX_PDF_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_FONT_FILE_BYTES = 2 * 1024 * 1024;
 
 export default async function handler(req: any, res: any) {
   if (!allowMethods(req, res, ['POST'])) return;
@@ -40,8 +46,9 @@ export default async function handler(req: any, res: any) {
     const type = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
     const extension = MEDIA_FILE_TYPES[type];
     if (!extension) throw new HttpError(400, 'المسموح: الصور وملفات PDF فقط.');
-    const maxBytes = type === 'application/pdf' ? MAX_PDF_FILE_BYTES : MAX_MEDIA_FILE_BYTES;
-    const sizeError = type === 'application/pdf' ? 'حجم ملف PDF أكبر من 10MB.' : 'حجم الصورة بعد الضغط أكبر من 1,000KB.';
+    const isFont = type.startsWith('font/');
+    const maxBytes = type === 'application/pdf' ? MAX_PDF_FILE_BYTES : isFont ? MAX_FONT_FILE_BYTES : MAX_MEDIA_FILE_BYTES;
+    const sizeError = type === 'application/pdf' ? 'حجم ملف PDF أكبر من 10MB.' : isFont ? 'ملف الخط أكبر من 2MB.' : 'حجم الصورة بعد الضغط أكبر من 1,000KB.';
     if (Number(req.headers['content-length']) > maxBytes) throw new HttpError(413, sizeError);
     const declared = Number(req.headers['content-length']);
     const eventId = await beginMediaUpload(user.id, Number.isSafeInteger(declared) && declared > 0 ? declared : maxBytes);

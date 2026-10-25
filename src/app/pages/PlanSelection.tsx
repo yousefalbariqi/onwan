@@ -426,7 +426,7 @@ export default function PlanSelection() {
       </div>
 
       {!isActive && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-white/95 px-4 py-3 shadow-[0_-8px_28px_rgba(0,0,0,0.1)] backdrop-blur lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-white/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_28px_rgba(0,0,0,0.1)] backdrop-blur lg:hidden">
           <div className="mx-auto flex max-w-xl items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] text-[#6e6e73]">الإجمالي</p>

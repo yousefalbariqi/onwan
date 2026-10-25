@@ -27,6 +27,7 @@ type RequestOptions = {
 export type Plan = 'monthly' | 'annual';
 
 export type Account = {
+  kind?: 'standard' | 'nonprofit';
   email: string;
   phone: string;
   emailVerified: boolean;
@@ -118,7 +119,7 @@ export function checkUsername(username: string) {
   }>(`/api/username/check?username=${encodeURIComponent(username)}`);
 }
 
-export function signup(input: { username: string; phone: string; email: string; password: string }) {
+export function signup(input: { username: string; phone: string; email: string; password: string; nonprofit?: boolean }) {
   const partnerRef = sessionStorage.getItem('onwan_partner_ref');
   return request<AuthResponse>('/api/auth/signup', { method: 'POST', body: { ...input, partnerRef, turnstileToken: takeTurnstileToken() } }).then(response => {
     sessionStorage.removeItem('onwan_partner_ref');
@@ -206,4 +207,8 @@ export function accountCall<T = any>(action: string, params: Record<string, unkn
 
 export function sendSupportRequest(type: RequestType, message: string) {
   return accountCall<{ message: string }>('request.send', { type, message });
+}
+
+export function nonprofitCall<T = any>(body?: Record<string, unknown>) {
+  return request<T>('/api/nonprofit', { method: body ? 'POST' : 'GET', authenticated: true, body });
 }

@@ -64,6 +64,10 @@ test('real dist assets serve landing and SPA routes while API navigation stays J
       const response = await mf.dispatchFetch(`https://onwan.link${route}`, navigate);
       const html = await response.text(); assert.equal(response.status, 200, `${route}: ${html}`); assert.match(html, /id="root"/, route);
     }
+    const nonprofit = await mf.dispatchFetch('https://nonprofit.onwan.link/', { ...navigate, redirect: 'manual' });
+    assert.equal(nonprofit.status, 200, 'nonprofit root must not redirect index.html back to itself');
+    assert.equal(nonprofit.headers.get('Location'), null);
+    assert.match(await nonprofit.text(), /id="root"/);
     const missing = await mf.dispatchFetch('https://onwan.link/api/nope', navigate);
     assert.equal(missing.status, 404); assert.match(missing.headers.get('Content-Type'), /json/);
     const js = fs.readdirSync('dist/assets').find(name => /^index-.*\.js$/.test(name));

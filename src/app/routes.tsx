@@ -1,9 +1,11 @@
+import { NonprofitAuth, NonprofitAccount, NonprofitBuilder, NonprofitQuote } from './pages/NonprofitPortal';
 import PartnerOrderEditor from './partner/PartnerOrderEditor';
 import PartnerSale from './partner/PartnerSale';
 import PartnerStorefront from './partner/PartnerStorefront';
 import { createBrowserRouter, Navigate, Outlet, useRouteError, useNavigate } from 'react-router';
 import { PageProvider } from './context/PageContext';
 import Landing from './pages/Landing';
+import NonprofitLanding from './pages/NonprofitLanding';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
@@ -16,12 +18,13 @@ import AdminApp from './admin/AdminApp';
 import StaffPageEditor from './admin/StaffPageEditor';
 import PartnerPortal from './partner/PartnerPortal';
 import { PartnerApply, PayOrder, Welcome } from './partner/PartnerPublic';
-import { getCustomHost, getSubdomainUsername } from './lib/site';
+import { getCustomHost, getSubdomainUsername, isNonprofitHost } from './lib/site';
 import { Home } from 'lucide-react';
 
 // On name.onwan.link — or on the entity's own domain (DOMAIN-03) — the root
 // path is that entity's public page; on the main domain it is the landing page.
 function RootPage() {
+  if (isNonprofitHost()) return <NonprofitLanding />;
   return getSubdomainUsername() || getCustomHost() ? <PublicPage /> : <Landing />;
 }
 
@@ -81,7 +84,18 @@ function NotFound() {
   );
 }
 
-export const router = createBrowserRouter([
+export const router = createBrowserRouter(isNonprofitHost() ? [
+  { path: '/', element: <PageProvider><Outlet /></PageProvider>, errorElement: <ErrorBoundary />, children: [
+    { index: true, element: <NonprofitLanding /> },
+    { path: 'signup', element: <NonprofitAuth mode="signup" /> },
+    { path: 'login', element: <NonprofitAuth mode="login" /> },
+    { path: 'reset-password', element: <ResetPassword /> },
+    { path: 'account', element: <NonprofitAccount /> },
+    { path: 'builder', element: <NonprofitBuilder /> },
+    { path: 'quote', element: <NonprofitQuote /> },
+  ] },
+  { path: '*', element: <Navigate to="/" replace /> },
+] : [
   {
     path: '/',
     element: (
@@ -95,6 +109,17 @@ export const router = createBrowserRouter([
         element: <RootPage />,
       },
       {
+        path: 'nonprofit',
+        element: <NonprofitLanding />,
+      },
+      {
+        path: 'nonprofit/signup', element: <NonprofitAuth mode="signup" />,
+      }, { path: 'nonprofit/login', element: <NonprofitAuth mode="login" />,
+      }, { path: 'nonprofit/account', element: <NonprofitAccount />,
+      }, { path: 'nonprofit/builder', element: <NonprofitBuilder />,
+      }, { path: 'nonprofit/quote', element: <NonprofitQuote />,
+      }, { path: 'nonprofit/reset-password', element: <ResetPassword />,
+      }, {
         path: 'signup',
         element: <Signup />,
       },

@@ -12,6 +12,10 @@ export const USERNAME_PATTERN = /^(?=.{1,30}$)(?!.*--)[a-z0-9]([a-z0-9-]*[a-z0-9
 
 export const MAX_LINKS = 30;
 
+export function isNonprofitHost() {
+  return typeof window !== 'undefined' && window.location.hostname.toLowerCase() === `nonprofit.${ROOT_DOMAIN}`;
+}
+
 export function pageHost(username: string) {
   return `${username}.${ROOT_DOMAIN}`;
 }
@@ -35,7 +39,7 @@ export function getSubdomainUsername() {
 
   const label = host.slice(0, -suffix.length);
 
-  return label && label !== 'www' && USERNAME_PATTERN.test(label) ? label : null;
+  return label && label !== 'www' && label !== 'nonprofit' && USERNAME_PATTERN.test(label) ? label : null;
 }
 
 // DOMAIN-03: the hostname when the app is opened on an entity's own domain

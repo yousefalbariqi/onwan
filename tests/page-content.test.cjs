@@ -505,3 +505,14 @@ test('REQ-023: Stream videos — owner-bound uploads, ready only with the MP4, f
     global.fetch = realFetch;
   }
 });
+
+test('note (9): a custom font is only a stored font file and a plain name', async () => {
+  const hash = 'b'.repeat(64);
+  const service = api();
+  await assert.rejects(() => service.savePageData('owner', { typography: { customFont: { url: 'https://evil.example/x.woff2', name: 'x' } } }), { status: 400 });
+  await assert.rejects(() => service.savePageData('owner', { typography: { customFont: { url: `/media/files/owner/${hash}.png`, name: 'x' } } }), { status: 400 });
+  await service.savePageData('owner', { typography: { customFont: { url: `/media/files/owner/${hash}.woff2`, name: 'خطي"; } body{display:none' } } });
+  const { sniffFileType } = loadShared('shared/fileSignatures.ts');
+  assert.equal(sniffFileType(new TextEncoder().encode('wOF2xxxx')), 'font/woff2');
+  assert.equal(sniffFileType(new Uint8Array([0, 1, 0, 0, 0, 0])), 'font/ttf');
+});

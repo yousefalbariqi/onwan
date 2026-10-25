@@ -1,3 +1,4 @@
+import { Nonprofits } from './Nonprofits';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { LogOut } from 'lucide-react';
@@ -12,9 +13,10 @@ import { AuditLog, DiscountCodes, Prices, StaffAdmin } from './Settings';
 import { Button, ErrorNote, Field, inputClass } from './ui';
 import { PasswordInput } from '../components/PasswordInput';
 
-type Section = 'customers' | 'partners' | 'reviews' | 'requests' | 'reports' | 'design' | 'nfc' | 'domains' | 'prices' | 'figures' | 'staff' | 'audit';
+type Section = 'nonprofits' | 'customers' | 'partners' | 'reviews' | 'requests' | 'reports' | 'design' | 'nfc' | 'domains' | 'prices' | 'figures' | 'staff' | 'audit';
 
 const SECTIONS: { id: Section; label: string; managerOnly?: boolean }[] = [
+  { id: 'nonprofits', label: 'الجمعيات' },
   { id: 'customers', label: 'العملاء' },
   { id: 'partners', label: 'الشركاء' },
   { id: 'reviews', label: 'مراجعة المحتوى' },
@@ -77,7 +79,7 @@ function StaffLogin({ onLogin }: { onLogin: (staff: StaffMember) => void }) {
 export default function AdminApp() {
   const [staff, setStaff] = useState<StaffMember | null>(null);
   const [checking, setChecking] = useState(Boolean(getStaffToken()));
-  const [section, setSection] = useState<Section>('customers');
+  const [section, setSection] = useState<Section>(() => new URLSearchParams(window.location.search).get('section') === 'nonprofits' ? 'nonprofits' : 'customers');
   // ?customer=<id> reopens a customer after returning from the page editor.
   const [searchParams] = useSearchParams();
   const [customerId, setCustomerId] = useState<string | null>(searchParams.get('customer'));
@@ -159,6 +161,7 @@ export default function AdminApp() {
           ) : (
             <Customers onOpen={setCustomerId} />
           ))}
+        {section === 'nonprofits' && <Nonprofits />}
         {section === 'partners' && <Partners staff={staff} onOpenCustomer={openCustomer} />}
         {section === 'reviews' && <Reviews onOpen={openCustomer} />}
         {section === 'requests' && <Requests onOpen={openCustomer} />}

@@ -29,3 +29,17 @@ export function loadFont(id: string | undefined) {
   loaded.add(id);
   LOADERS[id as FontId]().catch(() => loaded.delete(id));
 }
+
+// Note (9): an uploaded font, registered once per file under a safe family
+// name derived from its link (never from user text).
+const customLoaded = new Map<string, string>();
+export function customFontFamily(url: string) {
+  return `onwan-font-${url.replace(/[^a-z0-9]/gi, '').slice(-16)}`;
+}
+export function loadCustomFont(url: string | undefined) {
+  if (!url || customLoaded.has(url) || typeof document === 'undefined') return;
+  const family = customFontFamily(url);
+  customLoaded.set(url, family);
+  const face = new FontFace(family, `url(${JSON.stringify(url)})`);
+  face.load().then((loadedFace) => document.fonts.add(loadedFace)).catch(() => customLoaded.delete(url));
+}

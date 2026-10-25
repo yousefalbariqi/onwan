@@ -11,6 +11,8 @@ export function normalizeUsername(value: string) {
 export function validateUsername(username: string) {
   const normalized = normalizeUsername(username);
 
+  if (normalized === 'nonprofit') return { valid: false, normalized, reason: 'هذا الاسم محجوز لبوابة الجمعيات الخيرية.' };
+
   if (!USERNAME_PATTERN.test(normalized)) {
     return {
       valid: false,

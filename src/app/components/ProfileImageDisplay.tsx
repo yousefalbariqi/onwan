@@ -23,7 +23,8 @@ export function ProfileImageDisplay({
   const imageStyle = {
     objectFit: fit,
     objectPosition: `${profileStyle.positionX ?? 50}% ${profileStyle.positionY ?? 50}%`,
-    transform: fit === 'cover' ? `scale(${Math.min(3, Math.max(1, profileStyle.zoom ?? 1))})` : undefined,
+    // Note (10): zoom works in both fits; a whole logo can still be enlarged by hand.
+    transform: (profileStyle.zoom ?? 1) > 1 ? `scale(${Math.min(3, profileStyle.zoom ?? 1)})` : undefined,
     transformOrigin: `${profileStyle.positionX ?? 50}% ${profileStyle.positionY ?? 50}%`,
   };
   const isHeroFillStyle = profileStyle.type === 'hero';

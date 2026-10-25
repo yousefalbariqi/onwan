@@ -134,6 +134,23 @@
     scroll-behavior: smooth;
   }
 
+  /* Note (1): the page reaches the screen edges (viewport-fit=cover); its
+     content keeps clear of the notch, the status bar and the home indicator.
+     The colour outside is set by EdgeColors to match the page. */
+  #root {
+    min-height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    box-sizing: border-box;
+  }
+  /* A «full screen» page fills what is left inside the safe areas, so it
+     does not scroll by the height of the notch and the home indicator. */
+  #root .min-h-screen {
+    min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+
   /**
   * Default typography styles for HTML elements (h1-h4, p, label, button, input).
   * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.

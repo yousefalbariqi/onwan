@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { TurnstileBox } from '../lib/turnstile';
+import { TurnstileBox, useHumanOk } from '../lib/turnstile';
 import { Link } from 'react-router';
 import { Copy, LogOut, Plus, ArrowLeft, Pencil } from 'lucide-react';
 import { BRAND_NAME, ROOT_DOMAIN } from '../lib/site';
@@ -32,6 +32,7 @@ function CopyLink({ link }: { link: string }) {
 // Note 54: partners sign in with a code sent to their email; a partner who
 // already has a password may still use it.
 function PartnerLogin({ onLogin }: { onLogin: (partner: PartnerAccount) => void }) {
+  const humanOk = useHumanOk();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -69,7 +70,7 @@ function PartnerLogin({ onLogin }: { onLogin: (partner: PartnerAccount) => void 
         {sent && method === 'code' && <p className="px-1 text-[13px] text-[#1f7a35]">{sent}</p>}
         <TurnstileBox />
         <ErrorNote message={action.error} />
-        <button type="submit" disabled={action.busy || !email || (method === 'password' ? !password : Boolean(sent) && code.length !== 4)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+        <button type="submit" disabled={action.busy || !humanOk || !email || (method === 'password' ? !password : Boolean(sent) && code.length !== 4)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
           {action.busy ? 'لحظات…' : method === 'password' || sent ? 'دخول' : 'أرسل رمز الدخول'}
         </button>
         <div className="flex items-center justify-between px-1 text-[15px]">

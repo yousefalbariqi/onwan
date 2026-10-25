@@ -56,6 +56,7 @@ export default async function handler(req: any, res: any) {
       );
 
       userId = userResult.rows[0].id;
+      if (body.nonprofit === true) await client.query("update users set account_kind='nonprofit' where id=$1", [userId]);
 
       // NEW-01 (amended): the name is held, not fixed — it becomes the
       // beneficiary's for good when the payment is confirmed.

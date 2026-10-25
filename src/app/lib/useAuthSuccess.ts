@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router';
 import { usePageContext } from '../context/PageContext';
 import { AuthResponse } from './api';
+import { isNonprofitHost } from './site';
 import { sessionOwner, setSessionToken } from './session';
 
 // Shared tail of signup / login / password reset: store the session, load the
@@ -21,6 +22,6 @@ export function useAuthSuccess(options: { keepDraft?: boolean } = {}) {
     if (keepDraft) restoreDraft({ ...draft, username: response.pageData.username ?? draft.username });
     setAccount(response.account);
     setAuthenticated(true);
-    navigate('/builder', { replace: true });
+    navigate(isNonprofitHost() ? '/account' : response.account?.kind === 'nonprofit' ? '/nonprofit/account' : '/builder', { replace: true });
   };
 }

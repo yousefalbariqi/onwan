@@ -1,3 +1,4 @@
+import { nonprofitPath } from '../lib/nonprofit';
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { ArrowRight, Loader2 } from 'lucide-react';
@@ -5,13 +6,14 @@ import { login, signup } from '../lib/api';
 import { pageHost } from '../lib/site';
 import { useAuthSuccess } from '../lib/useAuthSuccess';
 import { PasswordInput } from './PasswordInput';
-import { TurnstileBox } from '../lib/turnstile';
+import { TurnstileBox, useTurnstile } from '../lib/turnstile';
 
 type AuthMode = 'signup' | 'login';
 type Field = 'phone' | 'email' | 'password' | 'identifier';
 
 interface AuthModalProps {
   mode: AuthMode;
+  nonprofit?: boolean;
   username?: string;
   // Opened over the editor: keep the guest's design, and offer the other mode in place.
   inEditor?: boolean;
@@ -31,10 +33,11 @@ function fieldOf(message: string, isSignup: boolean): Field | null {
 // visitor, and cannot be closed to keep editing: the account comes first. One
 // grouped card of fields, a short error under the field it concerns, one
 // button. After signup the editor opens on the chosen page name.
-export default function AuthModal({ mode: initialMode, username, inEditor = false }: AuthModalProps) {
+export default function AuthModal({ mode: initialMode, username, inEditor = false, nonprofit = false }: AuthModalProps) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const onSuccess = useAuthSuccess();
+  const [nonprofitUsername, setNonprofitUsername] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [identifier, setIdentifier] = useState('');
@@ -42,6 +45,8 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<Field | 'form', string>>>({});
   const isSignup = mode === 'signup';
+  const human = useTurnstile();
+  const humanOk = human.status === 'off' || human.status === 'ready';
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -59,7 +64,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
       setLoading(true);
 
       if (isSignup) {
-        onSuccess(await signup({ username: username || '', phone, email, password }), { keepDraft: inEditor });
+        onSuccess(await signup({ username: nonprofit ? nonprofitUsername : username || '', phone, email, password, ...(nonprofit ? { nonprofit: true } : {}) }), { keepDraft: inEditor });
       } else {
         onSuccess(await login(identifier, password), { keepDraft: false });
       }
@@ -72,7 +77,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
   };
 
   const clear = (field: Field) => setErrors((current) => (current[field] || current.form ? { ...current, [field]: undefined, form: undefined } : current));
-  const ready = isSignup ? Boolean(phone && email && password) : Boolean(identifier && password);
+  const ready = isSignup ? Boolean(phone && email && password && (!nonprofit || nonprofitUsername)) : Boolean(identifier && password);
 
   return (
     // Note 58: centred on every screen. The overlay itself scrolls, so with
@@ -90,7 +95,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
       >
         {/* Outside the editor the visitor may go back; in it the account comes first (note 50). */}
         {!inEditor && (
-          <button type="button" onClick={() => navigate(username ? `/?username=${encodeURIComponent(username)}` : '/')} className="absolute right-4 top-4 flex h-9 items-center gap-1 rounded-full px-2 text-[15px] text-[#0a84ff]">
+          <button type="button" onClick={() => navigate(nonprofit ? nonprofitPath() : username ? `/?username=${encodeURIComponent(username)}` : '/')} className="absolute right-4 top-4 flex h-9 items-center gap-1 rounded-full px-2 text-[15px] text-[#0a84ff]">
             <ArrowRight className="h-4 w-4" />رجوع
           </button>
         )}
@@ -109,6 +114,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
           <div className="overflow-hidden rounded-2xl bg-white">
             {isSignup ? (
               <>
+                {nonprofit && <Row label="الرابط المطلوب"><input value={nonprofitUsername} onChange={e => setNonprofitUsername(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="اسم بالإنجليزية" maxLength={30} className={inputClass} dir="ltr" /></Row>}
                 <Row label="الجوال" error={errors.phone}>
                   <input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => { setPhone(e.target.value.replace(/[^0-9]/g, '')); clear('phone'); }} placeholder="05XXXXXXXX" maxLength={20} autoFocus aria-invalid={Boolean(errors.phone)} className={inputClass} dir="ltr" />
                 </Row>
@@ -136,7 +142,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
 
           <button
             type="submit"
-            disabled={loading || !ready}
+            disabled={loading || !ready || !humanOk}
             className="mt-5 flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
@@ -147,12 +153,12 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
         {isSignup ? (
           <p className="mt-4 text-center text-[15px] text-[#6e6e73]">
             لديك حساب؟{' '}
-            <button type="button" onClick={() => (inEditor ? (setErrors({}), setMode('login')) : navigate('/?auth=login'))} className="font-bold text-[#0a84ff]">سجّل الدخول</button>
+            <button type="button" onClick={() => (inEditor || nonprofit ? (setErrors({}), setMode('login')) : navigate('/?auth=login'))} className="font-bold text-[#0a84ff]">سجّل الدخول</button>
           </p>
         ) : (
           <div className="mt-4 flex items-center justify-between px-1 text-[15px]">
-            <Link to="/reset-password" className="text-[#0a84ff]">نسيت كلمة المرور؟</Link>
-            {inEditor && initialMode === 'signup' ? (
+            <Link to={nonprofit && !window.location.hostname.startsWith('nonprofit.') ? '/nonprofit/reset-password' : '/reset-password'} className="text-[#0a84ff]">نسيت كلمة المرور؟</Link>
+            {(inEditor && initialMode === 'signup') || nonprofit ? (
               <button type="button" onClick={() => { setErrors({}); setMode('signup'); }} className="font-bold text-[#0a84ff]">إنشاء حساب جديد</button>
             ) : (
               <Link to="/?focus=name" className="font-bold text-[#0a84ff]">إنشاء حساب جديد</Link>

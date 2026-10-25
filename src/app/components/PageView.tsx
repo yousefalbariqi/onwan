@@ -2,7 +2,7 @@ import { sectionBlocks, visibleSectionItems } from '../../../shared/linkSections
 import { ReactNode, useEffect } from 'react';
 import { FONT_OPTIONS, Link, PageData } from '../context/PageContext';
 import { pageHost } from '../lib/site';
-import { loadFont } from '../lib/fonts';
+import { customFontFamily, loadCustomFont, loadFont } from '../lib/fonts';
 import { SectionLayout } from './SectionLayout';
 import { VideoBlock } from './VideoBlock';
 import { VideoBackground } from './VideoBackground';
@@ -80,7 +80,11 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
   const bio = english?.bio || data.bio;
   const isPublic = variant === 'public';
   const isHeroLayout = data.profileStyle.type === 'hero' || data.profileStyle.type === 'hero_safe';
-  const fontFamily = (FONT_OPTIONS.find((font) => font.id === data.typography?.font) ?? FONT_OPTIONS[0]).family;
+  const builtInFamily = (FONT_OPTIONS.find((font) => font.id === data.typography?.font) ?? FONT_OPTIONS[0]).family;
+  // Note (9): an uploaded font, with the chosen built-in one as its fallback.
+  const customFont = data.typography?.customFont?.url;
+  useEffect(() => loadCustomFont(customFont), [customFont]);
+  const fontFamily = customFont ? `${customFontFamily(customFont)}, ${builtInFamily}` : builtInFamily;
   useEffect(() => loadFont(data.typography?.font), [data.typography?.font]);
   // nameSize / bioSize override the shared size for each text.
   const textSize = data.typography?.size ?? 'medium';

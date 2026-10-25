@@ -5,16 +5,17 @@ import { EndsSlider, Group, Panel, VerticalSlider } from './ios';
 import { extractColorsFromImage } from '../utils/colorExtractor';
 import { ProfileImageControls } from './ProfileImageControls';
 import { ProfileImageDisplay } from './ProfileImageDisplay';
+import { ImageProblem, compressImage } from '../lib/compressImage';
 
-// Uploaded images are stored inline for now; final limits are pending (P-02).
-// The source may be larger than what is stored: cropping re-encodes it small.
-const MAX_SOURCE_SIZE = 8 * 1024 * 1024;
-const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+// The stored logo must fit the server limit (1,000 KB); compressImage does that.
+
+const MAX_IMAGE_SIZE = 1_000_000;
 
 export function HeaderEditor() {
   const { pageData, updatePageData, updateProfileStyle } = usePageContext();
   const style = pageData.profileStyle;
-  const canAdjust = Boolean(pageData.profileImage) && (style.fit ?? (style.type === 'hero_safe' ? 'contain' : 'cover')) === 'cover';
+  // Zoom and position stay at hand in both «تظهر كاملة» and «تملأ الشكل» (note 10).
+  const canAdjust = Boolean(pageData.profileImage);
   const [imageError, setImageError] = useState('');
 
   // The builder mounts this editor twice (mobile and desktop layouts), so a
@@ -26,11 +27,14 @@ export function HeaderEditor() {
 
     // A data URL is about 4/3 the size of the file it carries.
     if (imageUrl.length * 0.75 > MAX_IMAGE_SIZE) {
-      setImageError('حجم الصورة كبير. الحد الأقصى 2MB — جرّب صورة بحجم أصغر.');
+      setImageError('تعذّر تصغير الصورة بما يكفي. جرّب صورة أبسط.');
       return;
     }
 
     updatePageData({ profileImage: imageUrl });
+    // Note (10): a new logo starts whole — no zoom or framing left over from
+    // the previous picture; «تملأ الشكل» and the sliders stay available.
+    updateProfileStyle({ fit: 'contain', zoom: 1, positionX: 50, positionY: 50 });
 
     // استخراج الألوان من الصورة
     const colors = await extractColorsFromImage(imageUrl, 8);
@@ -48,35 +52,13 @@ export function HeaderEditor() {
           accept="image/png,image/jpeg,image/webp,image/gif"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            // Allow picking the same file again after cancelling the crop.
             e.target.value = '';
-            if (file && file.size > MAX_SOURCE_SIZE) {
-              setImageError('حجم الصورة كبير جدًا. الحد الأقصى 8MB.');
-              return;
-            }
+            if (!file) return;
             setImageError('');
-            if (file) {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const source = reader.result as string;
-                if (file.size <= MAX_IMAGE_SIZE) { void applyProfileImage(source); return; }
-                const image = new Image();
-                image.onerror = () => setImageError('تعذّر فتح الصورة. جرّب صورة أخرى.');
-                image.onload = () => {
-                  const scale = Math.min(1, 1600 / Math.max(image.width, image.height));
-                  const canvas = document.createElement('canvas');
-                  canvas.width = Math.max(1, Math.round(image.width * scale));
-                  canvas.height = Math.max(1, Math.round(image.height * scale));
-                  const context = canvas.getContext('2d');
-                  if (!context) { setImageError('تعذّر تجهيز الصورة. حاول مجددًا.'); return; }
-                  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-                  void applyProfileImage(canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.85));
-                };
-                image.src = source;
-              };
-              reader.onerror = () => setImageError('تعذّر قراءة الملف. حاول مجددًا.');
-              reader.readAsDataURL(file);
-            }
+            // Note (6)/(10): up to 10 MB in, made small automatically (the server takes 1,000 KB).
+            compressImage(file)
+              .then((image) => applyProfileImage(image))
+              .catch((problem) => setImageError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'));
           }}
           className="hidden"
           id={uploadId}

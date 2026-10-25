@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TurnstileBox } from '../lib/turnstile';
+import { TurnstileBox, useHumanOk } from '../lib/turnstile';
 import { KeyRound } from 'lucide-react';
 import { AuthError, AuthField, AuthLayout, AuthSubmit } from '../components/AuthLayout';
 import { confirmPasswordReset, requestPasswordReset } from '../lib/api';
@@ -8,6 +8,7 @@ import { useAuthSuccess } from '../lib/useAuthSuccess';
 // ACCT-06: a one-time code to the registered email, then a new password.
 export default function ResetPassword() {
   const [step, setStep] = useState<'email' | 'code'>('email');
+  const humanOk = useHumanOk();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
@@ -67,7 +68,7 @@ export default function ResetPassword() {
           />
           <TurnstileBox />
           <AuthError message={error} />
-          <AuthSubmit loading={loading} disabled={!email}>
+          <AuthSubmit loading={loading} disabled={!email || !humanOk}>
             إرسال الرمز
           </AuthSubmit>
         </form>

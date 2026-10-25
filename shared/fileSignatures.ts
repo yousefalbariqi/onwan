@@ -10,6 +10,11 @@ export function sniffFileType(bytes: Uint8Array): string | null {
   if (ascii(0, '%PDF-')) return 'application/pdf';
   if (ascii(4, 'ftyp')) return 'video/mp4';
   if (at(0, 0x1a, 0x45, 0xdf, 0xa3)) return 'video/webm';
+  // Note (9): font files.
+  if (ascii(0, 'wOF2')) return 'font/woff2';
+  if (ascii(0, 'wOFF')) return 'font/woff';
+  if (ascii(0, 'OTTO')) return 'font/otf';
+  if (at(0, 0x00, 0x01, 0x00, 0x00) || ascii(0, 'true')) return 'font/ttf';
   return null;
 }
 

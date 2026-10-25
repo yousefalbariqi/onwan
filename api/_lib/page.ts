@@ -272,6 +272,22 @@ function normalizeLinkUrl(rawUrl: string, title: string) {
 
 // Note 53: a file stored in R2 by /api/media-upload (content-hashed name).
 const MEDIA_FILE_PATH = /^\/media\/files\/[a-zA-Z0-9-]{1,64}\/[a-f0-9]{64}\.(png|jpg|webp|gif|pdf)$/;
+const MEDIA_FONT_PATH = /^\/media\/files\/[a-zA-Z0-9-]{1,64}\/[a-f0-9]{64}\.(ttf|otf|woff2|woff)$/;
+
+// Note (9): a custom font is only a stored font file and a plain name — never
+// CSS — so nothing can be injected into the page's styles.
+function normalizeTypography(value: any) {
+  const typography = value && typeof value === 'object' ? { ...value } : {};
+  if (typography.customFont) {
+    const url = String(typography.customFont.url ?? '');
+    if (!MEDIA_FONT_PATH.test(url)) throw new HttpError(400, 'ملف الخط غير صالح. ارفعه من جديد.');
+    const name = String(typography.customFont.name ?? '').replace(/[^\p{L}\p{N} ._-]/gu, '').trim().slice(0, 60) || 'خط مخصص';
+    typography.customFont = { url, name };
+  } else {
+    delete typography.customFont;
+  }
+  return typography;
+}
 const MEDIA_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf' };
 const mediaMime = (value: string) => (MEDIA_FILE_PATH.test(value) ? MEDIA_MIME[value.split('.').pop()!] : '');
 
@@ -422,6 +438,8 @@ function buildReviewSnapshot(pageData: any, links: ReturnType<typeof normalizeLi
     contactPhone: pageData.contactPhone ?? '',
     contactEmail: pageData.contactEmail ?? '',
     translations: pageData.translations ?? {},
+    // Note (9): a custom font's link is part of what was saved.
+    ...(pageData.typography?.customFont ? { customFont: pageData.typography.customFont } : {}),
     links: links.map((link) => ({
       title: link.title,
       titleEn: link.titleEn,
@@ -607,7 +625,7 @@ export async function savePageData(userId: string, sentPageData: any, options: {
         JSON.stringify(pageData.profileStyle ?? DEFAULT_PAGE_DATA.profileStyle),
         JSON.stringify(pageData.customColors ?? {}),
         JSON.stringify(pageData.extractedColors ?? []),
-        JSON.stringify(pageData.typography ?? {}),
+        JSON.stringify(normalizeTypography(pageData.typography)),
         JSON.stringify(normalizeTranslations(pageData.translations)),
       ],
     );

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { LinkDisplay } from '../context/PageContext';
 import { Group, Segmented } from './ios';
+import { ImageProblem, compressImage } from '../lib/compressImage';
 
 export function LinkAppearanceEditor({ display, onChange }: { display: LinkDisplay; onChange: (value: LinkDisplay) => void }) {
   const [error, setError] = useState('');
@@ -15,29 +16,14 @@ export function LinkAppearanceEditor({ display, onChange }: { display: LinkDispl
     if (!file) return;
     const current = ++request.current;
     setError('');
-    setLoading(false);
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { setError('اختر صورة PNG أو JPG أو WebP.'); return; }
-    if (file.size > 8 * 1024 * 1024) { setError('الحد الأقصى للصورة 8MB.'); return; }
     setLoading(true);
-    const url = URL.createObjectURL(file);
     try {
-      const image = new Image();
-      image.src = url;
-      await image.decode();
-      const factor = Math.min(1, 1200 / Math.max(image.width, image.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(image.width * factor));
-      canvas.height = Math.max(1, Math.round(image.height * factor));
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error();
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const result = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.85);
-      if (result.length > 2_000_000) throw new Error();
+      // Note (6): up to 10 MB in, made small automatically; the link's other edits stay as they are.
+      const result = await compressImage(file);
       if (current === request.current) latest.current.onChange({ ...latest.current.display, image: result, positionX: 50, positionY: 50 });
-    } catch {
-      if (current === request.current) setError('تعذّر تجهيز الصورة. جرّب صورة أصغر أو صيغة JPG.');
+    } catch (problem) {
+      if (current === request.current) setError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.');
     } finally {
-      URL.revokeObjectURL(url);
       if (current === request.current) setLoading(false);
     }
   };

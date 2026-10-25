@@ -373,3 +373,27 @@ test('daily save limit refuses the 201st save; a draft is stored without publish
   assert.equal(over.status, 429);
   assert.equal((await over.json()).code, 'save_limit');
 });
+
+test('nonprofit landing serves the app shell without customer lookup; ordinary hosts keep their routing', async () => {
+  let queries = 0;
+  query = async () => { queries++; return { rows: [], rowCount: 0 }; };
+  const response = await call('/', { host: 'nonprofit.onwan.link' });
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /<title>عنوان/);
+  assert.equal(queries, 0, 'dedicated landing never queries customer pages');
+  assert.match(await (await call('/')).text(), /<title>عنوان/);
+  const { validateUsername, getUsernameAvailability } = load('api/_lib/username.ts');
+  assert.equal(validateUsername(' NONPROFIT ').valid, false);
+  const available = await withRuntime({ env }, () => getUsernameAvailability('nonprofit'));
+  assert.equal(available.available, false);
+  assert.equal(queries, 0, 'reservation works even before SQL migration');
+  assert.equal(validateUsername('charity-example').valid, true);
+});
+
+test('nonprofit endpoints require the owner session and a nonprofit account; admin tab requires staff', async () => {
+  assert.equal((await call('/api/nonprofit')).status,401);
+  assert.equal((await call('/api/nonprofit',{bearer:token('staff')})).status,401);
+  query=async sql=>({rows:sql.includes('select id, email, phone, status')?[{id:'normal-user',email:'normal@example.invalid',phone:'0500000000',status:'active'}]:[],rowCount:0});
+  assert.equal((await call('/api/nonprofit',{bearer:token()})).status,403);
+  assert.equal((await call('/api/admin',{method:'POST',body:{action:'nonprofits.list'},bearer:token()})).status,401);
+});

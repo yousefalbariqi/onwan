@@ -7,7 +7,7 @@ import { useAuthSuccess } from '../lib/useAuthSuccess';
 import { Button, ErrorNote, Field, PLAN_NAMES, inputClass, useAction } from '../admin/ui';
 import { partnerCall } from './partnerApi';
 import { PasswordInput } from '../components/PasswordInput';
-import { TurnstileBox } from '../lib/turnstile';
+import { TurnstileBox, useHumanOk } from '../lib/turnstile';
 
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -24,6 +24,7 @@ function Shell({ title, children }: { title: string; children: React.ReactNode }
 // then a short form with no password. The account opens after approval, and
 // sign-in is by a code sent to the email.
 export function PartnerApply() {
+  const humanOk = useHumanOk();
   const [form, setForm] = useState({ shopName: '', contactName: '', email: '', phone: '', city: '' });
   const [done, setDone] = useState('');
   const action = useAction();
@@ -87,7 +88,7 @@ export function PartnerApply() {
           </div>
           <TurnstileBox />
           <ErrorNote message={action.error} />
-          <button type="submit" disabled={action.busy || !ready} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <button type="submit" disabled={action.busy || !ready || !humanOk} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
             {action.busy ? 'لحظات…' : 'إرسال طلب الشراكة'}
           </button>
           <p className="text-center text-[13px] text-[#8e8e93]">لا تحتاج كلمة مرور. يُفعَّل حسابك بعد موافقة الإدارة.</p>
