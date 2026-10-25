@@ -24,6 +24,6 @@ export function useAuthSuccess(options: { keepDraft?: boolean } = {}) {
     setAuthenticated(true);
     // Note 19: a nonprofit that has just signed up picks its platforms first.
     if (call.newNonprofit) { navigate(isNonprofitHost() ? '/onboarding' : '/nonprofit/onboarding', { replace: true }); return; }
-    navigate(isNonprofitHost() ? '/account' : response.account?.kind === 'nonprofit' ? '/nonprofit/account' : '/builder', { replace: true });
+    navigate(isNonprofitHost() ? '/builder' : response.account?.kind === 'nonprofit' ? '/nonprofit/builder' : '/builder', { replace: true });
   };
 }

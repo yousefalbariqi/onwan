@@ -384,6 +384,12 @@ function normalizeLinks(rawLinks: unknown) {
       fileSize: null, platform: 'custom', iconStyle: 'color', textPosition: 'right', hidden: Boolean(link.hidden), customIcon: null,
     };
     if (!url) {
+      // Note 25: a platform chosen at nonprofit signup waits for its link —
+      // kept for the owner, never shown to visitors (always hidden).
+      if (!isFile && link.platform && !['custom', 'file'].includes(link.platform) && common.display.kind !== 'video') return {
+        ...common, title, url: '', linkType: 'url', fileCategory: null, fileName: null, fileMimeType: null, fileSize: null,
+        platform: link.platform, iconStyle: link.iconStyle ?? 'color', textPosition: link.textPosition ?? 'center', hidden: true,
+      };
       throw new HttpError(400, 'كل زر يحتاج عنوانًا ورابطًا أو ملفًا.');
     }
 

@@ -1,4 +1,4 @@
-import { NonprofitAuth, NonprofitAccount, NonprofitBuilder, NonprofitQuote, NonprofitGate } from './pages/NonprofitPortal';
+import { NonprofitAuth, NonprofitBuilder, NonprofitQuote, NonprofitGate } from './pages/NonprofitPortal';
 import { NonprofitOnboarding } from './pages/NonprofitOnboarding';
 import PartnerOrderEditor from './partner/PartnerOrderEditor';
 import PartnerSale from './partner/PartnerSale';
@@ -91,7 +91,8 @@ export const router = createBrowserRouter(isNonprofitHost() ? [
     { path: 'signup', element: <NonprofitAuth mode="signup" /> },
     { path: 'login', element: <NonprofitAuth mode="login" /> },
     { path: 'reset-password', element: <ResetPassword /> },
-    { path: 'account', element: <NonprofitAccount /> },
+    // Note 23: no account page in the nonprofit journey; old links go home.
+    { path: 'account', element: <Navigate to="/" replace /> },
     { path: 'builder', element: <NonprofitBuilder /> },
     { path: 'onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate> },
     { path: 'quote', element: <NonprofitQuote /> },
@@ -117,7 +118,7 @@ export const router = createBrowserRouter(isNonprofitHost() ? [
       {
         path: 'nonprofit/signup', element: <NonprofitAuth mode="signup" />,
       }, { path: 'nonprofit/login', element: <NonprofitAuth mode="login" />,
-      }, { path: 'nonprofit/account', element: <NonprofitAccount />,
+      }, { path: 'nonprofit/account', element: <Navigate to="/nonprofit" replace />,
       }, { path: 'nonprofit/builder', element: <NonprofitBuilder />,
       }, { path: 'nonprofit/onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate>,
       }, { path: 'nonprofit/quote', element: <NonprofitQuote />,

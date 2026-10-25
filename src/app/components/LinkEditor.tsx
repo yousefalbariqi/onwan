@@ -200,7 +200,11 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
+// Note 25: chosen at signup, link not added yet.
+const isIncomplete = (link: Link) => !link.url && link.linkType !== 'file' && !['heading', 'text'].includes(link.display?.kind ?? '');
+
 function itemSubtitle(link: Link, links: Link[]) {
+  if (isIncomplete(link)) return 'يرجى إكمال الرابط';
   if (link.hidden) return 'مخفي عن الزوار';
   const kind = link.display?.kind;
   if (kind === 'text') return 'نبذة';
@@ -328,7 +332,9 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
       customIcon: ICON_PLATFORMS.includes(isFile ? 'file' : form.platform) && (form.kind === 'link' || isFile) ? form.customIcon || undefined : undefined,
     };
     const members = form.kind === 'group' ? form.sectionMembers : undefined;
-    if (screen.name === 'form' && screen.id) updateLink(screen.id, values, members);
+    // A completed platform from signup (note 25) becomes visible once its link is in.
+    const wasIncomplete = screen.name === 'form' && screen.id ? links.some((link) => link.id === screen.id && isIncomplete(link)) : false;
+    if (screen.name === 'form' && screen.id) updateLink(screen.id, wasIncomplete ? { ...values, hidden: false } : values, members);
     else addLink(values, members);
     backToList();
   };
@@ -775,11 +781,11 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
                         <span {...dragHandlers(link.id)} className="flex h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center text-[#c7c7cc] active:cursor-grabbing" aria-label={`اسحب لنقل «${link.title}»`} role="button" tabIndex={-1}>
                           <GripVertical className="h-5 w-5" />
                         </span>
-                        <button type="button" onClick={() => openForm(formFromLink(link, links), link.id)} className={`flex min-w-0 flex-1 items-center gap-3 py-2 text-right ${link.hidden ? 'opacity-45' : ''}`}>
+                        <button type="button" onClick={() => openForm(formFromLink(link, links), link.id)} className={`flex min-w-0 flex-1 items-center gap-3 py-2 text-right ${link.hidden && !isIncomplete(link) ? 'opacity-45' : ''}`}>
                           <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-[#f2f2f7]"><ItemIcon link={link} /></span>
                           <span className="min-w-0 flex-1">
                             <span className={`block truncate text-[15px] text-[#1d1d1f] ${link.display?.kind === 'heading' ? 'font-bold' : ''}`}>{link.title}</span>
-                            <span className="block truncate text-xs text-[#8e8e93]">{itemSubtitle(link, links)}</span>
+                            <span className={`flex items-center gap-1 truncate text-xs ${isIncomplete(link) ? 'font-bold text-amber-700' : 'text-[#8e8e93]'}`}>{isIncomplete(link) && <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />}{itemSubtitle(link, links)}</span>
                           </span>
                         </button>
                         {/* Note (8): one step up or down per tap; dragging still works. */}

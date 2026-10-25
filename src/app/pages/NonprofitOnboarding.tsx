@@ -8,21 +8,42 @@ import { SOCIAL_PLATFORMS, SocialIcon, brandColor } from '../components/SocialIc
 import { nonprofitPath } from '../lib/nonprofit';
 
 // Note 19: right after a nonprofit signs up, «أين تتواجد جمعيتكم؟» — a grid of
-// platform tiles (several may be chosen), then one field per chosen platform,
-// then «عرّف بجمعيتك» (note 20): logo, name and a short bio.
-// The links land in the page like any link added in the editor, so they stay
-// editable there. The platform list and wording are still under study.
+// platform tiles (several may be chosen), then «عرّف بجمعيتك» (note 20): logo,
+// name and a short bio. Note 25: no links are asked for here — each chosen
+// platform lands in «المحتوى» as «يرجى إكمال الرابط», hidden from visitors
+// until its link is added. The platform list and wording are still under study.
 const PLATFORM_IDS = ['whatsapp', 'twitter', 'instagram', 'snapchat', 'tiktok', 'youtube', 'linkedin', 'facebook', 'telegram', 'website', 'email'] as const;
 const BIO_LIMIT = 150;
-const STEPS = 3;
+const STEPS = 2;
 const PLATFORMS = PLATFORM_IDS.map((id) => SOCIAL_PLATFORMS.find((p) => p.id === id)!);
 
+// Note 19 (update): each logo as its owner shows it. Official Simple Icons
+// paths (SVG, sharp on Retina). Platforms whose mark is an app tile get their
+// official tile; marks that already carry their own shape (YouTube, Facebook,
+// LinkedIn, Telegram) are drawn alone in their brand colour, with nothing added.
+const TILES: Record<string, { background?: string; glyph: string; filter?: string }> = {
+  instagram: { background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%)', glyph: '#ffffff' },
+  whatsapp: { background: '#25D366', glyph: '#ffffff' },
+  tiktok: { background: '#000000', glyph: '#ffffff', filter: 'drop-shadow(-1.5px -1.5px 0 #25F4EE) drop-shadow(1.5px 1.5px 0 #FE2C55)' },
+  twitter: { background: '#000000', glyph: '#ffffff' },
+  snapchat: { background: '#FFFC00', glyph: '#ffffff', filter: 'drop-shadow(0 0 0.8px #000) drop-shadow(0 0 0.4px #000)' },
+  website: { background: '#000000', glyph: '#ffffff' },
+  email: { background: '#1d1d1f', glyph: '#ffffff' },
+  youtube: { glyph: '#FF0000' },
+  facebook: { glyph: '#0866FF' },
+  linkedin: { glyph: '#0A66C2' },
+  telegram: { glyph: '#26A5E4' },
+};
+
 function Tile({ platform }: { platform: string }) {
-  // App-icon tile: the brand colour as the tile, the glyph in white.
-  const yellow = brandColor(platform).toUpperCase() === '#FFFC00';
+  const tile = TILES[platform] ?? { background: brandColor(platform), glyph: '#ffffff' };
+  // One optical size for every logo: tiles are 56/64 px with a 30 px mark; a
+  // bare mark fills most of the same box.
   return (
-    <span className="flex h-14 w-14 items-center justify-center rounded-[22%] sm:h-16 sm:w-16" style={{ backgroundColor: brandColor(platform) }}>
-      <SocialIcon platform={platform} iconStyle="color" color={yellow ? '#1d1d1f' : '#ffffff'} size={30} />
+    <span className="flex h-14 w-14 items-center justify-center rounded-[22%] sm:h-16 sm:w-16" style={tile.background ? { background: tile.background } : undefined}>
+      <span className="flex" style={{ filter: tile.filter }}>
+        <SocialIcon platform={platform} iconStyle="color" color={tile.glyph} size={tile.background ? 30 : 48} />
+      </span>
     </span>
   );
 }
@@ -30,11 +51,10 @@ function Tile({ platform }: { platform: string }) {
 export function NonprofitOnboarding() {
   const navigate = useNavigate();
   const { pageData, updatePageData, updateProfileStyle, addLink, save, saving } = usePageContext();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2>(1);
   const [imageError, setImageError] = useState('');
   const uploadId = useId();
   const [chosen, setChosen] = useState<string[]>([]);
-  const [urls, setUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const toEditor = () => navigate(nonprofitPath('builder'), { replace: true });
 
@@ -42,8 +62,10 @@ export function NonprofitOnboarding() {
 
   const finish = async () => {
     setError('');
-    PLATFORMS.filter((p) => chosen.includes(p.id) && urls[p.id]?.trim()).forEach((p) => {
-      addLink({ title: p.name, url: urls[p.id].trim(), platform: p.id as Link['platform'], iconStyle: 'color', linkType: 'url' });
+    // No placeholder links: an empty link, hidden, marked «يرجى إكمال الرابط» in the editor.
+    const existing = new Set(pageData.links.map((link) => link.platform));
+    PLATFORMS.filter((p) => chosen.includes(p.id) && !existing.has(p.id as Link['platform'])).forEach((p) => {
+      addLink({ title: p.name, url: '', platform: p.id as Link['platform'], iconStyle: 'color', linkType: 'url', hidden: true });
     });
     try {
       await save();
@@ -65,9 +87,9 @@ export function NonprofitOnboarding() {
       })
       .catch((problem) => setImageError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'));
   };
-  const back = () => (step === 1 ? navigate(nonprofitPath('account')) : setStep((step - 1) as 1 | 2));
-  const next = () => (step === 3 ? finish() : setStep((step + 1) as 2 | 3));
-  const canContinue = step === 1 ? chosen.length > 0 : step === 3 ? Boolean(pageData.name.trim()) && !saving : true;
+  const back = () => (step === 1 ? navigate(nonprofitPath()) : setStep(1));
+  const next = () => (step === 2 ? finish() : setStep(2));
+  const canContinue = step === 1 ? chosen.length > 0 : Boolean(pageData.name.trim()) && !saving;
 
   return (
     <div dir="rtl" className="flex min-h-[100dvh] flex-col bg-white text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
@@ -102,22 +124,6 @@ export function NonprofitOnboarding() {
                   </button>
                 );
               })}
-            </div>
-          </>
-        ) : step === 2 ? (
-          <>
-            <h1 className="text-center text-[28px] font-black leading-tight sm:text-[34px]">أضيفوا روابط حساباتكم</h1>
-            <p className="mt-2 text-center text-[15px] text-[#6e6e73]">يمكن ترك أي حقل فارغًا وإضافته لاحقًا من المحرر.</p>
-            <div className="mt-8 space-y-3">
-              {PLATFORMS.filter((p) => chosen.includes(p.id)).map((p) => (
-                <label key={p.id} className="flex items-center gap-3 rounded-2xl border-2 border-[#ececec] p-3 focus-within:border-[#173c36]">
-                  <Tile platform={p.id} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-bold">{p.name}</span>
-                    <input value={urls[p.id] ?? ''} onChange={(e) => setUrls({ ...urls, [p.id]: e.target.value })} placeholder={p.placeholder} dir="ltr" inputMode={p.id === 'email' ? 'email' : 'url'} className="mt-1 w-full bg-transparent text-[15px] placeholder:text-[#c7c7cc] focus:outline-none" />
-                  </span>
-                </label>
-              ))}
             </div>
           </>
         ) : (
@@ -161,7 +167,7 @@ export function NonprofitOnboarding() {
           >
             {saving ? 'جارٍ الحفظ…' : 'متابعة'}
           </button>
-          {step < 3 && <button type="button" onClick={() => setStep(3)} className="mt-3 block w-full py-2 text-center text-[15px] font-bold text-[#6e6e73]">تخطي</button>}
+          {step === 1 && <button type="button" onClick={() => setStep(2)} className="mt-3 block w-full py-2 text-center text-[15px] font-bold text-[#6e6e73]">تخطي</button>}
         </div>
       </footer>
     </div>

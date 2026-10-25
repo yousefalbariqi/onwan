@@ -1,6 +1,6 @@
 import { nonprofitPath } from '../lib/nonprofit';
 import { arabicSlug } from '../lib/arabicSlug';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { checkUsername, login, signup } from '../lib/api';
@@ -36,8 +36,8 @@ function fieldOf(message: string, isSignup: boolean): Field | null {
 // button. After signup the editor opens on the chosen page name.
 // The suggested link, or the first free variant of it (name-2, name-3, …).
 async function freeName(base: string) {
-  for (let i = 1; i <= 9; i++) {
-    const candidate = i === 1 ? base : `${base.slice(0, 27)}-${i}`;
+  for (let i = 2; i <= 9; i++) {
+    const candidate = `${base.slice(0, 27)}-${i}`;
     const result = await checkUsername(candidate).catch(() => null);
     if (!result || result.available) return candidate;
   }
@@ -50,7 +50,22 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
   const onSuccess = useAuthSuccess();
   // Note 22: the association types its Arabic name; the link is suggested from it.
   const [organizationName, setOrganizationName] = useState('');
-  const nonprofitUsername = arabicSlug(organizationName);
+  // Note 24: the link shows small under the name; «تعديل» opens a field for it.
+  const [editingLink, setEditingLink] = useState(false);
+  const [customLink, setCustomLink] = useState('');
+  const nonprofitUsername = customLink || arabicSlug(organizationName);
+  const [linkState, setLinkState] = useState<{ name: string; available: boolean; reason?: string; suggestion?: string } | null>(null);
+  useEffect(() => {
+    if (!nonprofit || !nonprofitUsername) { setLinkState(null); return; }
+    let live = true;
+    const timer = window.setTimeout(async () => {
+      const result = await checkUsername(nonprofitUsername).catch(() => null);
+      if (!live || !result) return;
+      setLinkState({ name: nonprofitUsername, available: result.available, reason: result.reason ?? undefined, suggestion: result.available ? undefined : nonprofitUsername });
+    }, 400);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [nonprofit, nonprofitUsername]);
+  const linkReady = !nonprofit || (linkState?.name === nonprofitUsername && linkState.available);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [identifier, setIdentifier] = useState('');
@@ -94,7 +109,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
   const surface = nonprofit ? 'bg-[#faf9f6]' : 'bg-[#f2f2f7]';
   const accentText = nonprofit ? 'text-[#6c8050]' : 'text-[#0a84ff]';
   const primaryButton = nonprofit ? 'bg-[#173c36] shadow-[0_6px_16px_rgba(23,60,54,0.28)]' : 'bg-[#0a84ff] shadow-[0_6px_16px_rgba(10,132,255,0.28)]';
-  const ready = isSignup ? Boolean(phone && email && password && (!nonprofit || nonprofitUsername)) : Boolean(identifier && password);
+  const ready = isSignup ? Boolean(phone && email && password && (!nonprofit || (nonprofitUsername && linkReady))) : Boolean(identifier && password);
 
   return (
     // Note 58: centred on every screen. The overlay itself scrolls, so with
@@ -155,7 +170,27 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
           </div>
 
           <div className="mt-3"><TurnstileBox /></div>
-          {isSignup && nonprofit && nonprofitUsername && <p className="mt-3 px-1 text-[13px] text-[#6e6e73]">الرابط المقترح: <span dir="ltr" className="font-bold text-[#173c36]">{nonprofitUsername}.onwan.link</span> — يمكن تعديله لاحقًا من لوحة الجمعية.</p>}
+          {isSignup && nonprofit && nonprofitUsername && (
+            <div className="mt-3 px-1 text-[13px]">
+              <div className="flex items-center gap-2">
+                <span dir="ltr" className="min-w-0 truncate font-bold text-[#173c36]">{nonprofitUsername}.onwan.link</span>
+                {!editingLink && <button type="button" onClick={() => { setCustomLink(nonprofitUsername); setEditingLink(true); }} className="shrink-0 font-bold text-[#6c8050]">تعديل</button>}
+              </div>
+              <p className="mt-0.5 text-[#6e6e73]">رابط مؤقت مجاني، ويمكن ربط صفحتكم بالرابط الرسمي للجمعية أو تغييره لاحقًا.</p>
+              {editingLink && (
+                <div className="mt-2 flex items-center overflow-hidden rounded-xl bg-white ring-1 ring-[#e5e5ea] focus-within:ring-[#173c36]" dir="ltr">
+                  <input autoFocus aria-label="رابط الصفحة" value={customLink} onChange={(e) => setCustomLink(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} maxLength={30} className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-[15px] focus:outline-none" />
+                  <span className="pr-3 text-[#8e8e93]">.onwan.link</span>
+                </div>
+              )}
+              {linkState?.name === nonprofitUsername && !linkState.available && (
+                <p role="alert" className="mt-2 text-[#b45309]">
+                  {linkState.reason || 'هذا الرابط غير متاح.'}
+                  {linkState.suggestion && <> جرّبوا <button type="button" onClick={() => { setCustomLink(linkState.suggestion!); setEditingLink(true); }} className="font-bold underline" dir="ltr">{linkState.suggestion}</button></>}
+                </p>
+              )}
+            </div>
+          )}
           {errors.form && <p role="alert" className="mt-3 px-1 text-[13px] text-[#ff3b30]">{errors.form}</p>}
 
           <button

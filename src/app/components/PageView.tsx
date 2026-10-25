@@ -93,7 +93,8 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
   const bioSize = data.typography?.bioSize ?? textSize;
   const { buttonStyle, theme, wallpaper } = data;
   // PAGE-06: hidden buttons stay in the editor list but are not rendered.
-  const blocks = sectionBlocks(visibleSectionItems(data.links));
+  // Note 25: a platform still waiting for its link is not drawn, even in the preview.
+  const blocks = sectionBlocks(visibleSectionItems(data.links.filter((link) => link.url || link.linkType === 'file' || ['heading', 'text'].includes(link.display?.kind ?? ''))));
 
   const backgroundStyle =
     wallpaper.type === 'gradient'

@@ -3,6 +3,7 @@ import { nonprofitPath } from '../lib/nonprofit';
 import { useEffect } from 'react';
 import { ArrowDown, ArrowUpLeft, HeartHandshake, Link2, Palette, Globe2, Check } from 'lucide-react';
 import { SUPPORT_WHATSAPP } from '../lib/site';
+import { clearLocalAccountData, clearSessionToken, getSessionToken } from '../lib/session';
 
 const features = [
   { Icon: Link2, title: 'روابط الجمعية في مكان واحد', body: 'عرّفوا بجمعيتكم واجمعوا روابط البرامج والمبادرات وقنوات التواصل في صفحة واضحة.' },
@@ -16,12 +17,21 @@ export default function NonprofitLanding() {
     document.title = 'عنوان للجمعيات الخيرية';
     return () => { document.title = previous; };
   }, []);
+  const signedIn = Boolean(getSessionToken());
   return (
     <div dir="rtl" className="min-h-screen bg-[#faf9f6] text-[#173c36]" style={{ fontFamily: 'Cairo, sans-serif' }}>
       <a href="#nonprofit-content" className="sr-only focus:not-sr-only focus:block focus:p-4">انتقل إلى المحتوى</a>
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-7">
         <a href="#" aria-label="عنوان للجمعيات — الرئيسية" className="flex items-center gap-3"><span className="text-3xl font-extrabold">عنوان<span className="text-[#6c9464]">.</span></span><span className="border-r border-[#173c36]/20 pr-3 text-xs sm:text-sm">للجمعيات الخيرية</span></a>
-        <Link to={nonprofitPath('login')} className="rounded-full border border-[#173c36]/20 px-4 py-2 text-sm transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4">تسجيل الدخول</Link>
+        {/* Note 23: a signed-in association comes back here, still signed in. */}
+        {signedIn ? (
+          <div className="flex items-center gap-2">
+            <Link to={nonprofitPath('builder')} className="rounded-full bg-[#173c36] px-4 py-2 text-sm text-white transition hover:bg-[#28584e]">فتح المحرر</Link>
+            <button type="button" onClick={() => { clearSessionToken(); clearLocalAccountData(); window.location.assign(nonprofitPath()); }} className="rounded-full border border-[#173c36]/20 px-4 py-2 text-sm transition hover:bg-white">تسجيل الخروج</button>
+          </div>
+        ) : (
+          <Link to={nonprofitPath('login')} className="rounded-full border border-[#173c36]/20 px-4 py-2 text-sm transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4">تسجيل الدخول</Link>
+        )}
       </header>
       <main id="nonprofit-content">
         <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-14 sm:py-20 lg:grid-cols-2">
@@ -30,7 +40,7 @@ export default function NonprofitLanding() {
             <h1 className="text-4xl font-extrabold leading-[1.55] sm:text-5xl">لرسالتكم أثر.<br /><span className="text-[#6c8050]">ولجمعيتكم عنوان.</span></h1>
             <p className="mt-6 max-w-lg text-base leading-9 text-[#53665e] sm:text-lg">صفحة واحدة تعرّف بجمعيتكم، تجمع روابطكم، وتقرّب برامجكم ومبادراتكم من المستفيدين والداعمين.</p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <Link to={nonprofitPath('signup')} className="inline-flex min-h-12 items-center gap-3 rounded-full bg-[#173c36] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#28584e]">ابدأ تصميم صفحة الجمعية <ArrowDown size={17} aria-hidden="true" /></Link>
+              <Link to={nonprofitPath(signedIn ? 'builder' : 'signup')} className="inline-flex min-h-12 items-center gap-3 rounded-full bg-[#173c36] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#28584e]">{signedIn ? 'متابعة تصميم صفحة الجمعية' : 'ابدأ تصميم صفحة الجمعية'} <ArrowDown size={17} aria-hidden="true" /></Link>
               {SUPPORT_WHATSAPP && <a href={`https://wa.me/${SUPPORT_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center gap-2 px-2 text-sm font-bold underline underline-offset-4">تواصلوا معنا <ArrowUpLeft size={17} aria-hidden="true" /></a>}
             </div>
           </div>
