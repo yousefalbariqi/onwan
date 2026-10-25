@@ -9,6 +9,7 @@ import { VideoBackground } from './VideoBackground';
 import { WallpaperImage } from './WallpaperImage';
 import { ProfileImageDisplay } from './ProfileImageDisplay';
 import { SocialIcon, brandColor } from './SocialIcons';
+import { FONT_WEIGHTS, buttonMetrics } from '../lib/buttonSizes';
 
 interface PageViewProps {
   data: PageData;
@@ -96,7 +97,13 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
 
   const accentColor =
     buttonStyle.useCustomColor && buttonStyle.customColor ? buttonStyle.customColor : theme.buttonColor;
-  const buttonTextColor = buttonStyle.border ? accentColor : theme.buttonTextColor;
+  const buttonTextColor = buttonStyle.textColor || (buttonStyle.border ? accentColor : theme.buttonTextColor);
+  // Exact sizes from «تحكم دقيق» (note 34); a preset alone keeps its classes.
+  const metrics = buttonMetrics(buttonStyle);
+  const sizeStyle = metrics.custom ? { minHeight: metrics.height, paddingTop: 6, paddingBottom: 6, fontSize: metrics.font } : {};
+  const fontWeight = buttonStyle.fontWeight ? FONT_WEIGHTS[buttonStyle.fontWeight] : 600;
+  const headingColor = data.customColors?.headingColor || data.customColors?.nameColor || theme.textColor;
+  const paragraphColor = data.customColors?.paragraphColor || data.customColors?.bioColor || theme.textColor;
   // What a logo sits on: the button fill, or the page behind an outline-only button.
   const buttonSurface = buttonStyle.border ? (wallpaper.type === 'color' ? wallpaper.value : theme.background) : accentColor;
 
@@ -119,12 +126,12 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
   );
 
   const renderLink = (link: Link) => {
-    if (link.display?.kind === 'text') return <p key={link.id} className="whitespace-pre-wrap break-words text-start text-base leading-relaxed" style={{ color: data.customColors?.bioColor || theme.textColor }}>{(lang === 'en' && link.display.bodyEn) || link.display.body}</p>;
+    if (link.display?.kind === 'text') return <p key={link.id} className="whitespace-pre-wrap break-words text-start text-base leading-relaxed" style={{ color: paragraphColor }}>{(lang === 'en' && link.display.bodyEn) || link.display.body}</p>;
     if (link.display?.kind === 'video') return <VideoBlock key={`${link.id}:${link.url}`} url={link.url} title={(lang === 'en' && link.titleEn) || link.title} textColor={data.customColors?.bioColor || theme.textColor} surfaceColor={theme.background} />;
-    if (link.display?.kind === 'heading') return <h2 key={link.id} className="break-words pt-5 pb-1 text-start text-lg font-bold" style={{ color: data.customColors?.nameColor || theme.textColor }}>{(lang === 'en' && link.titleEn) || link.title}</h2>;
+    if (link.display?.kind === 'heading') return <h2 key={link.id} className="break-words pt-5 pb-1 text-start text-lg font-bold" style={{ color: headingColor }}>{(lang === 'en' && link.titleEn) || link.title}</h2>;
     if (link.display?.layout === 'card' && link.display.image) return <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" download={link.linkType === 'file' ? link.fileName || true : undefined} className={`block w-full overflow-hidden transition-opacity hover:opacity-90 ${BUTTON_SHAPES[buttonStyle.shape]} ${buttonStyle.shadow ? 'shadow-lg' : ''} ${buttonStyle.border ? 'border-2' : ''}`} style={{ backgroundColor: buttonStyle.border ? 'transparent' : withAlpha(accentColor, buttonStyle.opacity ?? 100), color: buttonTextColor, borderColor: accentColor }}>
       <div className="aspect-video w-full overflow-hidden bg-black/5"><img src={link.display.image} alt="" loading="lazy" className="h-full w-full" style={{ objectFit: link.display.imageFit ?? 'cover', objectPosition: `${link.display.positionX ?? 50}% ${link.display.positionY ?? 50}%` }} /></div>
-      <span className={`block break-words font-semibold ${BUTTON_SIZES[buttonStyle.size ?? 'medium']} ${link.textPosition === 'right' ? 'text-start' : 'text-center'}`}>{(lang === 'en' && link.titleEn) || link.title}</span>
+      <span className={`block break-words ${BUTTON_SIZES[buttonStyle.size ?? 'medium']} ${link.textPosition === 'right' ? 'text-start' : 'text-center'}`} style={{ ...sizeStyle, minHeight: undefined, fontWeight }}>{(lang === 'en' && link.titleEn) || link.title}</span>
     </a>;
 
     const platform = link.linkType === 'file' && link.fileMimeType?.startsWith('image/') ? 'image' : link.platform || 'website';
@@ -132,14 +139,16 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
     // button; then it takes the button text colour, which always reads.
     const brand = brandColor(platform);
     // Library icons have no brand colour: they follow the button text.
+    const customIconColor = buttonStyle.iconColor === 'custom' && buttonStyle.iconCustomColor ? buttonStyle.iconCustomColor : undefined;
     const useText = buttonStyle.iconColor === 'text' || link.iconStyle === 'mono' || link.customIcon?.startsWith('icon:') || contrastRatio(brand, buttonSurface) < MIN_LOGO_CONTRAST;
     const icon = (
       <SocialIcon
         platform={platform}
         iconStyle="color"
-        color={useText ? buttonTextColor : brand}
+        color={customIconColor ?? (useText ? buttonTextColor : brand)}
         customIcon={link.customIcon}
-        className={`w-6 h-6 flex-shrink-0`}
+        className="flex-shrink-0"
+        size={metrics.icon}
       />
     );
 
@@ -157,19 +166,20 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
             : withAlpha(accentColor, buttonStyle.opacity ?? 100),
           color: buttonTextColor,
           borderColor: accentColor,
+          ...sizeStyle,
         }}
       >
         {(link.textPosition || 'center') === 'center' ? (
           // تخطيط مركز: نص في الوسط وأيقونة على الطرف
           <>
-            <span className="min-w-0 flex-1 break-words font-semibold text-center">{(lang === 'en' && link.titleEn) || link.title}</span>
+            <span className="min-w-0 flex-1 break-words text-center" style={{ fontWeight }}>{(lang === 'en' && link.titleEn) || link.title}</span>
             {icon}
           </>
         ) : (
           // تخطيط يمين: أيقونة ونص على اليمين
           <>
             {icon}
-            <span className="min-w-0 break-words font-semibold">{(lang === 'en' && link.titleEn) || link.title}</span>
+            <span className="min-w-0 break-words" style={{ fontWeight }}>{(lang === 'en' && link.titleEn) || link.title}</span>
             <span className="flex-1"></span>
           </>
         )}

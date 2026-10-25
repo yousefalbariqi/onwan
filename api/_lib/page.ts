@@ -1,4 +1,6 @@
 import { getBinding } from './runtime.js';
+import { streamUidFromUrl, verifyStreamVideo } from './stream.js';
+import { contentMatchesType, dataUrlHead } from '../../shared/fileSignatures.js';
 import type { MediaBucket } from '../video-upload.js';
 import { BACKGROUND_VIDEO_TYPES, MAX_BACKGROUND_VIDEO_BYTES, parseVideoSource, parseYouTubeVideoSource } from '../../shared/videoSources.js';
 import { arrangeSections, visibleSectionItems } from '../../shared/linkSections.js';
@@ -48,7 +50,7 @@ type LinkRecord = {
 };
 
 // PAGE-04 / AC-02.03
-export const MAX_LINKS = 20;
+export const MAX_LINKS = 30;
 
 // FILE-01 / AC-03.01: images and PDF only. Files are still stored inline as
 // data URLs; the real storage backend and its limits are pending decision P-02.
@@ -268,12 +270,26 @@ function normalizeLinkUrl(rawUrl: string, title: string) {
   return `https://${value}`;
 }
 
+// Note 53: a file stored in R2 by /api/media-upload (content-hashed name).
+const MEDIA_FILE_PATH = /^\/media\/files\/[a-zA-Z0-9-]{1,64}\/[a-f0-9]{64}\.(png|jpg|webp|gif|pdf)$/;
+const MEDIA_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf' };
+const mediaMime = (value: string) => (MEDIA_FILE_PATH.test(value) ? MEDIA_MIME[value.split('.').pop()!] : '');
+
+// REQ-017: the first bytes of an inline file against its declared type.
+function inlineContentMatches(dataUrl: string) {
+  const declared = /^data:([^;,]+);base64,/i.exec(dataUrl)?.[1] ?? '';
+  return contentMatchesType(dataUrlHead(dataUrl), declared);
+}
+
 function validateImageValue(value: unknown, label: string) {
+  if (value != null && typeof value !== 'string') throw new HttpError(400, `${label}: المسموح صورة واحدة فقط.`);
   const image = String(value ?? '').trim();
 
-  if (image && !/^(data:image\/(png|jpeg|webp|gif);base64,|https:\/\/)/i.test(image)) {
+  if (image && !(mediaMime(image).startsWith('image/') || /^(data:image\/(png|jpeg|webp|gif);base64,|https:\/\/)/i.test(image))) {
     throw new HttpError(400, `${label} يجب أن تكون صورة (PNG أو JPG أو WebP أو GIF).`);
   }
+  // REQ-017: an inline image must really be the image it claims to be.
+  if (image.startsWith('data:') && !inlineContentMatches(image)) throw new HttpError(400, `${label}: محتوى الصورة لا يطابق نوعها.`);
 
   return image;
 }
@@ -283,10 +299,12 @@ function validateImageValue(value: unknown, label: string) {
 const MAX_CUSTOM_ICON_LENGTH = 200_000;
 
 function normalizeCustomIcon(value: unknown, title: string) {
+  if (value != null && typeof value !== 'string') throw new HttpError(400, 'المسموح أيقونة واحدة لكل رابط.');
   const icon = String(value ?? '').trim();
   if (!icon) return null;
   if (/^icon:[a-z0-9-]{1,30}$/.test(icon)) return icon;
-  if (/^data:image\/(png|jpeg|webp);base64,/i.test(icon) && icon.length <= MAX_CUSTOM_ICON_LENGTH) return icon;
+  if (mediaMime(icon).startsWith('image/')) return icon;
+  if (/^data:image\/(png|jpeg|webp);base64,/i.test(icon) && icon.length <= MAX_CUSTOM_ICON_LENGTH && inlineContentMatches(icon)) return icon;
   throw new HttpError(400, `أيقونة الزر «${title}» غير صالحة. استخدم صورة صغيرة (PNG أو JPG أو WebP).`);
 }
 
@@ -323,6 +341,12 @@ function normalizeLinks(rawLinks: unknown) {
     const title = String(link.title ?? '').trim();
     const url = String(link.url ?? '').trim();
     const isFile = link.linkType === 'file';
+    if (['heading', 'text'].includes(link.display?.kind) && (link.display?.image || link.customIcon)) {
+      throw new HttpError(400, 'العناوين والفقرات والمجموعات لا تقبل صورًا أو أيقونات مخصصة.');
+    }
+    if (link.display?.kind === 'video' && link.display?.image) {
+      throw new HttpError(400, 'صورة البطاقة متاحة للروابط والملفات فقط.');
+    }
     const common = {
       id: String(link.id ?? ''),
       titleEn: String(link.titleEn ?? '').trim().slice(0, 255) || null,
@@ -342,11 +366,12 @@ function normalizeLinks(rawLinks: unknown) {
     if (common.display.kind === 'video' && !parseYouTubeVideoSource(url)) throw new HttpError(400, `رابط الفيديو «${title}» غير مدعوم. استخدم رابط فيديو يوتيوب محددًا.`);
     if (isFile && common.display.kind === 'video') throw new HttpError(400, 'أضف الفيديو برابط تشغيل، وليس كملف مرفق.');
     if (isFile) {
-      const mimeType = /^data:([^;,]+);base64,/i.exec(url)?.[1]?.toLowerCase() ?? '';
+      const mimeType = mediaMime(url) || (/^data:([^;,]+);base64,/i.exec(url)?.[1]?.toLowerCase() ?? '');
 
       if (!ALLOWED_FILE_MIME_TYPES.includes(mimeType)) {
         throw new HttpError(400, `ملف الزر «${title}» غير مدعوم. المسموح: الصور وملفات PDF فقط.`);
       }
+      if (url.startsWith('data:') && !inlineContentMatches(url)) throw new HttpError(400, `محتوى ملف الزر «${title}» لا يطابق نوعه.`);
 
       return {
         ...common,
@@ -456,14 +481,63 @@ async function loadStoredForSave(userId: string, withLinks: boolean) {
   };
 }
 
-export async function savePageData(userId: string, sentPageData: any, options: { staffName?: string; slimResponse?: boolean } = {}) {
+// Reject inline binary data before any write, including unknown JSON fields.
+function rejectInlineFiles(value: unknown): void {
+  if (typeof value === 'string' && /^\s*data:/i.test(value)) {
+    throw new HttpError(400, 'يجب رفع الصور والملفات إلى Cloudflare قبل الحفظ. أعد رفع الملف ثم حاول مجددًا.');
+  }
+  if (Array.isArray(value)) value.forEach(rejectInlineFiles);
+  else if (value && typeof value === 'object') Object.values(value).forEach(rejectInlineFiles);
+}
+
+// REQ-006: one background, with one poster only when it is a video.
+function normalizeWallpaper(input: any) {
+  const value = input ?? DEFAULT_PAGE_DATA.wallpaper;
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !['color', 'gradient', 'image', 'video'].includes(value.type)) {
+    throw new HttpError(400, 'اختر خلفية واحدة: لون أو تدرج أو صورة أو فيديو.');
+  }
+  if (typeof value.value !== 'string') throw new HttpError(400, 'المسموح خلفية واحدة فقط.');
+  const result: Record<string, any> = { type: value.type, value: value.value };
+  for (const key of ['position', 'positionX', 'positionY', 'zoom', 'dim']) {
+    if (typeof value[key] === 'string' || typeof value[key] === 'number') result[key] = value[key];
+  }
+  if (value.type === 'image') validateImageValue(value.value, 'صورة الخلفية');
+  if (value.type === 'video') {
+    if (value.poster) result.poster = validateImageValue(value.poster, 'غلاف الفيديو');
+    if (typeof value.uploaded === 'boolean') result.uploaded = value.uploaded;
+    if (typeof value.fileName === 'string') result.fileName = value.fileName;
+    if (typeof value.fileSize === 'number') result.fileSize = value.fileSize;
+  }
+  return result;
+}
+
+// Full editor drafts from partners use the same content validators as saved pages.
+export function validatePartnerPageDraft(input: any, partnerId?: string) {
+  const raw = input && typeof input === 'object' ? input : {};
+  const data = { ...raw, wallpaper: normalizeWallpaper(raw.wallpaper) };
+  rejectInlineFiles(data);
+  if (JSON.stringify(data).length > 30_000_000) throw new HttpError(413, 'حجم تصميم الصفحة كبير جدًا.');
+  const profileImage = validateImageValue(data.profileImage, 'الصورة / الشعار');
+  const links = normalizeLinks(data.links);
+  if (data.wallpaper?.type === 'image') validateImageValue(data.wallpaper.value, 'صورة الخلفية');
+  if (data.wallpaper?.type === 'video') {
+    if ((data.wallpaper.uploaded && (!partnerId || !String(data.wallpaper.value).startsWith(`/media/wallpapers/${partnerId}/`))) || !parseVideoSource(String(data.wallpaper.value ?? ''), true)) {
+      throw new HttpError(400, 'استخدم رابط HTTPS مباشرًا للفيديو في طلب الشريك؛ الرفع متاح بعد تفعيل حساب العميل.');
+    }
+    if (data.wallpaper.poster) validateImageValue(data.wallpaper.poster, 'الصورة البديلة للفيديو');
+  }
+  return { ...data, name: String(data.name ?? '').trim().slice(0, 160), bio: String(data.bio ?? '').trim(), profileImage, links };
+}
+
+export async function savePageData(userId: string, sentPageData: any, options: { staffName?: string; slimResponse?: boolean; client?: PoolClient; mediaOwnerId?: string } = {}) {
   const sentKept = hasKept(sentPageData ?? {});
   const stored = sentKept || sentPageData?.wallpaper?.uploaded ? await loadStoredForSave(userId, sentKept) : null;
   const pageData = sentKept ? expandPageData(sentPageData, stored) : sentPageData;
   if (!pageData) throw new HttpError(409, 'تغيّرت صفحتك من مكان آخر. أعد تحميل المحرر ثم احفظ مرة أخرى.');
+  rejectInlineFiles(pageData);
   const links = normalizeLinks(pageData.links);
   const profileImage = validateImageValue(pageData.profileImage, 'الصورة / الشعار');
-  const wallpaper = { ...(pageData.wallpaper ?? DEFAULT_PAGE_DATA.wallpaper) };
+  const wallpaper = normalizeWallpaper(pageData.wallpaper);
 
   if (wallpaper.type === 'video') {
     if (!parseVideoSource(String(wallpaper.value ?? ''), true)) throw new HttpError(400, 'خلفية الفيديو تحتاج رابط HTTPS مباشرًا لملف MP4 أو WebM.');
@@ -471,15 +545,19 @@ export async function savePageData(userId: string, sentPageData: any, options: {
     // The same uploaded file was checked when it was first saved; asking the
     // storage again on every save only slowed saving down.
     const alreadyVerified = stored?.wallpaper?.uploaded && stored.wallpaper.type === 'video' && stored.wallpaper.value === wallpaper.value && typeof stored.wallpaper.fileSize === 'number';
-    if (wallpaper.uploaded && String(wallpaper.value).startsWith('/media/') && !String(wallpaper.value).startsWith(`/media/wallpapers/${userId}/`)) {
+    if (wallpaper.uploaded && !alreadyVerified && !streamUidFromUrl(String(wallpaper.value)) && String(wallpaper.value).startsWith('/media/') && !String(wallpaper.value).startsWith(`/media/wallpapers/${options.mediaOwnerId ?? userId}/`)) {
       throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
     }
     if (wallpaper.uploaded && alreadyVerified) {
       // Videos uploaded before the move to R2 (Vercel Blob URLs) stay valid as saved.
       wallpaper.fileSize = stored!.wallpaper.fileSize;
+    } else if (wallpaper.uploaded && streamUidFromUrl(String(wallpaper.value))) {
+      // REQ-023: a Stream video must belong to this account (checked once).
+      const video = await verifyStreamVideo(String(wallpaper.value), options.mediaOwnerId ?? userId);
+      wallpaper.fileSize = video?.size ?? undefined;
     } else if (wallpaper.uploaded) {
       const value = String(wallpaper.value);
-      if (!value.startsWith(`/media/wallpapers/${userId}/`)) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
+      if (!value.startsWith(`/media/wallpapers/${options.mediaOwnerId ?? userId}/`)) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
       const media = getBinding<MediaBucket>('MEDIA');
       if (!media) throw new HttpError(503, 'تخزين الفيديو غير متاح الآن. حاول لاحقًا.');
       const file = await media.head(value.slice('/media/'.length));
@@ -493,10 +571,10 @@ export async function savePageData(userId: string, sentPageData: any, options: {
     validateImageValue(wallpaper.value, 'صورة الخلفية');
   }
 
-  const client = await pool.connect();
+  const client = options.client ?? await pool.connect();
 
   try {
-    await client.query('begin');
+    if (!options.client) await client.query('begin');
     await ensurePageForUser(userId, client);
 
     const pageResult = await client.query<{ id: string }>(
@@ -616,14 +694,15 @@ export async function savePageData(userId: string, sentPageData: any, options: {
       ],
     );
 
-    await client.query('commit');
+    if (!options.client) await client.query('commit');
   } catch (error) {
-    await client.query('rollback');
+    if (!options.client) await client.query('rollback');
     throw error;
   } finally {
-    client.release();
+    if (!options.client) client.release();
   }
 
+  if (options.client) return pageData;
   const saved = await getPageDataByUserId(userId);
   // The editor already holds every unchanged file it just sent.
   return options.slimResponse && saved ? slimPageData(saved, pageData) : saved;
@@ -685,6 +764,11 @@ export async function getVisitStats(userId: string) {
      where p.user_id = $1`,
     [userId],
   );
+  // REQ-025: days older than a year live on per month and still count in the total.
+  const older = await pool.query<{ total: number }>(
+    'select coalesce(sum(m.views), 0)::int as total from page_visits_monthly m join pages p on p.id = m.page_id where p.user_id = $1',
+    [userId],
+  ).catch(() => null);
 
-  return result.rows[0];
+  return { ...result.rows[0], total: result.rows[0].total + (older?.rows[0]?.total ?? 0) };
 }

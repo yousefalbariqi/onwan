@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ColorDots, Segmented, Toggle } from './ios';
+import { Check, ChevronDown, X } from 'lucide-react';
+import { BUTTON_LIMITS, buttonMetrics } from '../lib/buttonSizes';
+import { Segmented, Toggle } from './ios';
+import { pageHost } from '../lib/site';
 import { FONT_OPTIONS, PageData, usePageContext } from '../context/PageContext';
 import { loadFont } from '../lib/fonts';
 import { PhonePreview } from './PhonePreview';
@@ -27,6 +30,44 @@ const TOOL_TABS = [
 ] as const;
 type ToolTab = (typeof TOOL_TABS)[number]['id'];
 
+const WEIGHTS = [
+  { id: 'normal', label: 'عادي' },
+  { id: 'medium', label: 'متوسط' },
+  { id: 'bold', label: 'عريض' },
+] as const;
+
+// WCAG contrast of two #rrggbb colours (1 = same, 21 = black on white).
+function contrast(a: string, b: string) {
+  const lum = (color: string) => {
+    const hex = /^#([0-9a-f]{6})$/i.exec(color)?.[1];
+    if (!hex) return null;
+    const [r, g, bl] = [0, 2, 4].map((at) => { const c = parseInt(hex.slice(at, at + 2), 16) / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [x, y] = [lum(a), lum(b)];
+  return x === null || y === null ? 21 : (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+// − value + in pixels, within the bounds that keep the button intact.
+function Stepper({ label, value, min, max, step = 1, onChange }: { label: string; value: number; min: number; max: number; step?: number; onChange: (value: number) => void }) {
+  const set = (next: number) => onChange(Math.min(max, Math.max(min, next)));
+  return (
+    <div className="flex items-center gap-2">
+      <span className="min-w-0 flex-1 text-sm text-[#1d1d1f]">{label}</span>
+      <div className="flex shrink-0 items-center rounded-[10px] bg-white p-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)]" dir="ltr">
+        <button type="button" onClick={() => set(value - step)} disabled={value <= min} aria-label={`تصغير ${label}`} className="h-9 w-9 rounded-[8px] text-lg leading-none text-[#1d1d1f] active:bg-[#f2f2f7] disabled:text-[#c7c7cc]">−</button>
+        <span className="w-14 text-center text-xs font-bold text-[#0a84ff]">{value} px</span>
+        <button type="button" onClick={() => set(value + step)} disabled={value >= max} aria-label={`تكبير ${label}`} className="h-9 w-9 rounded-[8px] text-lg leading-none text-[#1d1d1f] active:bg-[#f2f2f7] disabled:text-[#c7c7cc]">+</button>
+      </div>
+    </div>
+  );
+}
+
+// The ready colours of the picker (note 49): neutrals, then the system hues.
+const PALETTE = ['#000000', '#3a3a3c', '#8e8e93', '#ffffff', '#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#00c7be', '#0a84ff', '#5856d6', '#af52de', '#ff2d55', '#a2845e', '#1e3a8a', '#065f46', '#7c2d12'];
+
+type ColorRowId = 'name' | 'bio' | 'link' | 'headings' | 'paragraphs' | 'button' | 'buttonText' | 'icons';
+
 function ToolLabel({ children }: { children: string }) {
   return <p className="mb-2 text-[13px] font-bold text-[#6e6e73]" style={{ fontFamily: 'Cairo, sans-serif' }}>{children}</p>;
 }
@@ -46,6 +87,36 @@ export function StyleEditor() {
   }, [tab]);
   const { buttonStyle } = pageData;
   const colors = pageData.customColors ?? {};
+  const [fineOpen, setFineOpen] = useState(false);
+  const metrics = buttonMetrics(buttonStyle);
+  const exactSizes = buttonStyle.heightPx !== undefined || buttonStyle.fontPx !== undefined || buttonStyle.iconPx !== undefined;
+  const buttonFill = buttonStyle.useCustomColor && buttonStyle.customColor ? buttonStyle.customColor : pageData.theme.buttonColor;
+  const lowContrast = !!buttonStyle.textColor && !buttonStyle.border && contrast(buttonStyle.textColor, buttonFill) < 3;
+  const hasHeadings = pageData.links.some((link) => link.display?.kind === 'heading');
+  const hasParagraphs = pageData.links.some((link) => link.display?.kind === 'text');
+  const [picking, setPicking] = useState<ColorRowId | null>(null);
+  const textDefault = pageData.theme.textColor;
+  const colorRows: { id: ColorRowId; label: string; sample: string; ltr?: boolean; value?: string; swatch: string; auto: boolean; set: (color: string | undefined) => void }[] = [
+    { id: 'name' as const, label: 'الاسم', sample: pageData.name || 'اسم صفحتك', value: colors.nameColor, set: (color: string | undefined) => setColors({ nameColor: color }) },
+    { id: 'bio' as const, label: 'الوصف', sample: pageData.bio || 'النص التعريفي', value: colors.bioColor, set: (color: string | undefined) => setColors({ bioColor: color }) },
+    { id: 'link' as const, label: 'رابط الصفحة', sample: pageData.username ? pageHost(pageData.username) : 'name.onwan.link', ltr: true, value: colors.usernameColor, set: (color: string | undefined) => setColors({ usernameColor: color }) },
+    ...(hasHeadings ? [{ id: 'headings' as const, label: 'عناوين المجموعات', sample: 'العناوين داخل الصفحة', value: colors.headingColor, set: (color: string | undefined) => setColors({ headingColor: color }) }] : []),
+    ...(hasParagraphs ? [{ id: 'paragraphs' as const, label: 'النبذات', sample: 'النصوص بين العناصر', value: colors.paragraphColor, set: (color: string | undefined) => setColors({ paragraphColor: color }) }] : []),
+  ].map((row) => ({ ...row, swatch: row.value || textDefault, auto: !row.value }));
+  colorRows.push(
+    { id: 'button', label: 'لون الزر', sample: 'خلفية الأزرار', value: buttonStyle.useCustomColor ? buttonStyle.customColor : undefined, swatch: buttonFill, auto: !buttonStyle.useCustomColor, set: (color) => updateButtonStyle(color ? { useCustomColor: true, customColor: color } : { useCustomColor: false }) },
+    { id: 'buttonText', label: 'نص الزر', sample: 'نصوص الأزرار', value: buttonStyle.textColor, swatch: buttonStyle.textColor || (buttonStyle.border ? buttonFill : pageData.theme.buttonTextColor), auto: !buttonStyle.textColor, set: (textColor) => updateButtonStyle({ textColor }) },
+    {
+      id: 'icons',
+      label: 'الشعارات',
+      sample: buttonStyle.iconColor === 'text' ? 'بلون نص الزر' : buttonStyle.iconColor === 'custom' ? 'لون مختار' : 'ألوانها الأصلية',
+      value: buttonStyle.iconCustomColor,
+      swatch: buttonStyle.iconColor === 'custom' && buttonStyle.iconCustomColor ? buttonStyle.iconCustomColor : buttonStyle.iconColor === 'text' ? buttonStyle.textColor || pageData.theme.buttonTextColor : 'conic-gradient(#ff0069, #ffd60a, #34c759, #0a84ff, #ff0069)',
+      auto: buttonStyle.iconColor !== 'custom',
+      set: (iconCustomColor) => updateButtonStyle({ iconColor: 'custom', iconCustomColor }),
+    },
+  );
+  const current = colorRows.find((row) => row.id === picking);
   const setColors = (next: Partial<NonNullable<PageData['customColors']>>) => updatePageData({ customColors: { ...colors, ...next } });
 
   return (
@@ -69,19 +140,8 @@ export function StyleEditor() {
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div><ToolLabel>الشكل</ToolLabel><Segmented options={BUTTON_SHAPES} value={buttonStyle.shape as (typeof BUTTON_SHAPES)[number]['id']} onChange={(shape) => updateButtonStyle({ shape: shape as (typeof BUTTON_SHAPES)[number]['id'] })} /></div>
-                <div><ToolLabel>الحجم</ToolLabel><Segmented options={SIZES} value={buttonStyle.size ?? 'medium'} onChange={(size) => updateButtonStyle({ size: size as (typeof SIZES)[number]['id'] })} /></div>
-              </div>
-              <div>
-                <ToolLabel>لون الشعارات</ToolLabel>
-                <Segmented
-                  options={[{ id: 'brand', label: 'ملوّنة' }, { id: 'text', label: 'بلون النص' }] as const}
-                  value={buttonStyle.iconColor ?? 'brand'}
-                  onChange={(iconColor) => updateButtonStyle({ iconColor: iconColor as 'brand' | 'text' })}
-                />
-              </div>
-              <div>
-                <ToolLabel>اللون</ToolLabel>
-                <ColorDots value={buttonStyle.useCustomColor ? buttonStyle.customColor : undefined} onChange={(color) => updateButtonStyle(color ? { useCustomColor: true, customColor: color } : { useCustomColor: false })} />
+                {/* A preset size replaces any exact size set below. */}
+                <div><ToolLabel>الحجم</ToolLabel><Segmented options={SIZES} value={exactSizes ? ('' as never) : buttonStyle.size ?? 'medium'} onChange={(size) => updateButtonStyle({ size: size as (typeof SIZES)[number]['id'], heightPx: undefined, fontPx: undefined, iconPx: undefined })} /></div>
               </div>
               <div className="flex items-center gap-4">
                 <label className="flex flex-1 items-center justify-between rounded-xl bg-[#f2f2f7] px-3 py-2 text-sm text-[#1d1d1f]">حواف فقط<Toggle label="حواف فقط" on={!!buttonStyle.border} onChange={() => updateButtonStyle({ border: !buttonStyle.border })} /></label>
@@ -94,6 +154,28 @@ export function StyleEditor() {
                   <span className="w-10 text-left text-sm text-[#8e8e93]" dir="ltr">{buttonStyle.opacity ?? 100}%</span>
                 </div>
               )}
+
+              {/* Note 34: exact sizes wait behind one row until asked for. */}
+              <div className="rounded-2xl bg-[#f2f2f7]">
+                <button type="button" aria-expanded={fineOpen} onClick={() => setFineOpen(!fineOpen)} className="flex min-h-11 w-full items-center justify-between px-3 text-sm font-bold text-[#1d1d1f]">
+                  تحكم دقيق بالحجم
+                  <ChevronDown className={`h-4 w-4 text-[#8e8e93] transition-transform ${fineOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {fineOpen && (
+                  <div className="space-y-2.5 px-3 pb-3">
+                    <Stepper label="ارتفاع الزر" value={metrics.height} min={BUTTON_LIMITS.height.min} max={BUTTON_LIMITS.height.max} step={2} onChange={(heightPx) => updateButtonStyle({ heightPx })} />
+                    <Stepper label="حجم النص" value={metrics.font} min={BUTTON_LIMITS.font.min} max={Math.min(BUTTON_LIMITS.font.max, Math.floor(metrics.height * 0.5))} onChange={(fontPx) => updateButtonStyle({ fontPx })} />
+                    <Stepper label="حجم الشعار" value={metrics.icon} min={BUTTON_LIMITS.icon.min} max={Math.min(BUTTON_LIMITS.icon.max, metrics.height - 12)} step={2} onChange={(iconPx) => updateButtonStyle({ iconPx })} />
+                    <div className="flex items-center gap-2">
+                      <span className="w-20 shrink-0 text-sm text-[#1d1d1f]">سماكة النص</span>
+                      <div className="min-w-0 flex-1"><Segmented options={WEIGHTS} value={buttonStyle.fontWeight ?? ('' as never)} onChange={(fontWeight) => updateButtonStyle({ fontWeight })} /></div>
+                    </div>
+                    {(exactSizes || buttonStyle.fontWeight) && (
+                      <button type="button" onClick={() => updateButtonStyle({ heightPx: undefined, fontPx: undefined, iconPx: undefined, fontWeight: undefined })} className="text-xs text-[#0a84ff]">العودة إلى الحجم الجاهز</button>
+                    )}
+                  </div>
+                )}
+              </div>
             </>
           )}
 
@@ -153,13 +235,68 @@ export function StyleEditor() {
 
           {tab === 'colors' && (
             <>
-              <div><ToolLabel>الاسم والوصف معًا</ToolLabel><ColorDots value={colors.nameColor === colors.bioColor ? colors.nameColor : undefined} onChange={(color) => setColors({ nameColor: color, bioColor: color })} /></div>
-              <div><ToolLabel>الاسم</ToolLabel><ColorDots value={colors.nameColor} onChange={(color) => setColors({ nameColor: color })} /></div>
-              <div><ToolLabel>الوصف</ToolLabel><ColorDots value={colors.bioColor} onChange={(color) => setColors({ bioColor: color })} /></div>
+              {/* Note 49: one short list — each part with its current colour;
+                  the palette opens only for the row that is tapped. */}
+              <div className="-mx-1 divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-[#f2f2f7]">
+                {colorRows.map((row) => (
+                  <button key={row.id} type="button" onClick={() => setPicking(row.id)} className="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-right active:bg-[#e5e5ea]">
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] text-[#1d1d1f]">{row.label}</span>
+                      <span className="block truncate text-xs text-[#8e8e93]" dir={row.ltr ? 'ltr' : undefined} style={row.ltr ? { textAlign: 'right' } : undefined}>{row.sample}</span>
+                    </span>
+                    {row.auto && <span className="shrink-0 text-xs text-[#8e8e93]">تلقائي</span>}
+                    <span className="h-8 w-8 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: row.swatch }} aria-label={`اللون الحالي ${row.swatch}`} />
+                  </button>
+                ))}
+              </div>
+              {lowContrast && <p role="status" className="rounded-lg bg-[#ff9500]/12 px-3 py-2 text-xs text-[#9a5b00]">لون نص الزر قريب من لون الزر، وقد يصعب على زوارك قراءته.</p>}
             </>
           )}
         </div>
       </div>
+
+      {current && (
+        // Light backdrop: the preview stays visible and changes as colours are tapped.
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/10 sm:items-center" onClick={() => setPicking(null)} dir="rtl">
+          <section role="dialog" aria-modal="true" aria-label={`لون ${current.label}`} onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-t-[26px] bg-white px-5 pb-7 pt-4 shadow-[0_-10px_40px_rgba(0,0,0,0.18)] sm:rounded-[26px]" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+            <div className="mb-4 flex items-center justify-between">
+              <span className="flex items-center gap-2.5">
+                <span className="h-7 w-7 rounded-full ring-1 ring-black/10" style={{ background: current.swatch }} />
+                <span className="text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{current.label}</span>
+              </span>
+              <button type="button" onClick={() => setPicking(null)} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f2f2f7] text-[#55555b]" aria-label="إغلاق"><X className="h-5 w-5" /></button>
+            </div>
+            {current.id === 'icons' && (
+              <div className="mb-4">
+                <Segmented options={[{ id: 'brand', label: 'ألوانها الأصلية' }, { id: 'text', label: 'بلون النص' }, { id: 'custom', label: 'لون آخر' }] as const} value={buttonStyle.iconColor ?? 'brand'} onChange={(iconColor) => updateButtonStyle({ iconColor, ...(iconColor === 'custom' && !buttonStyle.iconCustomColor ? { iconCustomColor: '#000000' } : {}) })} />
+              </div>
+            )}
+            {(current.id !== 'icons' || buttonStyle.iconColor === 'custom') && (
+              <>
+                <div className="grid grid-cols-6 gap-3" role="radiogroup" aria-label="الألوان الجاهزة">
+                  {current.id !== 'icons' && (
+                    <button type="button" role="radio" aria-checked={current.auto} onClick={() => current.set(undefined)} className={`flex aspect-square items-center justify-center rounded-full bg-[#f2f2f7] text-[10px] font-bold text-[#3a3a3c] ${current.auto ? 'ring-2 ring-[#0a84ff] ring-offset-2' : ''}`}>تلقائي</button>
+                  )}
+                  {PALETTE.map((color) => {
+                    const active = !current.auto && current.value?.toLowerCase() === color;
+                    return (
+                      <button key={color} type="button" role="radio" aria-checked={active} aria-label={color} onClick={() => current.set(color)} className={`relative aspect-square rounded-full ring-1 ring-black/10 ${active ? 'ring-2 ring-[#0a84ff] ring-offset-2' : ''}`} style={{ backgroundColor: color }}>
+                        {active && <Check className={`absolute inset-0 m-auto h-4 w-4 ${['#ffffff', '#f2f2f7', '#ffd60a', '#fffc00'].includes(color) ? 'text-black' : 'text-white'}`} strokeWidth={3} />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* «كل الألوان»: the system's full picker for any colour. */}
+                <label className="mt-5 flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#f2f2f7] text-[15px] font-bold text-[#0a84ff]">
+                  <span className="h-5 w-5 rounded-full" style={{ background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }} />
+                  كل الألوان
+                  <input type="color" value={/^#[0-9a-f]{6}$/i.test(current.swatch) ? current.swatch : '#000000'} onChange={(event) => current.set(event.target.value)} className="sr-only" />
+                </label>
+              </>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,3 +1,6 @@
+import { takeTurnstileToken } from '../lib/turnstile';
+import { moveInlineMedia } from '../lib/mediaUpload';
+import type { PageData } from '../context/PageContext';
 const PARTNER_TOKEN_KEY = 'onwan_partner_token';
 
 export type PartnerAccount = {
@@ -9,8 +12,12 @@ export type PartnerAccount = {
   city: string;
   status: 'active' | 'suspended' | 'violation';
   priceMonthly: number | null;
+  testMode?: boolean;
+  slug?: string | null;
   priceAnnual: number | null;
   renewalRate: number;
+  saleMonthly: number | null;
+  saleAnnual: number | null;
 };
 
 export function getPartnerToken() {
@@ -27,6 +34,9 @@ export function setPartnerToken(token: string | null) {
 
 export async function partnerCall<T = any>(action: string, params: Record<string, unknown> = {}): Promise<T> {
   const token = getPartnerToken();
+  if (params.pageData) params = { ...params, pageData: await moveInlineMedia(params.pageData as PageData, token) };
+  // REQ-020: the public entry points carry the «لست روبوتًا» token.
+  if (['apply', 'login', 'login.sendCode'].includes(action)) params = { ...params, turnstileToken: takeTurnstileToken() };
   let response: Response;
 
   try {

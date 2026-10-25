@@ -1,3 +1,5 @@
+import { assertHuman } from '../_lib/turnstile.js';
+import { attachReferral } from '../_lib/partnerReferral.js';
 import { getAccountSummary, isValidEmail, isValidPhone, normalizeEmail, normalizePhone } from '../_lib/account.js';
 import { createSessionToken } from '../_lib/auth.js';
 import { pool } from '../_lib/db.js';
@@ -17,6 +19,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     const body = await readJsonBody(req);
+    await assertHuman(req, body); // REQ-020
     const email = normalizeEmail(body.email);
     const phone = normalizePhone(body.phone);
     const password = String(body.password ?? '');
@@ -59,6 +62,7 @@ export default async function handler(req: any, res: any) {
       await reserveUsername(client, userId, availability.normalized);
 
       await ensurePageForUser(userId, client);
+      await attachReferral(client, userId, body.partnerRef);
       await client.query('commit');
     } catch (error: any) {
       await client.query('rollback');

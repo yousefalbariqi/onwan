@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { StaffMember, adminCall } from './adminApi';
 import { Badge, Button, Card, Empty, ErrorNote, Field, PLAN_NAMES, formatDate, inputClass, useAction, useLoad } from './ui';
+import { PasswordInput } from '../components/PasswordInput';
 
 const PERMISSION_LABELS: Record<string, string> = {
   change_subdomain: 'الموافقة على تغيير رابط الصفحة وتنفيذه',
@@ -144,7 +145,7 @@ export function StaffAdmin({ me }: { me: StaffMember }) {
             <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value.trim() })} className={inputClass} dir="ltr" />
           </Field>
           <Field label="كلمة المرور (8+)">
-            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={inputClass} dir="ltr" />
+            <PasswordInput value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={inputClass} dir="ltr" />
           </Field>
         </div>
         <Button

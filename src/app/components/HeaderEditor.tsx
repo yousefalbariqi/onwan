@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { usePageContext } from '../context/PageContext';
+import { Camera } from 'lucide-react';
 import { EndsSlider, Group, Panel, VerticalSlider } from './ios';
 import { extractColorsFromImage } from '../utils/colorExtractor';
 import { ProfileImageControls } from './ProfileImageControls';
@@ -84,9 +85,25 @@ export function HeaderEditor() {
             zoom on the left, left/right underneath — each where it acts. */}
         <div className="flex w-full items-center justify-center gap-3 rounded-2xl bg-white p-4" aria-label="معاينة الصورة بالشكل المختار">
           {canAdjust && <VerticalSlider label="أعلى / أسفل" min={0} max={100} step={1} value={style.positionY ?? 50} topIsMin onChange={(value) => updateProfileStyle({ positionY: value })} />}
-          <div className="flex min-w-0 flex-1 justify-center overflow-hidden rounded-xl bg-[#f2f2f7] p-3">
+          {/* Note 41: the whole photo box opens the file picker (tap, click,
+              Enter or Space), with a small camera badge saying so. */}
+          <label
+            htmlFor={uploadId}
+            tabIndex={0}
+            role="button"
+            aria-label={pageData.profileImage ? 'تغيير الصورة' : 'إضافة شعار أو صورة'}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              (document.getElementById(uploadId) as HTMLInputElement | null)?.click();
+            }}
+            className="group relative flex min-w-0 flex-1 cursor-pointer justify-center overflow-hidden rounded-xl bg-[#f2f2f7] p-3 outline-none transition-[transform,box-shadow] hover:ring-2 hover:ring-[#0a84ff]/30 focus-visible:ring-2 focus-visible:ring-[#0a84ff] active:scale-[0.98]"
+          >
             <ProfileImageDisplay profileImage={pageData.profileImage} name={pageData.name} profileStyle={pageData.profileStyle} textColor="#1d1d1f" backgroundColor="#f2f2f7" />
-          </div>
+            <span className="pointer-events-none absolute bottom-2 left-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#0a84ff] text-white shadow-[0_2px_8px_rgba(10,132,255,0.4)] transition-transform group-hover:scale-110" aria-hidden="true">
+              <Camera className="h-4 w-4" />
+            </span>
+          </label>
           {canAdjust && <VerticalSlider label="تكبير" min={1} max={3} step={0.01} value={style.zoom ?? 1} icon="zoom" onChange={(value) => updateProfileStyle({ zoom: value })} />}
         </div>
         {canAdjust && (
@@ -136,7 +153,7 @@ export function HeaderEditor() {
         </div>
       </Group>
 
-      <Group title="الوصف بالإنجليزية (اختياري)" footer="إن أدخلتها ظهر لزوارك زر تبديل اللغة، وتُعرض تلقائيًا لمن لغة جهازه إنجليزية. عناوين الأزرار بالإنجليزية من «الروابط».">
+      <Group title="الوصف بالإنجليزية (اختياري)" footer="إن أدخلتها ظهر لزوارك زر تبديل اللغة، وتُعرض تلقائيًا لمن لغة جهازه إنجليزية. عناوين الأزرار بالإنجليزية من «المحتوى».">
         <div dir="ltr">
           <div className="px-4 py-3">
             <textarea

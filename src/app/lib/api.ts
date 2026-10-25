@@ -1,4 +1,22 @@
 import { clearSessionToken, getSessionToken } from './session';
+import { takeTurnstileToken } from './turnstile';
+
+// Keeps the status, so a «wait before resending» (429) is shown calmly, not as a failure.
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// Seconds to wait before another code, when the server said so; else 0.
+export function resendWait(error: unknown) {
+  const match = error instanceof ApiError ? /^resend_wait:(\d+)$/.exec(error.code ?? '') : null;
+  return match ? Number(match[1]) : 0;
+}
 
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH';
@@ -12,6 +30,7 @@ export type Account = {
   email: string;
   phone: string;
   emailVerified: boolean;
+  mustChangePassword?: boolean;
   // The name is held until the payment fixes it; changeable until then.
   nameFixed: boolean;
   nameHoldExpiresAt: string | null;
@@ -84,7 +103,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     // back to the status code instead of a message that says nothing.
     const errorMessage =
       payload?.error || `تعذر تنفيذ الطلب (رمز ${response.status}). تحقق من إعدادات الخادم.`;
-    throw new Error(errorMessage);
+    throw new ApiError(errorMessage, response.status, payload?.code);
   }
 
   return payload as T;
@@ -100,17 +119,22 @@ export function checkUsername(username: string) {
 }
 
 export function signup(input: { username: string; phone: string; email: string; password: string }) {
-  return request<AuthResponse>('/api/auth/signup', { method: 'POST', body: input });
+  const partnerRef = sessionStorage.getItem('onwan_partner_ref');
+  return request<AuthResponse>('/api/auth/signup', { method: 'POST', body: { ...input, partnerRef, turnstileToken: takeTurnstileToken() } }).then(response => {
+    sessionStorage.removeItem('onwan_partner_ref');
+    return response;
+  });
 }
 
 export function login(identifier: string, password: string) {
-  return request<AuthResponse>('/api/auth/login', { method: 'POST', body: { identifier, password } });
+  sessionStorage.removeItem('onwan_partner_ref');
+  return request<AuthResponse>('/api/auth/login', { method: 'POST', body: { identifier, password, turnstileToken: takeTurnstileToken() } });
 }
 
 export function requestPasswordReset(email: string) {
   return request<{ message: string }>('/api/auth/reset-password', {
     method: 'POST',
-    body: { action: 'request', email },
+    body: { action: 'request', email, turnstileToken: takeTurnstileToken() },
   });
 }
 
@@ -122,7 +146,7 @@ export function confirmPasswordReset(email: string, code: string, password: stri
 }
 
 export function sendEmailCode() {
-  return request<{ message: string }>('/api/auth/email-code', {
+  return request<{ message: string; sent?: boolean; retryAfter?: number }>('/api/auth/email-code', {
     method: 'POST',
     authenticated: true,
     body: { action: 'send' },
@@ -138,8 +162,17 @@ export function verifyEmailCode(code: string) {
 }
 
 export function fetchMyPage() {
-  return request<{ pageData: any; account: Account }>('/api/page/me', {
+  return request<{ pageData: any; account: Account; draft?: { pageData: any; savedAt: string } | null }>('/api/page/me', {
     authenticated: true,
+  });
+}
+
+// REQ-015: the unpublished draft, kept on the server for the owner only.
+export function saveMyDraft(pageData: any | null) {
+  return request<{ savedAt: string | null }>('/api/page/me', {
+    method: 'PATCH',
+    authenticated: true,
+    body: { draft: true, pageData },
   });
 }
 
@@ -147,7 +180,7 @@ export function saveMyPage(pageData: any) {
   return request<{ pageData: any; account: Account }>('/api/page/me', {
     method: 'PATCH',
     authenticated: true,
-    body: { pageData },
+    body: { pageData, slim: true },
   });
 }
 
@@ -155,7 +188,7 @@ export function saveMyPage(pageData: any) {
 export function fetchPublicPage(target: { username: string } | { host: string }) {
   const query = 'host' in target ? `host=${encodeURIComponent(target.host)}` : `username=${encodeURIComponent(target.username)}`;
 
-  return request<{ pageData?: any; suspended?: boolean; message?: string; movedTo?: string }>(`/api/public-page?${query}`);
+  return request<{ pageData?: any; suspended?: boolean; message?: string; movedTo?: string; partnerStorefront?: string }>(`/api/public-page?${query}`);
 }
 
 export function reportPage(username: string, message: string) {

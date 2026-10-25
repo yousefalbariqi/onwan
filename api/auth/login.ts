@@ -1,3 +1,4 @@
+import { assertHuman } from '../_lib/turnstile.js';
 import { getAccountSummary, isValidPhone, normalizeEmail, normalizePhone } from '../_lib/account.js';
 import { createSessionToken } from '../_lib/auth.js';
 import { pool } from '../_lib/db.js';
@@ -5,6 +6,7 @@ import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from 
 import { ensurePageForUser, getPageDataByUserId } from '../_lib/page.js';
 import { verifyPassword } from '../_lib/password.js';
 import { getBannedMessage } from '../_lib/session.js';
+import { assertNotLocked, clearFailures, recordFailure } from '../_lib/loginGuard.js';
 
 // Existing beneficiaries can use either their email or their registered phone.
 export default async function handler(req: any, res: any) {
@@ -14,6 +16,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     const body = await readJsonBody(req);
+    await assertHuman(req, body); // REQ-020
     const identifier = String(body.identifier ?? body.email ?? '').trim();
     const email = normalizeEmail(identifier);
     const phone = normalizePhone(identifier);
@@ -22,6 +25,9 @@ export default async function handler(req: any, res: any) {
     if ((!email && !isValidPhone(phone)) || !password) {
       throw new HttpError(400, 'البريد الإلكتروني أو رقم الجوال وكلمة المرور مطلوبان.');
     }
+
+    const tried = email || phone;
+    await assertNotLocked('customer', tried);
 
     const result = await pool.query<{ id: string; email: string | null; password_hash: string | null; status: string }>(
       'select id, email, password_hash, status from users where email = $1 or phone = $2 limit 1',
@@ -34,6 +40,7 @@ export default async function handler(req: any, res: any) {
     // through «نسيت كلمة المرور». The same message is used for every failure
     // so the form does not reveal which emails are registered.
     if (!user || !verifyPassword(password, user.password_hash)) {
+      await recordFailure('customer', tried);
       throw new HttpError(
         401,
         'البريد الإلكتروني أو رقم الجوال أو كلمة المرور غير صحيحة. إن لم تُنشئ كلمة مرور بعد فاستخدم «نسيت كلمة المرور».',
@@ -44,6 +51,7 @@ export default async function handler(req: any, res: any) {
       throw new HttpError(403, getBannedMessage(), 'banned');
     }
 
+    await clearFailures('customer', tried);
     await ensurePageForUser(user.id);
 
     sendJson(res, 200, {

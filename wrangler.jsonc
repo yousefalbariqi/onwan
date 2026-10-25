@@ -13,7 +13,12 @@
     "run_worker_first": true
   },
   "vars": {
-    "ROOT_DOMAIN": "onwan.link"
+    "ROOT_DOMAIN": "onwan.link",
+    // REQ-023 Cloudflare Stream (public values; STREAM_API_TOKEN is a secret).
+    "CF_ACCOUNT_ID": "0deb932b2d2480c378d564be44a39990",
+    "STREAM_CUSTOMER_HOST": "customer-izh2gxj70gpyopwe.cloudflarestream.com",
+    // Temporary full-flow test activation, explicitly enabled by the owner.
+    "DEMO_PAYMENT_ENABLED": "true"
   },
   "observability": {
     "enabled": true
@@ -29,6 +34,10 @@
     }
   ],
   // Background videos (note 30). Create once: npx wrangler r2 bucket create onwan-media
+  // Hourly: unused stored files are deleted (30 days if ever saved, else 24 hours — owner, 25 Oct 2026).
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
   "r2_buckets": [
     {
       "binding": "MEDIA",

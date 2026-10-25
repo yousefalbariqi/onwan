@@ -24,7 +24,7 @@ function loadShared(file) {
   return module.exports;
 }
 
-const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
+const image = '/media/files/owner/' + 'a'.repeat(64) + '.png';
 function api() {
   const db = { links: [], reviews: [] };
   const page = { id: 'page', username: 'example', status: 'published' };
@@ -54,6 +54,8 @@ function api() {
     if (name === '../../shared/videoSources') return loadVideos();
     if (name === '../../shared/linkSections') return loadSections();
     if (name === '../../shared/pageTransfer') return loadShared('shared/pageTransfer.ts');
+    if (name === '../../shared/fileSignatures') return loadShared('shared/fileSignatures.ts');
+    if (name === './stream') return { streamUidFromUrl: () => null, verifyStreamVideo: async () => null };
     if (name === './runtime') return { getBinding: name => (name === 'MEDIA' && db.media ? db.media : undefined) };
     if (name === './db') return { pool };
     if (name === './http') return { HttpError: class extends Error { constructor(status, message) { super(message); this.status = status; } } };
@@ -69,7 +71,7 @@ test('existing buttons remain regular links', () => {
 });
 test('section headings require a title but no destination and discard unrelated content', () => {
   const normalize = api().testNormalize;
-  const [heading] = normalize([{ title: 'خدماتنا', display: { kind: 'heading', image, layout: 'card' }, url: 'javascript:alert(1)' }]);
+  const [heading] = normalize([{ title: 'خدماتنا', display: { kind: 'heading' }, url: 'javascript:alert(1)' }]);
   assert.equal(heading.url, '');
   assert.deepEqual(heading.display, { kind: 'heading' });
   assert.throws(() => normalize([{ title: ' ', display: { kind: 'heading' } }]), { status: 400 });
@@ -233,7 +235,10 @@ test('save verifies uploaded video ownership, content type and size in R2, once 
   await assert.rejects(() => service.savePageData('owner', { wallpaper: other }), { status: 400 });
   objects['wallpapers/owner/12345678-1234-1234-1234-123456789abd.mp4'] = { size: 100, httpMetadata: { contentType: 'text/html' } };
   await assert.rejects(() => service.savePageData('owner', { wallpaper: other }), { status: 400 });
-  await assert.rejects(() => service.savePageData('another-owner', { wallpaper: valid }), { status: 403 });
+  // Another account cannot claim this owner's stored video (its own page has none).
+  const stranger = api();
+  stranger.db.media = service.db.media;
+  await assert.rejects(() => stranger.savePageData('another-owner', { wallpaper: valid }), { status: 403 });
 });
 
 test('upload endpoint authenticates, stores in the owner folder of R2 and enforces type and the 20 MB limit', async () => {
@@ -251,15 +256,23 @@ test('upload endpoint authenticates, stores in the owner folder of R2 and enforc
   new Function('require', 'module', 'exports', code)(name => {
     name = name.replace(/\.js$/, '');
     if (name === '../shared/videoSources') return loadVideos();
+    if (name === '../shared/fileSignatures') return loadShared('shared/fileSignatures.ts');
+    if (name === './_lib/mediaUploadLimits') return { beginMediaUpload: async () => 'event', storeLimitedUpload: async (media, owner, key, body, type) => media.put(key, body, { httpMetadata: { contentType: type } }) };
     if (name === './_lib/runtime') return { getBinding: () => media };
     if (name === './_lib/http') return http;
     if (name === './_lib/session') return { requireUser: async (req, res) => { if (signedIn) return { id: 'owner' }; http.sendJson(res, 401, {}); return null; } };
+    if (name === './_lib/auth') return { getBearerToken: () => null, verifySessionToken: () => null };
+    if (name === './_lib/db') return { pool: { query: async () => ({ rows: [] }) } };
     throw new Error(name);
   }, module, module.exports);
   const handler = module.exports.default;
   const send = async (type, size) => {
     const res = {};
-    await handler({ method: 'POST', headers: { 'content-type': type, 'content-length': String(size) }, arrayBuffer: async () => new ArrayBuffer(size) }, res);
+    // Real file starts (REQ-017): MP4 has «ftyp» at byte 4, WebM starts 1A 45 DF A3.
+    const body = new Uint8Array(size);
+    if (type === 'video/mp4' && size >= 8) body.set([0x66, 0x74, 0x79, 0x70], 4);
+    if (type === 'video/webm' && size >= 4) body.set([0x1a, 0x45, 0xdf, 0xa3]);
+    await handler({ method: 'POST', headers: { 'content-type': type, 'content-length': String(size) }, arrayBuffer: async () => body.buffer }, res);
     return res;
   };
   assert.equal((await send('video/mp4', 10)).status, 503);
@@ -276,20 +289,219 @@ test('upload endpoint authenticates, stores in the owner folder of R2 and enforc
   assert.equal((await send('video/mp4', 10)).status, 401);
 });
 
-test('unchanged files travel as KEPT, link ids stay stable and the response is slimmed', async () => {
+test('stored file URLs and link ids survive repeated saves; missing KEPT references fail', async () => {
   const service = api();
   const { KEPT, slimPageData, expandPageData } = loadShared('shared/pageTransfer.ts');
   const id = '11111111-2222-4333-8444-555555555555';
-  const first = { profileImage: image, links: [{ id, title: 'الملف', url: 'data:application/pdf;base64,JVBERi0x', linkType: 'file' }] };
+  const first = { profileImage: image, links: [{ id, title: 'الملف', url: ('/media/files/owner/' + 'b'.repeat(64) + '.pdf'), linkType: 'file' }] };
   const saved = await service.savePageData('owner', first);
   assert.equal(saved.links[0].id, id);
   const slim = slimPageData({ ...saved, name: 'جديد' }, saved);
-  assert.equal(slim.profileImage, KEPT);
-  assert.equal(slim.links[0].url, KEPT);
+  assert.equal(slim.profileImage, image);
+  assert.equal(slim.links[0].url, first.links[0].url);
   const again = await service.savePageData('owner', slim, { slimResponse: true });
-  assert.equal(again.profileImage, KEPT);
+  assert.equal(again.profileImage, image);
   assert.equal(again.links[0].id, id);
-  assert.equal(service.db.links[0].url, 'data:application/pdf;base64,JVBERi0x');
+  assert.equal(service.db.links[0].url, ('/media/files/owner/' + 'b'.repeat(64) + '.pdf'));
   assert.equal(expandPageData(again, saved).profileImage, image);
   await assert.rejects(() => service.savePageData('owner', { links: [{ id: '99999999-2222-4333-8444-555555555555', title: 'x', url: KEPT, linkType: 'file' }] }), { status: 409 });
+});
+
+test('note 53: stored media links are accepted for logo, files, icons and cards; other paths are not', async () => {
+  const normalize = api().testNormalize;
+  const hash = 'a'.repeat(64);
+  const [file] = normalize([{ title: 'الملف', url: `/media/files/owner/${hash}.pdf`, linkType: 'file' }]);
+  assert.equal(file.fileMimeType, 'application/pdf');
+  const [icon] = normalize([{ title: 'موقع', url: 'https://example.com', customIcon: `/media/files/owner/${hash}.png` }]);
+  assert.equal(icon.customIcon, `/media/files/owner/${hash}.png`);
+  const [card] = normalize([{ title: 'بطاقة', url: 'https://example.com', display: { layout: 'card', image: `/media/files/owner/${hash}.webp` } }]);
+  assert.equal(card.display.image, `/media/files/owner/${hash}.webp`);
+  for (const bad of ['/media/files/owner/short.png', `/media/files/../${hash}.png`, `/media/files/owner/${hash}.html`]) {
+    assert.throws(() => normalize([{ title: 'ملف', url: bad, linkType: 'file' }]), { status: 400 });
+  }
+  const saved = await api().savePageData('owner', { profileImage: `/media/files/owner/${hash}.jpg`, links: [] });
+  assert.equal(saved.profileImage, `/media/files/owner/${hash}.jpg`);
+});
+
+
+test('inline files are rejected before page or partner draft writes, including nested fields', async () => {
+  for (const data of [
+    { profileImage: 'data:image/png;base64,AAAA' },
+    { wallpaper: { type: 'image', value: 'data:image/png;base64,AAAA' } },
+    { links: [{ title: 'PDF', linkType: 'file', url: 'data:application/pdf;base64,AAAA' }] },
+    { links: [{ title: 'x', url: 'https://example.com', customIcon: 'data:image/png;base64,AAAA' }] },
+    { extra: { nested: ['data:image/png;base64,AAAA'] } },
+  ]) {
+    const service = api();
+    await assert.rejects(() => service.savePageData('owner', data), { status: 400 });
+    assert.throws(() => service.validatePartnerPageDraft(data, 'partner'), { status: 400 });
+    assert.deepEqual(service.db.links, []);
+    assert.deepEqual(service.db.reviews, []);
+  }
+});
+
+test('media preparation fails closed on upload errors and only returns stored links', async () => {
+  const module = { exports: {} };
+  const code = ts.transpileModule(fs.readFileSync('src/app/lib/mediaUpload.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  let fail = true;
+  const stored = '/media/files/owner/' + 'c'.repeat(64) + '.png';
+  const fetchMock = async url => String(url).startsWith('data:')
+    ? { blob: async () => new Blob(['image'], { type: 'image/png' }) }
+    : { ok: !fail, json: async () => fail ? { error: 'upload failed' } : { url: stored } };
+  new Function('require', 'module', 'exports', 'fetch', code)(() => ({ getSessionToken: () => 'token' }), module, module.exports, fetchMock);
+  const inline = 'data:image/png;base64,AAAA';
+  const page = { profileImage: inline, wallpaper: { type: 'color', value: '#fff' }, links: [] };
+  await assert.rejects(() => module.exports.moveInlineMedia(page), /upload failed/);
+  assert.equal(page.profileImage, inline);
+  await assert.rejects(() => module.exports.moveInlineMedia(page, null), /سجّل الدخول/);
+  fail = false;
+  assert.equal((await module.exports.moveInlineMedia(page)).profileImage, stored);
+});
+
+test('media cleanup: used files stay; unused saved files go after 30 days, abandoned after 24 hours', async () => {
+  const orphans = new Map();
+  const log = [];
+  const state = { referenced: ['files/u/a.png'], saved: ['files/u/a.png', 'files/u/old.png'] };
+  const query = async (sql, values = []) => {
+    const text = sql.replace(/\s+/g, ' ');
+    if (['begin', 'commit', 'rollback'].includes(text) || text.startsWith('select pg_advisory') || text.startsWith('insert into media_deleted_keys') || text.startsWith('delete from media_upload_events') || text.startsWith('select key from media_deleted_keys') || text.startsWith('update media_deleted_keys')) return { rows: [] };
+    if (text.includes('from content_reviews')) return { rows: state.saved.map((key) => ({ key })) };
+    if (text.includes('from pages')) return { rows: state.referenced.map((key) => ({ key })) };
+    if (text.startsWith('delete from media_orphans where not')) { for (const k of [...orphans.keys()]) if (!values[0].includes(k)) orphans.delete(k); return { rows: [] }; }
+    if (text.startsWith('insert into media_orphans')) { for (const k of values[0]) if (!orphans.has(k)) orphans.set(k, values[1]); return { rows: [] }; }
+    if (text.startsWith('select key, first_seen from media_orphans')) return { rows: [...orphans].map(([key, first_seen]) => ({ key, first_seen })) };
+    if (text.startsWith('insert into media_cleanup_log')) { log.push(...values[0]); return { rows: [] }; }
+    if (text.startsWith('delete from media_orphans where key = any')) { for (const k of values[0]) orphans.delete(k); return { rows: [] }; }
+    throw new Error(`Unexpected SQL: ${text}`);
+  };
+  const module = { exports: {} };
+  const code = ts.transpileModule(fs.readFileSync('api/_lib/mediaCleanup.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function('require', 'module', 'exports', code)((name) => { if (name.replace(/\.js$/, '') === './db') return { pool: { query, connect: async () => ({ query, release() {} }) } }; if (name.replace(/\.js$/, '') === './mediaReferences') return loadShared('api/_lib/mediaReferences.ts'); throw new Error(name); }, module, module.exports);
+  const files = new Set(['files/u/a.png', 'files/u/old.png', 'wallpapers/u/unsaved.mp4']);
+  const store = {
+    list: async ({ prefix }) => ({ objects: [...files].filter((k) => k.startsWith(prefix)).map((key) => ({ key })), truncated: false }),
+    delete: async (keys) => keys.forEach((k) => files.delete(k)),
+  };
+  const day = (n) => new Date(Date.UTC(2026, 9, 1 + n));
+  await module.exports.runMediaCleanup(store, day(0));
+  await module.exports.runMediaCleanup(store, new Date(day(0).getTime() + 23 * 3600000));
+  assert.equal(files.size, 3, 'nothing goes before 24 hours');
+  await module.exports.runMediaCleanup(store, day(1));
+  assert.ok(!files.has('wallpapers/u/unsaved.mp4'), 'never-saved file goes after 24 hours');
+  assert.ok(files.has('files/u/old.png'), 'a saved design file stays for 30 days');
+  await module.exports.runMediaCleanup(store, day(29));
+  assert.ok(files.has('files/u/old.png'));
+  await module.exports.runMediaCleanup(store, day(30));
+  assert.ok(!files.has('files/u/old.png'), 'saved file goes after 30 days');
+  assert.ok(files.has('files/u/a.png'), 'a file in use is never deleted');
+  assert.deepEqual(log.sort(), ['files/u/old.png', 'wallpapers/u/unsaved.mp4']);
+});
+
+
+test('REQ-004: accepts 30 page elements and rejects the 31st', async () => {
+  const service = api();
+  const links = Array.from({ length: 30 }, (_, i) => ({ title: `Link ${i}`, url: 'https://example.com' }));
+  assert.equal((await service.savePageData('owner', { links })).links.length, 30);
+  await assert.rejects(() => service.savePageData('owner', { links: [...links, links[0]] }), { status: 400 });
+});
+
+
+test('REQ-002: oversized still images are compressed before upload; oversized GIFs fail', async () => {
+  const module = { exports: {} };
+  const source = fs.readFileSync('src/app/lib/mediaUpload.ts', 'utf8') + '\nexport { prepareImage };';
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  let attempts = 0;
+  const canvas = { getContext: () => ({ drawImage() {} }), toBlob: callback => callback(new Blob([new Uint8Array(++attempts === 1 ? 1_000_001 : 999_000)], { type: 'image/webp' })) };
+  class ImageMock { width = 2400; height = 1600; async decode() {} }
+  new Function('require', 'module', 'exports', 'document', 'Image', 'URL', code)(() => ({}), module, module.exports, { createElement: () => canvas }, ImageMock, { createObjectURL: () => 'blob:test', revokeObjectURL() {} });
+  const result = await module.exports.prepareImage(new Blob([new Uint8Array(1_000_001)], { type: 'image/png' }));
+  assert.ok(result.size <= 1_000_000);
+  assert.equal(attempts, 2);
+  await assert.rejects(() => module.exports.prepareImage(new Blob([new Uint8Array(1_000_001)], { type: 'image/gif' })), /GIF/);
+});
+
+
+test('REQ-006: one image per slot; structural elements reject media; only video keeps poster', async () => {
+  const service = api();
+  for (const kind of ['heading', 'text']) {
+    for (const media of [{ customIcon: image }, { display: { kind, body: 'text', image } }]) {
+      assert.throws(() => service.validatePartnerPageDraft({ links: [{ title: 'x', display: { kind, body: 'text' }, ...media }] }), { status: 400 });
+    }
+  }
+  for (const profileImage of [[image], { image }]) {
+    await assert.rejects(() => service.savePageData('owner', { profileImage }), { status: 400 });
+  }
+  const data = { profileImage: image, wallpaper: { type: 'image', value: image, poster: image, uploaded: true }, links: [{ title: 'x', url: 'https://example.com', customIcon: image, display: { layout: 'card', image } }] };
+  const draft = service.validatePartnerPageDraft(data);
+  assert.equal(draft.wallpaper.poster, undefined);
+  assert.equal(draft.wallpaper.uploaded, undefined);
+  const saved = await service.savePageData('owner', data);
+  assert.equal(saved.wallpaper.poster, undefined);
+  assert.equal(saved.links[0].customIcon, image);
+  assert.equal(saved.links[0].display.image, image);
+});
+
+test('REQ-017: uploads and inline files are judged by their content, not their declared type', async () => {
+  const { sniffFileType, contentMatchesType } = loadShared('shared/fileSignatures.ts');
+  assert.equal(sniffFileType(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'image/png');
+  assert.equal(sniffFileType(new TextEncoder().encode('%PDF-1.7')), 'application/pdf');
+  assert.equal(contentMatchesType(new TextEncoder().encode('<html><script>'), 'image/png'), false);
+  const normalize = api().testNormalize;
+  const fakePdf = 'data:application/pdf;base64,' + Buffer.from('<script>alert(1)</script>').toString('base64');
+  assert.throws(() => normalize([{ title: 'ملف', url: fakePdf, linkType: 'file' }]), { status: 400 });
+  const realPdf = 'data:application/pdf;base64,' + Buffer.from('%PDF-1.7 test').toString('base64');
+  assert.equal(normalize([{ title: 'ملف', url: realPdf, linkType: 'file' }])[0].fileMimeType, 'application/pdf');
+});
+
+test('REQ-016: an account may store 200 MB in all; the next upload past it is refused', async () => {
+  const module = { exports: {} };
+  const code = ts.transpileModule(fs.readFileSync('api/_lib/storageQuota.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function('require', 'module', 'exports', code)(name => {
+    if (name === './db.js') return { pool: { query: async () => ({ rows: [{ key: 'a' }, { key: 'v' }] }) } };
+    if (name === './mediaReferences.js') return loadShared('api/_lib/mediaReferences.ts');
+    return { HttpError: class extends Error { constructor(status, message) { super(message); this.status = status; } } };
+  }, module, module.exports);
+  const MB = 1024 * 1024;
+  const media = { list: async ({ prefix }) => ({ objects: prefix.startsWith('files/') ? [{ key: 'a', size: 150 * MB }] : [{ key: 'v', size: 45 * MB }], truncated: false }) };
+  await module.exports.assertStorageRoom(media, 'owner', 5 * MB);
+  await assert.rejects(() => module.exports.assertStorageRoom(media, 'owner', 5 * MB + 1), { status: 413 });
+});
+
+test('REQ-023: Stream videos — owner-bound uploads, ready only with the MP4, foreign videos refused', async () => {
+  const env = { CF_ACCOUNT_ID: 'acct', STREAM_API_TOKEN: 'test-only', STREAM_CUSTOMER_HOST: 'customer-abc.cloudflarestream.com' };
+  const module = { exports: {} };
+  const code = ts.transpileModule(fs.readFileSync('api/_lib/stream.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function('require', 'module', 'exports', code)((name) => {
+    if (name.includes('runtime')) return { getEnv: (key) => env[key] };
+    if (name.includes('http')) return { HttpError: class extends Error { constructor(status, message, code) { super(message); this.status = status; this.code = code; } } };
+    throw new Error(name);
+  }, module, module.exports);
+  const stream = module.exports;
+  const uid = 'a'.repeat(32);
+  const videos = { [uid]: { uid, readyToStream: true, size: 1234, meta: { owner: 'owner' } } };
+  let mp4 = 'inprogress';
+  const realFetch = global.fetch;
+  global.fetch = async (url, init = {}) => {
+    const path = String(url).split('/stream')[1];
+    const reply = (result) => ({ ok: true, json: async () => ({ success: true, result }) });
+    if (path === '/direct_upload') { assert.equal(JSON.parse(init.body).meta.owner, 'owner'); return reply({ uploadURL: 'https://upload.example/x', uid }); }
+    if (path === `/${uid}/downloads`) return reply({ default: { status: mp4 } });
+    if (path === `/${uid}`) return reply(videos[uid]);
+    throw new Error(path);
+  };
+  try {
+    assert.equal((await stream.createStreamUpload('owner')).uid, uid);
+    assert.deepEqual(await stream.streamStatus(uid, 'owner'), { ready: false });
+    mp4 = 'ready';
+    const ready = await stream.streamStatus(uid, 'owner');
+    assert.equal(ready.url, `https://customer-abc.cloudflarestream.com/${uid}/downloads/default.mp4`);
+    await assert.rejects(() => stream.streamStatus(uid, 'someone-else'), { status: 403 });
+    assert.equal(stream.streamUidFromUrl(ready.url), uid);
+    assert.equal(stream.streamUidFromUrl(`https://customer-evil.cloudflarestream.com/${uid}/downloads/default.mp4`), null);
+    await assert.rejects(() => stream.verifyStreamVideo(ready.url, 'someone-else'), { status: 403 });
+    delete env.STREAM_API_TOKEN;
+    await assert.rejects(() => stream.createStreamUpload('owner'), (error) => error.code === 'stream_off');
+  } finally {
+    global.fetch = realFetch;
+  }
 });

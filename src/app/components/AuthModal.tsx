@@ -1,10 +1,14 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { login, signup } from '../lib/api';
+import { pageHost } from '../lib/site';
 import { useAuthSuccess } from '../lib/useAuthSuccess';
+import { PasswordInput } from './PasswordInput';
+import { TurnstileBox } from '../lib/turnstile';
 
 type AuthMode = 'signup' | 'login';
+type Field = 'phone' | 'email' | 'password' | 'identifier';
 
 interface AuthModalProps {
   mode: AuthMode;
@@ -15,178 +19,165 @@ interface AuthModalProps {
 
 const MIN_PASSWORD_LENGTH = 8;
 
-// The modal intentionally has no dismiss action: registration starts only
-// after a name has been picked and continues in this focused step.
+// Which field a server message is about, so it shows under that field.
+function fieldOf(message: string, isSignup: boolean): Field | null {
+  if (/جوال|الهاتف/.test(message)) return isSignup ? 'phone' : 'identifier';
+  if (/البريد|الإيميل/.test(message)) return isSignup ? 'email' : 'identifier';
+  if (/كلمة المرور/.test(message)) return 'password';
+  return null;
+}
+
+// Notes 50–51: «إنشاء حسابك» opens by itself over the editor for a new
+// visitor, and cannot be closed to keep editing: the account comes first. One
+// grouped card of fields, a short error under the field it concerns, one
+// button. After signup the editor opens on the chosen page name.
 export default function AuthModal({ mode: initialMode, username, inEditor = false }: AuthModalProps) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  const onSuccess = useAuthSuccess({ keepDraft: inEditor && initialMode === 'signup' });
+  const onSuccess = useAuthSuccess();
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<Partial<Record<Field | 'form', string>>>({});
   const isSignup = mode === 'signup';
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
     if (isSignup) {
-      if (phone.length < 8) {
-        setError('يرجى إدخال رقم جوال صحيح.');
-        return;
-      }
-
-      if (password.length < MIN_PASSWORD_LENGTH) {
-        setError(`لزيادة أمان حسابك، اختر كلمة مرور من ${MIN_PASSWORD_LENGTH} أحرف على الأقل.`);
-        return;
-      }
+      const found: typeof errors = {};
+      if (!/^0?5\d{8}$/.test(phone) && phone.length < 8) found.phone = 'رقم الجوال غير مكتمل.';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) found.email = 'تحقق من البريد الإلكتروني.';
+      if (password.length < MIN_PASSWORD_LENGTH) found.password = `${MIN_PASSWORD_LENGTH} أحرف على الأقل.`;
+      if (Object.keys(found).length) { setErrors(found); return; }
     }
 
     try {
-      setError('');
+      setErrors({});
       setLoading(true);
 
       if (isSignup) {
-        onSuccess(await signup({ username: username || '', phone, email, password }));
+        onSuccess(await signup({ username: username || '', phone, email, password }), { keepDraft: inEditor });
       } else {
-        onSuccess(await login(identifier, password));
+        onSuccess(await login(identifier, password), { keepDraft: false });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : isSignup ? 'تعذر إنشاء الحساب الآن.' : 'تعذر تسجيل الدخول الآن.');
+      const message = err instanceof Error ? err.message : isSignup ? 'تعذر إنشاء الحساب الآن.' : 'تعذر تسجيل الدخول الآن.';
+      setErrors({ [fieldOf(message, isSignup) ?? 'form']: message });
     } finally {
       setLoading(false);
     }
   };
 
+  const clear = (field: Field) => setErrors((current) => (current[field] || current.form ? { ...current, [field]: undefined, form: undefined } : current));
+  const ready = isSignup ? Boolean(phone && email && password) : Boolean(identifier && password);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/10 p-4" role="presentation">
+    // Note 58: centred on every screen. The overlay itself scrolls, so with
+    // the keyboard open or on a short screen the fields and the button stay
+    // reachable and the card never leaves the screen.
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/25 backdrop-blur-[2px]" role="presentation">
+      <div className="flex min-h-full items-center justify-center px-4 py-6">
       <section
-        className="animate-auth-modal-in relative w-full max-w-[420px] rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
+        className="animate-auth-modal-in relative w-full max-w-[400px] scroll-mt-6 rounded-[28px] bg-[#f2f2f7] px-5 pb-7 pt-6 shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-modal-title"
         dir="rtl"
+        style={{ fontFamily: 'Tajawal, sans-serif' }}
       >
-        <button
-          type="button"
-          onClick={() => navigate(username ? `/?username=${encodeURIComponent(username)}` : '/')}
-          className="absolute right-5 top-5 inline-flex items-center gap-1.5 rounded-lg px-1 py-1 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 sm:right-6 sm:top-6"
-          style={{ fontFamily: 'Cairo, sans-serif' }}
-        >
-          <ArrowRight className="h-4 w-4" />
-          رجوع
-        </button>
+        {/* Outside the editor the visitor may go back; in it the account comes first (note 50). */}
+        {!inEditor && (
+          <button type="button" onClick={() => navigate(username ? `/?username=${encodeURIComponent(username)}` : '/')} className="absolute right-4 top-4 flex h-9 items-center gap-1 rounded-full px-2 text-[15px] text-[#0a84ff]">
+            <ArrowRight className="h-4 w-4" />رجوع
+          </button>
+        )}
+
         <div className="mb-5 text-center">
-          <h1 id="auth-modal-title" className="text-xl font-black text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            {isSignup ? 'إنشاء حساب الجهة' : 'تسجيل الدخول'}
+          <h1 id="auth-modal-title" className="text-[26px] font-black leading-tight text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            {isSignup ? 'إنشاء حسابك' : 'تسجيل الدخول'}
           </h1>
-          <p className="mt-1 text-sm text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            {isSignup ? 'أكمل بياناتك للبدء في تجهيز الصفحة.' : 'أدخل بيانات حسابك للمتابعة.'}
-          </p>
+          <p className="mt-1 text-[15px] text-[#6e6e73]">{isSignup ? 'أكمل بياناتك للبدء في تجهيز صفحتك' : 'أدخل بيانات حسابك للمتابعة'}</p>
+          {isSignup && username && (
+            <span className="mt-3 inline-block rounded-full bg-white px-3 py-1 text-[13px] font-bold text-[#1d1d1f] shadow-[0_1px_2px_rgba(0,0,0,0.06)]" dir="ltr">{pageHost(username)}</span>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-3">
-          {isSignup ? (
-            <>
-              <ModalField
-                label="رقم الجوال"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value.replace(/[^0-9]/g, ''))}
-                placeholder="05XXXXXXXX"
-                maxLength={20}
-                autoFocus
-              />
-              <ModalField
-                label="البريد الإلكتروني"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value.trim())}
-                placeholder="name@example.org"
-              />
-              <ModalField
-                label="كلمة المرور"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
-                hint={`${MIN_PASSWORD_LENGTH} أحرف على الأقل، ويُفضّل أن تجمع بين حروف وأرقام.`}
-              />
-            </>
-          ) : (
-            <>
-              <ModalField
-                label="البريد الإلكتروني أو رقم الجوال"
-                type="text"
-                autoComplete="username"
-                value={identifier}
-                onChange={(event) => setIdentifier(event.target.value.trim())}
-                placeholder="05XXXXXXXX"
-                autoFocus
-              />
-              <ModalField
-                label="كلمة المرور"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
-              />
-            </>
-          )}
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="overflow-hidden rounded-2xl bg-white">
+            {isSignup ? (
+              <>
+                <Row label="الجوال" error={errors.phone}>
+                  <input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => { setPhone(e.target.value.replace(/[^0-9]/g, '')); clear('phone'); }} placeholder="05XXXXXXXX" maxLength={20} autoFocus aria-invalid={Boolean(errors.phone)} className={inputClass} dir="ltr" />
+                </Row>
+                <Row label="البريد" error={errors.email}>
+                  <input type="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value.trim()); clear('email'); }} placeholder="name@example.org" aria-invalid={Boolean(errors.email)} className={inputClass} dir="ltr" />
+                </Row>
+                <Row label="كلمة المرور" error={errors.password} last>
+                  <PasswordInput autoComplete="new-password" value={password} onChange={(e) => { setPassword(e.target.value); clear('password'); }} placeholder={`${MIN_PASSWORD_LENGTH} أحرف على الأقل`} aria-invalid={Boolean(errors.password)} className={inputClass} dir="ltr" />
+                </Row>
+              </>
+            ) : (
+              <>
+                <Row label="الجوال أو البريد" error={errors.identifier}>
+                  <input type="text" autoComplete="username" value={identifier} onChange={(e) => { setIdentifier(e.target.value.trim()); clear('identifier'); }} placeholder="05XXXXXXXX" autoFocus className={inputClass} dir="ltr" />
+                </Row>
+                <Row label="كلمة المرور" error={errors.password} last>
+                  <PasswordInput autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); clear('password'); }} placeholder="••••••••" className={inputClass} dir="ltr" />
+                </Row>
+              </>
+            )}
+          </div>
 
-          {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" style={{ fontFamily: 'Tajawal, sans-serif' }}>{error}</div>}
+          <div className="mt-3"><TurnstileBox /></div>
+          {errors.form && <p role="alert" className="mt-3 px-1 text-[13px] text-[#ff3b30]">{errors.form}</p>}
 
           <button
             type="submit"
-            disabled={loading || (isSignup ? !phone || !email || !password : !identifier || !password)}
-            className="mt-1 flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-lime-500 to-emerald-500 px-4 py-3 text-base font-bold text-white transition-shadow hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={loading || !ready}
+            className="mt-5 flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
-            {loading ? 'لحظات...' : isSignup ? 'إنشاء الحساب' : 'دخول'}
+            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : isSignup ? 'إنشاء الحساب' : 'دخول'}
           </button>
         </form>
 
         {isSignup ? (
-          <p className="mt-4 text-center text-sm text-gray-600" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          <p className="mt-4 text-center text-[15px] text-[#6e6e73]">
             لديك حساب؟{' '}
-            <button type="button" onClick={() => (inEditor ? (setError(''), setMode('login')) : navigate('/?auth=login'))} className="font-bold text-emerald-700 hover:underline">
-              سجّل الدخول
-            </button>
+            <button type="button" onClick={() => (inEditor ? (setErrors({}), setMode('login')) : navigate('/?auth=login'))} className="font-bold text-[#0a84ff]">سجّل الدخول</button>
           </p>
         ) : (
-          <div className="mt-4 flex items-center justify-between text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            <Link to="/reset-password" className="font-bold text-emerald-700 hover:underline">
-              نسيت كلمة المرور؟
-            </Link>
-            <Link to="/?focus=name" className="font-bold text-emerald-700 hover:underline">
-              إنشاء حساب جديد
-            </Link>
+          <div className="mt-4 flex items-center justify-between px-1 text-[15px]">
+            <Link to="/reset-password" className="text-[#0a84ff]">نسيت كلمة المرور؟</Link>
+            {inEditor && initialMode === 'signup' ? (
+              <button type="button" onClick={() => { setErrors({}); setMode('signup'); }} className="font-bold text-[#0a84ff]">إنشاء حساب جديد</button>
+            ) : (
+              <Link to="/?focus=name" className="font-bold text-[#0a84ff]">إنشاء حساب جديد</Link>
+            )}
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }
 
-function ModalField({ label, hint, ...inputProps }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string }) {
+const inputClass = 'w-full bg-transparent py-3.5 text-[17px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none';
+
+// A grouped-list row: label on the right, the field beside it, and its own
+// short error underneath.
+function Row({ label, error, last = false, children }: { label: string; error?: string; last?: boolean; children: React.ReactNode }) {
   return (
-    <label className="block text-right">
-      <span className="mb-1.5 block text-sm font-semibold text-gray-700" style={{ fontFamily: 'Cairo, sans-serif' }}>{label}</span>
-      <input
-        {...inputProps}
-        required
-        dir="ltr"
-        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-center text-base text-gray-900 outline-none transition-colors placeholder:text-center placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-        style={{ fontFamily: 'Cairo, sans-serif' }}
-      />
-      {hint && <span className="mt-1 block text-xs text-gray-500" style={{ fontFamily: 'Tajawal, sans-serif' }}>{hint}</span>}
-    </label>
+    <div className={last ? '' : 'border-b border-[#e5e5ea]'}>
+      <label className="flex items-center gap-3 px-4">
+        <span className="w-[86px] shrink-0 text-[15px] text-[#1d1d1f]">{label}</span>
+        <span className="min-w-0 flex-1">{children}</span>
+      </label>
+      {error && <p role="alert" className="px-4 pb-2.5 text-[13px] text-[#ff3b30]">{error}</p>}
+    </div>
   );
 }
+

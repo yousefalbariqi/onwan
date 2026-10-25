@@ -1,3 +1,4 @@
+import { getReferralOffer } from './partnerReferral.js';
 import { getEnv } from './runtime.js';
 import crypto from 'node:crypto';
 import { activateSubscription, getPlans, isPlan, isValidEmail, normalizeDiscountCode, normalizeEmail } from './account.js';
@@ -8,6 +9,7 @@ import { HttpError } from './http.js';
 import { getPageDataByUserId } from './page.js';
 import { hashPassword, validatePassword, verifyPassword } from './password.js';
 import { getUsernameAvailability } from './username.js';
+import { assertNotLocked, clearFailures, recordFailure } from './loginGuard.js';
 import { partnerAdminHandlers, recordPartnerRenewal } from './adminPartners.js';
 import { serviceAdminHandlers } from './adminServices.js';
 import { archiveLinks } from './page.js';
@@ -147,6 +149,7 @@ const handlers: Record<string, Handler> = {
     access: 'public',
     run: async (params) => {
       const email = normalizeEmail(params.email);
+      await assertNotLocked('staff', email);
       const result = await pool.query<Staff & { password_hash: string }>(
         'select * from staff where email = $1 limit 1',
         [email],
@@ -155,6 +158,7 @@ const handlers: Record<string, Handler> = {
       const staff = result.rows[0];
 
       if (!staff || !verifyPassword(String(params.password ?? ''), staff.password_hash)) {
+        await recordFailure('staff', email);
         throw new HttpError(401, 'البريد الإلكتروني أو كلمة المرور غير صحيحة.');
       }
 
@@ -162,6 +166,7 @@ const handlers: Record<string, Handler> = {
         throw new HttpError(403, 'هذا الحساب موقوف. راجع مدير عنوان.');
       }
 
+      await clearFailures('staff', email);
       return { token: createSessionToken(staff.id, staff.email, 'staff'), staff: publicStaff(staff) };
     },
   },
@@ -334,6 +339,47 @@ const handlers: Record<string, Handler> = {
     },
   },
 
+  // Note 72: help a customer back in without ever seeing their password. The
+  // employee confirms the identity check first; every step is in the audit log.
+  'user.sendAccessLink': {
+    access: 'staff',
+    run: async (params, staff, context) => {
+      const target = await customerTarget(params.userId);
+      if (params.identityChecked !== true) throw new HttpError(400, 'تحقق من هوية العميل أولًا.');
+      const user = await pool.query<{ email: string | null }>('select email from users where id = $1', [target.id]);
+      const email = user.rows[0]?.email;
+      if (!email) throw new HttpError(409, 'لا يوجد بريد مسجّل لهذا العميل.');
+      const { createSetupLink } = await import('./partner.js');
+      const link = await createSetupLink(target.id, context.origin);
+      const emailed = await sendNoticeEmail(email, 'رابط تعيين كلمة المرور في عنوان', [
+        'طلبت إدارة عنوان تعيين كلمة مرور جديدة لحسابك بناءً على طلبك.',
+        'افتح الرابط التالي (يُستخدم مرة واحدة):',
+        link,
+        'إن لم تطلب ذلك فتجاهل هذه الرسالة.',
+      ]);
+      await audit(staff, 'user.sendAccessLink', target, { emailed });
+      return { emailed };
+    },
+  },
+
+  // Exceptional support only: a manager sets a one-time password, shown once,
+  // that the customer must replace at the next sign-in.
+  'user.tempPassword': {
+    access: 'manager',
+    run: async (params, staff) => {
+      const target = await customerTarget(params.userId);
+      if (params.identityChecked !== true) throw new HttpError(400, 'تحقق من هوية العميل أولًا.');
+      const password = crypto.randomBytes(9).toString('base64url');
+      await pool.query('update users set password_hash = $2, must_change_password = true, updated_at = now() where id = $1', [target.id, hashPassword(password)])
+        .catch((error: any) => {
+          if (error?.code === '42703') throw new HttpError(503, 'يلزم تشغيل ملف قاعدة البيانات phase18-temporary-passwords.sql.');
+          throw error;
+        });
+      await audit(staff, 'user.tempPassword', target, {});
+      return { password };
+    },
+  },
+
   // PERM-03: manager only.
   'user.unban': {
     access: 'manager',
@@ -374,6 +420,7 @@ const handlers: Record<string, Handler> = {
         throw new HttpError(400, 'أدخل المبلغ المحصّل بالريال.');
       }
 
+      const firstReferral = await getReferralOffer(target.id);
       await activateSubscription(target.id, params.plan, `يدوي: ${reference}`);
       await recordPayment(pool, {
         userId: target.id,
@@ -383,7 +430,7 @@ const handlers: Record<string, Handler> = {
         label: target.label,
         recordedBy: staff.name,
       });
-      const renewalRecorded = await recordPartnerRenewal(target.id);
+      const renewalRecorded = firstReferral ? false : await recordPartnerRenewal(target.id);
       await audit(staff, 'subscription.activate', target, { plan: params.plan, amount, reference, partnerRenewal: renewalRecorded });
       return { ok: true };
     },

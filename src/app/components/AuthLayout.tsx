@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowRight, LucideIcon } from 'lucide-react';
+import { PasswordInput } from './PasswordInput';
 
 interface AuthLayoutProps {
   icon: LucideIcon;
@@ -58,12 +59,21 @@ export function AuthField({ label, hint, ...inputProps }: AuthFieldProps) {
       <label className="block text-sm font-semibold text-gray-700" style={{ fontFamily: 'Cairo, sans-serif' }}>
         {label}
       </label>
-      <input
-        {...inputProps}
-        className="w-full px-5 py-4 rounded-xl border-2 border-gray-200 text-lg text-left focus:outline-none focus:border-emerald-500 transition-all"
-        style={{ fontFamily: 'Cairo, sans-serif' }}
-        dir="ltr"
-      />
+      {inputProps.type === 'password' ? (
+        <PasswordInput
+          {...inputProps}
+          className="w-full px-5 py-4 rounded-xl border-2 border-gray-200 text-lg text-left focus:outline-none focus:border-emerald-500 transition-all"
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+          dir="ltr"
+        />
+      ) : (
+        <input
+          {...inputProps}
+          className="w-full px-5 py-4 rounded-xl border-2 border-gray-200 text-lg text-left focus:outline-none focus:border-emerald-500 transition-all"
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+          dir="ltr"
+        />
+      )}
       {hint && (
         <div className="text-xs text-gray-500 text-right" style={{ fontFamily: 'Tajawal, sans-serif' }}>
           {hint}

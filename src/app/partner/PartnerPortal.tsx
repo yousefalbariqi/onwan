@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+import { TurnstileBox } from '../lib/turnstile';
 import { Link } from 'react-router';
-import { Copy, LogOut } from 'lucide-react';
-import { themes } from '../context/PageContext';
-import { BRAND_NAME, ROOT_DOMAIN, USERNAME_PATTERN } from '../lib/site';
+import { Copy, LogOut, Plus, ArrowLeft, Pencil } from 'lucide-react';
+import { BRAND_NAME, ROOT_DOMAIN } from '../lib/site';
 import { Badge, Button, Card, Empty, ErrorNote, Field, PLAN_NAMES, formatDate, inputClass, useAction, useLoad } from '../admin/ui';
 import { PartnerAccount, getPartnerToken, partnerCall, setPartnerToken } from './partnerApi';
+import { PasswordInput } from '../components/PasswordInput';
 
 function money(value: number) {
   return `${value.toLocaleString('en', { maximumFractionDigits: 2 })} ريال`;
@@ -28,173 +29,82 @@ function CopyLink({ link }: { link: string }) {
   );
 }
 
+// Note 54: partners sign in with a code sent to their email; a partner who
+// already has a password may still use it.
 function PartnerLogin({ onLogin }: { onLogin: (partner: PartnerAccount) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [method, setMethod] = useState<'code' | 'password'>('code');
+  const [sent, setSent] = useState('');
   const action = useAction();
+  const finish = (response: { token: string; partner: PartnerAccount }) => {
+    setPartnerToken(response.token);
+    onLogin(response.partner);
+  };
+  const field = 'block w-full bg-transparent px-4 py-3.5 text-[17px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none';
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
+    <div className="flex min-h-screen items-end justify-center bg-[#f2f2f7] sm:items-center sm:p-4" dir="rtl" style={{ fontFamily: 'Tajawal, sans-serif' }}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
           action.run(async () => {
-            const response = await partnerCall<{ token: string; partner: PartnerAccount }>('login', { email, password });
-            setPartnerToken(response.token);
-            onLogin(response.partner);
+            if (method === 'password') return finish(await partnerCall('login', { email, password }));
+            if (!sent) return setSent((await partnerCall<{ message: string }>('login.sendCode', { email })).message);
+            finish(await partnerCall('login.verifyCode', { email, code }));
           });
         }}
-        className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 shadow-lg"
+        className="w-full max-w-[400px] space-y-5 px-5 pb-8 pt-10"
       >
-        <h1 className="text-xl font-black text-gray-900">بوابة شركاء {BRAND_NAME}</h1>
-        <Field label="البريد الإلكتروني">
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value.trim())} className={inputClass} dir="ltr" autoComplete="username" />
-        </Field>
-        <Field label="كلمة المرور">
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} dir="ltr" autoComplete="current-password" />
-        </Field>
+        <div className="text-center">
+          <h1 className="text-[26px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>بوابة الشركاء</h1>
+          <p className="mt-1 text-[15px] text-[#6e6e73]">{method === 'code' ? 'نرسل رمز الدخول إلى بريدك' : 'ادخل بكلمة مرورك'}</p>
+        </div>
+        <div className="divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-white">
+          <input type="email" value={email} onChange={(e) => { setEmail(e.target.value.trim()); setSent(''); }} placeholder="البريد الإلكتروني" aria-label="البريد الإلكتروني" className={field} dir="ltr" style={{ textAlign: 'right' }} autoComplete="username" autoFocus />
+          {method === 'password' && <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="كلمة المرور" aria-label="كلمة المرور" className={field} dir="ltr" autoComplete="current-password" />}
+          {method === 'code' && sent && <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="• • • •" aria-label="رمز الدخول" inputMode="numeric" autoComplete="one-time-code" className={`${field} text-center text-2xl tracking-[0.6em]`} dir="ltr" />}
+        </div>
+        {sent && method === 'code' && <p className="px-1 text-[13px] text-[#1f7a35]">{sent}</p>}
+        <TurnstileBox />
         <ErrorNote message={action.error} />
-        <Button tone="primary" type="submit" disabled={action.busy || !email || !password} className="w-full">
-          دخول
-        </Button>
-        <Link to="/partners" className="block text-center text-xs text-gray-500 hover:underline">
-          لست شريكًا؟ قدّم طلب شراكة
-        </Link>
+        <button type="submit" disabled={action.busy || !email || (method === 'password' ? !password : Boolean(sent) && code.length !== 4)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          {action.busy ? 'لحظات…' : method === 'password' || sent ? 'دخول' : 'أرسل رمز الدخول'}
+        </button>
+        <div className="flex items-center justify-between px-1 text-[15px]">
+          <button type="button" onClick={() => { setMethod(method === 'code' ? 'password' : 'code'); setSent(''); setCode(''); }} className="text-[#0a84ff]">{method === 'code' ? 'لدي كلمة مرور' : 'الدخول برمز'}</button>
+          <Link to="/partners" className="font-bold text-[#0a84ff]">قدّم طلب شراكة</Link>
+        </div>
       </form>
     </div>
   );
 }
 
-const emptyOrder = {
-  customerName: '',
-  customerPhone: '',
-  customerEmail: '',
-  username: '',
-  bio: '',
-  plan: 'annual',
-  salePrice: '',
-  themeId: themes[0].id,
-  termsAccepted: false,
-};
-
-// B2B-03/04/10: register the customer, choose name/design/plan and the sale
-// price, record their consent, and send them the payment link.
-function NewOrder({ partner, onCreated }: { partner: PartnerAccount; onCreated: () => void }) {
-  const [form, setForm] = useState(emptyOrder);
-  const [created, setCreated] = useState<{ orderNumber: number; payLink: string; emailed: boolean } | null>(null);
-  const action = useAction(onCreated);
-  const floor = form.plan === 'annual' ? partner.priceAnnual : partner.priceMonthly;
-  const price = Number(form.salePrice);
-  const set = (key: keyof typeof emptyOrder) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm({ ...form, [key]: event.target.value });
-
-  const valid =
-    floor !== null &&
-    form.customerName.trim().length > 1 &&
-    form.customerPhone.length >= 8 &&
-    form.customerEmail.includes('@') &&
-    USERNAME_PATTERN.test(form.username) &&
-    price >= floor &&
-    form.termsAccepted;
-
-  return (
-    <Card title="تسجيل عميل جديد">
-      {created && (
-        <div className="mb-4 space-y-2 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">
-          <div className="font-bold">تم إنشاء الطلب #{created.orderNumber}</div>
-          <div>
-            {created.emailed ? 'أُرسل رابط الدفع إلى بريد العميل.' : 'تعذر إرسال البريد؛ انسخ الرابط وأرسله للعميل.'} يمكنك أيضًا إرساله عبر واتساب:
-          </div>
-          <div className="break-all rounded-lg bg-white p-2 text-xs" dir="ltr">{created.payLink}</div>
-          <CopyLink link={created.payLink} />
-        </div>
-      )}
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="اسم الجهة">
-          <input value={form.customerName} onChange={set('customerName')} className={inputClass} />
-        </Field>
-        <Field label="اسم الرابط">
-          <div className="flex items-center gap-2" dir="ltr">
-            <input
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/\s+/g, '') })}
-              className={inputClass}
-              placeholder="name"
-            />
-            <span className="text-xs text-gray-500">.{ROOT_DOMAIN}</span>
-          </div>
-        </Field>
-        <Field label="جوال العميل">
-          <input value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value.replace(/[^0-9]/g, '') })} className={inputClass} dir="ltr" inputMode="numeric" />
-        </Field>
-        <Field label="بريد العميل (يصله رابط الدفع ورابط كلمة المرور)">
-          <input type="email" value={form.customerEmail} onChange={(e) => setForm({ ...form, customerEmail: e.target.value.trim() })} className={inputClass} dir="ltr" />
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="تعريف مختصر بالجهة (اختياري)">
-            <textarea value={form.bio} onChange={set('bio')} rows={2} maxLength={150} className={`${inputClass} resize-none`} />
-          </Field>
-        </div>
-        <div className="sm:col-span-2">
-          <span className="mb-1 block text-xs font-semibold text-gray-600">التصميم</span>
-          <div className="flex flex-wrap gap-2">
-            {themes.map((theme) => (
-              <button
-                key={theme.id}
-                type="button"
-                onClick={() => setForm({ ...form, themeId: theme.id })}
-                title={theme.name}
-                className={`h-10 w-10 rounded-lg border-2 ${form.themeId === theme.id ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-gray-200'}`}
-                style={{ background: `linear-gradient(135deg, ${theme.background} 50%, ${theme.buttonColor} 50%)` }}
-              />
-            ))}
-          </div>
-        </div>
-        <Field label="الاشتراك">
-          <select value={form.plan} onChange={set('plan')} className={inputClass}>
-            <option value="annual">سنوي</option>
-            <option value="monthly">شهري</option>
-          </select>
-        </Field>
-        <Field label={floor === null ? 'سعر البيع' : `سعر البيع (لا يقل عن ${money(floor)})`}>
-          <input type="number" min={floor ?? 0} step="0.01" value={form.salePrice} onChange={set('salePrice')} className={inputClass} dir="ltr" disabled={floor === null} />
-        </Field>
-      </div>
-
-      {floor === null ? (
-        <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">لم تحدد إدارة {BRAND_NAME} سعرك لهذا الاشتراك بعد. تواصل مع الإدارة.</p>
-      ) : (
-        price >= floor && <p className="mt-2 text-xs text-gray-500">ربحك من هذا الاشتراك: {money(price - floor)}</p>
-      )}
-
-      <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
-        <input type="checkbox" className="mt-1" checked={form.termsAccepted} onChange={(e) => setForm({ ...form, termsAccepted: e.target.checked })} />
-        وافق العميل على شروط استخدام {BRAND_NAME}، وأُوضح له أن الحساب يصبح ملكه وحده بعد الدفع.
-      </label>
-
-      <ErrorNote message={action.error} />
-      <Button
-        tone="primary"
-        className="mt-3"
-        disabled={action.busy || !valid}
-        onClick={() =>
-          action.run(async () => {
-            const { themeId, ...order } = form;
-            const response = await partnerCall('orders.create', {
-              ...order,
-              salePrice: price,
-              theme: themes.find((theme) => theme.id === themeId),
-            });
-            setCreated(response);
-            setForm(emptyOrder);
-          })
-        }
-      >
-        إنشاء الطلب وإرسال رابط الدفع
-      </Button>
-    </Card>
-  );
+function SalesLink({ partner }: { partner: PartnerAccount }) {
+  const [monthly, setMonthly] = useState(String(partner.saleMonthly ?? ''));
+  const [annual, setAnnual] = useState(String(partner.saleAnnual ?? ''));
+  const [saved, setSaved] = useState(false);
+  const [notice, setNotice] = useState('');
+  const action = useAction();
+  // Note 57/65: the partner's own address when the administration set one.
+  const link = partner.slug ? `https://${partner.slug}.${ROOT_DOMAIN}` : `${window.location.origin}/via/${partner.id}`;
+  return <>
+  <Card title="إعدادات التسعير">
+    <p className="mb-4 text-sm leading-6 text-gray-500">أسعارك لعملائك. تُطبّق تلقائيًا على كل بيع جديد، من رابطك ومن «بيع جديد». الطلبات المرسلة أو المدفوعة تبقى بسعرها.</p>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Field label={`سعر البيع الشهري${partner.priceMonthly === null ? ' — غير متاح' : ` — الحد الأدنى ${partner.priceMonthly} ريال`}`}><input type="number" step="0.01" min={partner.priceMonthly ?? 0} disabled={partner.priceMonthly === null} value={monthly} onChange={e => { setMonthly(e.target.value); setSaved(false); }} className={inputClass} /></Field>
+      <Field label={`سعر البيع السنوي${partner.priceAnnual === null ? ' — غير متاح' : ` — الحد الأدنى ${partner.priceAnnual} ريال`}`}><input type="number" step="0.01" min={partner.priceAnnual ?? 0} disabled={partner.priceAnnual === null} value={annual} onChange={e => { setAnnual(e.target.value); setSaved(false); }} className={inputClass} /></Field>
+    </div>
+    <div className="mt-4 flex flex-wrap items-center gap-3"><Button tone="primary" disabled={action.busy} onClick={() => action.run(async () => { await partnerCall('storefront.save', { monthly: monthly || null, annual: annual || null }); setSaved(true); })}>{action.busy ? 'جارٍ الحفظ…' : 'حفظ الأسعار'}</Button>{saved && <span className="text-sm text-emerald-700">حُفظت الأسعار</span>}</div>
+    <ErrorNote message={action.error} />
+  </Card>
+  <Card title="رابطك الخاص">
+    <p className="mb-3 text-sm leading-6 text-gray-500">شارك رابطك ليصمّم العميل صفحته بنفسه ويشتري بأسعارك. تُنسب العملية إليك بعد تأكيد الدفع.</p>
+    <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl bg-gray-50 p-3"><input aria-label="رابط البيع" readOnly value={link} dir="ltr" className="min-w-0 flex-1 bg-transparent text-sm" onFocus={e => e.target.select()} /><button className="text-sm font-bold text-emerald-700" onClick={async () => { try { await navigator.clipboard.writeText(link); setNotice('تم نسخ رابط البيع'); } catch { setNotice('حدد الرابط وانسخه يدويًا.'); } }}>نسخ الرابط</button><a href={link} target="_blank" rel="noreferrer" className="text-sm text-gray-500">معاينة العرض</a></div>
+    {notice && <p role="status" className="mt-2 text-sm text-emerald-700">{notice}</p>}
+  </Card>
+  </>;
 }
 
 function Stat({ label, value }: { label: string; value: React.ReactNode }) {
@@ -284,9 +194,35 @@ function Dashboard({ partner, onLogout }: { partner: PartnerAccount; onLogout: (
           )}
         </Card>
 
-        {!stopped && <NewOrder partner={partner} onCreated={orders.reload} />}
+        {!stopped && <>
+          <section className="flex flex-wrap items-center justify-between gap-5 rounded-2xl bg-gray-950 p-6 text-white">
+            <div><p className="mb-2 text-sm font-bold text-emerald-300">بيع جديد</p><h2 className="text-xl font-black">سجّل عميلك في دقيقة</h2><p className="mt-2 text-sm leading-6 text-gray-300">بيانات العميل والاشتراك، ثم أرسل له العرض مباشرة أو صمّم صفحته أولًا. يعاين ويدفع، وتُسجَّل العملية باسمك.</p></div>
+            <Link to="/partner/new" className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-gray-950"><Plus className="h-4 w-4" />بيع جديد<ArrowLeft className="h-4 w-4" /></Link>
+          </section>
+          <SalesLink partner={partner} />
+        </>}
 
-        <Card title="طلبات بانتظار الدفع">
+        {/* Note 57: every order shows its state — مسودة، جاهز للإرسال، بانتظار العميل، مدفوع، ملغى. */}
+        {orders.data?.drafts?.length > 0 && (
+          <Card title="قيد التجهيز">
+            <ul className="divide-y divide-gray-100">
+              {orders.data.drafts.map((order: any) => (
+                <li key={order.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+                  <div>
+                    <span className="font-bold">#{order.order_number}</span> {order.customer_name}{' '}
+                    <Badge tone={order.ready_at ? 'green' : 'gray'}>{order.ready_at ? 'جاهز للإرسال' : 'مسودة'}</Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {!stopped && <Link to={`/partner/edit/${order.id}`} className="flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-bold text-white"><Pencil className="h-3 w-3" />{order.ready_at ? 'مراجعة وإرسال' : 'متابعة التصميم'}</Link>}
+                    <Button disabled={action.busy} className="!px-2 !py-1 !text-xs" onClick={() => window.confirm(`إلغاء الطلب #${order.order_number}؟`) && action.run(() => partnerCall('orders.cancel', { id: order.id }))}>إلغاء</Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
+        <Card title="بانتظار العميل">
           <ErrorNote message={orders.error || action.error} />
           {orders.data?.awaiting.length === 0 && <Empty>لا توجد طلبات بانتظار الدفع.</Empty>}
           <ul className="divide-y divide-gray-100">
@@ -295,17 +231,23 @@ function Dashboard({ partner, onLogout }: { partner: PartnerAccount; onLogout: (
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <span className="font-bold">#{order.order_number}</span> {order.customer_name}{' '}
+                    {/* Note 64: where the customer is with the order. */}
+                    {order.revision_requested_at ? <Badge tone="red">بانتظار التعديل</Badge> : order.with_design && !order.approved_at ? <Badge tone="amber">بانتظار موافقة العميل</Badge> : <Badge tone="amber">بانتظار الدفع</Badge>}{' '}
                     <span className="text-xs text-gray-500" dir="ltr">{order.username}.{ROOT_DOMAIN}</span>
                   </div>
                   <span className="text-xs text-gray-500">
                     {PLAN_NAMES[order.plan]} · {money(order.sale_price)} · {formatDate(order.created_at)}
                   </span>
                 </div>
+                {order.revision_requested_at && order.revision_note && (
+                  <p className="mt-2 rounded-lg bg-red-50 p-2 text-xs leading-5 text-red-900">طلب العميل: {order.revision_note}</p>
+                )}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <CopyLink link={order.payLink} />
+                  {!stopped && <Link to={`/partner/edit/${order.id}`} className="flex items-center gap-1 rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold"><Pencil className="h-3 w-3" />تعديل التصميم</Link>}
                   {!stopped && (
-                    <Button disabled={action.busy} className="!px-2 !py-1 !text-xs" onClick={() => action.run(() => partnerCall('orders.resend', { id: order.id }))}>
-                      إعادة إرسال الرابط بالبريد
+                    <Button disabled={action.busy} className="!px-2 !py-1 !text-xs" onClick={() => action.run(async () => { const response = await partnerCall('orders.resend', { id: order.id }); if (!response.emailed && !partner.testMode) throw new Error('تعذر إرسال البريد. يمكنك نسخ الرابط وإرساله للعميل.'); })}>
+                      {order.revision_requested_at ? 'إرسال النسخة المعدّلة' : 'إعادة إرسال الرابط بالبريد'}
                     </Button>
                   )}
                   <Button
@@ -321,7 +263,7 @@ function Dashboard({ partner, onLogout }: { partner: PartnerAccount; onLogout: (
           </ul>
           {orders.data && (
             <p className="mt-3 text-xs text-gray-500">
-              الطلب غير المدفوع يختفي من هنا بعد {orders.data.windowDays} أيام. لتعديل طلب ألغِه وأنشئ طلبًا جديدًا.
+              الطلب غير المدفوع يختفي من هنا بعد {orders.data.windowDays} أيام. يمكنك تعديل تصميمه قبل الدفع من زر «تعديل التصميم».
             </p>
           )}
         </Card>
@@ -332,7 +274,7 @@ function Dashboard({ partner, onLogout }: { partner: PartnerAccount; onLogout: (
             {orders.data?.completed.map((order: any) => (
               <li key={order.order_number} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
                 <div>
-                  <span className="font-bold">#{order.order_number}</span> {order.customer_name} <Badge tone="green">مكتمل</Badge>
+                  <span className="font-bold">#{order.order_number}</span> {order.customer_name} <Badge tone="green">مدفوع</Badge>
                 </div>
                 <span className="text-xs text-gray-600">
                   عمولتك: {money(order.commission)}
@@ -343,6 +285,19 @@ function Dashboard({ partner, onLogout }: { partner: PartnerAccount; onLogout: (
           </ul>
           <p className="mt-3 text-xs text-gray-500">بعد اكتمال التسجيل يصبح حساب العميل مستقلًا، ويظهر لك اسمه ورقم الطلب وعمولتك فقط.</p>
         </Card>
+
+        {orders.data?.cancelled?.length > 0 && (
+          <Card title="ملغاة (آخر 30 يومًا)">
+            <ul className="divide-y divide-gray-100">
+              {orders.data.cancelled.map((order: any) => (
+                <li key={order.order_number} className="flex items-center justify-between py-2 text-sm text-gray-600">
+                  <span><span className="font-bold">#{order.order_number}</span> {order.customer_name} <Badge tone="red">ملغى</Badge></span>
+                  <span className="text-xs">{formatDate(order.cancelled_at)}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
       </main>
     </div>
   );

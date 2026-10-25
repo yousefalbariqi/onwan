@@ -1,3 +1,4 @@
+import { DEMO_PRICES, demoPricesOn } from './demoPrices.js';
 import { getEnv } from './runtime.js';
 import { pool } from './db.js';
 
@@ -23,15 +24,25 @@ export async function getSettings() {
     }
   }
 
+  // Test prices fill only what the manager has not entered (DEMO_PRICES).
+  if (demoPricesOn()) {
+    for (const key of ['nfc_unit_price', 'nfc_shipping_price', 'custom_domain_price'] as const) {
+      settings[key] ??= DEMO_PRICES[key];
+    }
+  }
+
   return settings;
 }
 
 // DES-01: the «صمّم لي» price is fixed in the deployment, not editable from
-// the panel. Unset until the price is decided (P-03).
+// the panel. The owner set it to 43 SAR (note 45, 21 Oct 2026);
+// DESIGN_SERVICE_PRICE_SAR still overrides it.
+export const DESIGN_SERVICE_PRICE_SAR = 43;
+
 export function getDesignPrice() {
   const price = Number(getEnv('DESIGN_SERVICE_PRICE_SAR'));
 
-  return Number.isFinite(price) && price > 0 ? price : null;
+  return Number.isFinite(price) && price > 0 ? price : DESIGN_SERVICE_PRICE_SAR;
 }
 
 export type DesignPackage = {

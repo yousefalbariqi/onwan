@@ -10,6 +10,7 @@ import { Reports, Requests, Reviews } from './Queues';
 import { CustomDomains, DesignService, NfcOrders, Reports as ManagerReports, ServiceSettings } from './Services';
 import { AuditLog, DiscountCodes, Prices, StaffAdmin } from './Settings';
 import { Button, ErrorNote, Field, inputClass } from './ui';
+import { PasswordInput } from '../components/PasswordInput';
 
 type Section = 'customers' | 'partners' | 'reviews' | 'requests' | 'reports' | 'design' | 'nfc' | 'domains' | 'prices' | 'figures' | 'staff' | 'audit';
 
@@ -28,10 +29,10 @@ const SECTIONS: { id: Section; label: string; managerOnly?: boolean }[] = [
   { id: 'audit', label: 'سجل العمليات', managerOnly: true },
 ];
 
+// Note 55: the screen offers sign-in only. The first-manager setup step was
+// removed from the interface; the server action and every account are untouched.
 function StaffLogin({ onLogin }: { onLogin: (staff: StaffMember) => void }) {
-  // The setup form is for the very first manager only (needs ADMIN_SETUP_TOKEN).
-  const [setup, setSetup] = useState(false);
-  const [form, setForm] = useState({ email: '', password: '', name: '', setupToken: '' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -41,7 +42,7 @@ function StaffLogin({ onLogin }: { onLogin: (staff: StaffMember) => void }) {
     try {
       setBusy(true);
       setError('');
-      const response = await adminCall<{ token: string; staff: StaffMember }>(setup ? 'bootstrap' : 'login', form);
+      const response = await adminCall<{ token: string; staff: StaffMember }>('login', form);
       setStaffToken(response.token);
       onLogin(response.staff);
     } catch (err) {
@@ -57,32 +58,17 @@ function StaffLogin({ onLogin }: { onLogin: (staff: StaffMember) => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 shadow-lg">
-        <h1 className="text-xl font-black text-gray-900">
-          إدارة {BRAND_NAME} {setup && '— إعداد حساب المدير'}
-        </h1>
-        {setup && (
-          <>
-            <Field label="رمز الإعداد (ADMIN_SETUP_TOKEN)">
-              <input value={form.setupToken} onChange={set('setupToken')} className={inputClass} dir="ltr" />
-            </Field>
-            <Field label="اسم المدير">
-              <input value={form.name} onChange={set('name')} className={inputClass} />
-            </Field>
-          </>
-        )}
+        <h1 className="text-xl font-black text-gray-900">إدارة {BRAND_NAME}</h1>
         <Field label="البريد الإلكتروني">
           <input type="email" value={form.email} onChange={set('email')} className={inputClass} dir="ltr" autoComplete="username" />
         </Field>
         <Field label="كلمة المرور">
-          <input type="password" value={form.password} onChange={set('password')} className={inputClass} dir="ltr" autoComplete={setup ? 'new-password' : 'current-password'} />
+          <PasswordInput value={form.password} onChange={set('password')} className={inputClass} dir="ltr" autoComplete="current-password" />
         </Field>
         <ErrorNote message={error} />
         <Button tone="primary" type="submit" disabled={busy || !form.email || !form.password} className="w-full">
-          {setup ? 'إنشاء حساب المدير' : 'دخول'}
+          دخول
         </Button>
-        <button type="button" onClick={() => setSetup(!setup)} className="block w-full text-center text-xs text-gray-500 hover:underline">
-          {setup ? 'لدي حساب' : 'إعداد أول مرة'}
-        </button>
       </form>
     </div>
   );

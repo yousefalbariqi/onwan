@@ -15,21 +15,24 @@ import { BRAND_NAME, pageHost, pageUrl } from '../lib/site';
 import { User, Image as ImageIcon, Sparkles, Link2, Eye, ArrowLeft, Save, Settings, X, Check, Undo2, Redo2, History, Loader2, RotateCw } from 'lucide-react';
 import { EmailVerifyChip } from '../components/EmailVerifyChip';
 import AuthModal from '../components/AuthModal';
+import { DesignServiceSheet } from '../components/DesignServiceSheet';
+import { TemporaryPasswordGate } from '../components/TemporaryPasswordGate';
 
 type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account';
 
 // `staffEdit` is set when an employee edits a customer's page from the
 // administration panel (PERM-01): same editor, without the owner-only parts.
-export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => void } }) {
+export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => void; title?: string; onContinue?: () => void; continueLabel?: string } }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const guestPreview = searchParams.get('onboarding') === 'signup';
   const guestUsername = (searchParams.get('username') || '').trim().toLowerCase();
   const [activeTab, setActiveTab] = useState<Tab>('header');
   const [mobilePanel, setMobilePanel] = useState<Tab | null>(null);
-  const [showGuestAuth, setShowGuestAuth] = useState(false);
   const [designNotice, setDesignNotice] = useState('');
-  const { pageData, savedHistory, restoreVersion, restoreDraft, undo, redo, canUndo, canRedo, account, isAuthenticated, loadingPage, isDirty, saving, save, updateTheme, updateWallpaper } = usePageContext();
+  const { pageData, savedHistory, restoreVersion, restoreDraft, undo, redo, canUndo, canRedo, account, isAuthenticated, loadingPage, isDirty, saving, save, updateTheme, updateWallpaper, draftState } = usePageContext();
+  // REQ-015: what has happened to unpublished edits, in a few words.
+  const draftLabel = draftState === 'saving' ? 'يحفظ المسودة…' : draftState === 'saved' ? 'محفوظة كمسودة ✓ — غير منشورة' : draftState === 'limit' ? 'وصلت للحد اليومي للحفظ' : draftState === 'error' ? 'تعذر حفظ المسودة' : 'تعديلات غير منشورة';
   const [saveError, setSaveError] = useState('');
   // Feedback of the explicit save (PAGE-07): spinner, then «تم الحفظ» briefly.
   const [justSaved, setJustSaved] = useState(false);
@@ -43,13 +46,15 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
   const [contentFormPending, setContentFormPending] = useState(false);
   // Note 28: a green «تم الحفظ» once the server confirmed, or the error with a retry.
   const [saveToast, setSaveToast] = useState<null | { kind: 'saved' } | { kind: 'error'; message: string }>(null);
-  // «صمّم لي» is offered at the start of building and stays on offer until the
-  // beneficiary takes it or pays; taking it leads to the cart with it selected.
+  // «صمّم لي» stays on offer while it can be ordered (note 40): a page not yet
+  // published takes it through the cart; a subscribed page orders it directly.
   const [designOffer, setDesignOffer] = useState<{ priceSar: number | null } | null>(null);
+  const [designSheet, setDesignSheet] = useState(false);
   const isDraft = !guestPreview && account?.pageStatus === 'draft';
+  const hasAccount = Boolean(account) && !guestPreview && !staffEdit;
 
   useEffect(() => {
-    if (staffEdit || guestPreview || !isDraft) {
+    if (!hasAccount) {
       setDesignOffer(null);
       return;
     }
@@ -57,12 +62,10 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
     accountCall('overview')
       .then((overview) => setDesignOffer(overview.design.canPurchase ? { priceSar: overview.design.priceSar } : null))
       .catch(() => undefined);
-  }, [staffEdit, guestPreview, isDraft]);
+  }, [hasAccount, designSheet]);
 
-  const chooseDesignService = () => {
-    if (isDirty && !window.confirm('لديك تعديلات غير محفوظة ستُفقد عند الانتقال للسلة. المتابعة؟')) return;
-    navigate('/plan-selection?design=1');
-  };
+  // Unsaved edits get the usual save-or-leave choice before the cart opens.
+  const chooseDesignService = () => leave(() => navigate('/plan-selection?design=1'));
   const isPublished = account?.pageStatus === 'published';
 
   const applyQuickWallpaper = (value: string) => {
@@ -182,6 +185,33 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
   const renderEditActions = (horizontal = false) => {
     const saveState = saving ? 'saving' : saveError ? 'error' : justSaved ? 'saved' : isDirty ? 'dirty' : 'clean';
     const round = 'flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.08)] transition-transform active:scale-90 disabled:opacity-35';
+    const saveLabel = saveState === 'saving' ? 'يحفظ…' : saveState === 'saved' ? 'تم الحفظ' : saveState === 'error' ? 'إعادة المحاولة' : saveState === 'dirty' ? 'حفظ' : 'محفوظ';
+    const saveIcon = saveState === 'saving' ? <Loader2 className="h-5 w-5 animate-spin" /> : saveState === 'saved' ? <Check className="h-5 w-5" /> : saveState === 'error' ? <RotateCw className="h-5 w-5" /> : <Save className="h-5 w-5" />;
+
+    // Note 59 (desktop bar): a wide green «حفظ» with its icon, and quieter undo / redo.
+    if (horizontal) {
+      const small = 'flex h-9 w-9 items-center justify-center rounded-full text-[#3a3a3c] transition-colors hover:bg-[#f2f2f7] active:scale-90 disabled:opacity-30';
+      return (
+        <div className="flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          {!guestPreview && isAuthenticated && (
+            <button
+              onClick={handleSave}
+              disabled={saveState === 'saving' || saveState === 'clean' || saveState === 'saved'}
+              className={`flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-full px-5 text-[15px] font-bold transition-all active:scale-[0.97] ${
+                saveState === 'error' ? 'bg-[#ff3b30] text-white' : saveState === 'dirty' || saveState === 'saving' ? 'bg-emerald-600 text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] hover:bg-emerald-700' : saveState === 'saved' ? 'bg-[#34c759] text-white' : 'bg-emerald-50 text-emerald-700/60'
+              }`}
+            >
+              {saveIcon}
+              {saveLabel}
+            </button>
+          )}
+          <span className="mx-1 h-6 w-px bg-[#e5e5ea]" aria-hidden="true" />
+          <button onClick={undo} disabled={!canUndo} className={small} aria-label="تراجع" title="تراجع عن آخر تعديل"><Undo2 className="h-[18px] w-[18px]" /></button>
+          <button onClick={redo} disabled={!canRedo} className={small} aria-label="إعادة" title="إعادة التعديل"><Redo2 className="h-[18px] w-[18px]" /></button>
+        </div>
+      );
+    }
+
     return (
       <div className={`flex items-center ${horizontal ? 'gap-3' : 'flex-col gap-5'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
         <div className={`flex ${horizontal ? 'gap-2' : 'flex-col items-center gap-2'}`}>
@@ -252,10 +282,10 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
 
   const tabs = [
     { id: 'header' as Tab, label: 'الهوية', icon: User },
-    { id: 'links' as Tab, label: 'الروابط', icon: Link2 },
+    { id: 'links' as Tab, label: 'المحتوى', icon: Link2 },
     { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon },
     { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles },
-    { id: 'account' as Tab, label: 'الحساب', icon: Settings },
+    { id: 'account' as Tab, label: 'الإعدادات', icon: Settings },
   ].filter((tab) => (!staffEdit && !guestPreview) || tab.id !== 'account');
 
   const renderActivePanel = () => {
@@ -316,7 +346,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
           </button>
           {staffEdit && (
             <div className="text-base font-bold text-emerald-600 sm:text-xl" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              تعديل صفحة عميل
+              {staffEdit.title ?? 'تعديل صفحة عميل'}
             </div>
           )}
           <div className="hidden truncate text-sm text-gray-500 sm:block" style={{ fontFamily: 'Tajawal, sans-serif' }} dir="ltr">
@@ -325,6 +355,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {staffEdit?.onContinue && <button type="button" onClick={async () => { if (await handleSave()) staffEdit.onContinue?.(); }} disabled={saving || loadingPage} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{staffEdit.continueLabel ?? 'التالي'}</button>}
           {account && !account.emailVerified && !guestPreview && !staffEdit ? (
             // Until the email is confirmed the confirmation takes the header's place.
             <EmailVerifyChip />
@@ -333,23 +364,13 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
               {!staffEdit && !guestPreview && <QRCodeDisplay username={pageData.username} />}
               {designOffer && (
                 <button
-                  onClick={chooseDesignService}
+                  onClick={() => setDesignSheet(true)}
                   className="flex h-10 w-[104px] items-center justify-center gap-1.5 rounded-full bg-gradient-to-l from-violet-600 via-fuchsia-500 to-orange-400 text-sm font-bold text-white shadow-[0_4px_14px_rgba(168,85,247,0.4)] transition-transform active:scale-95"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                   title={`فريق ${BRAND_NAME} يصمم صفحتك عنك${designOffer.priceSar !== null ? ` بـ ${designOffer.priceSar} ريال` : ''}`}
                 >
                   <Sparkles className="h-4 w-4" />
                   صمّم لي
-                </button>
-              )}
-              {guestPreview && (
-                <button
-                  onClick={() => setShowGuestAuth(true)}
-                  className="flex h-10 w-[104px] items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)] active:scale-95"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                  title="أنشئ حسابك لحفظ صفحتك"
-                >
-                  حفظ صفحتي
                 </button>
               )}
               {!guestPreview && account?.pageStatus === 'draft' && (
@@ -380,7 +401,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
           <section className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
               { id: 'header' as Tab, label: 'الهوية', icon: User, tone: 'bg-[#7cc4ff] text-[#0b4fa8]' },
-              { id: 'links' as Tab, label: 'الروابط', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
+              { id: 'links' as Tab, label: 'المحتوى', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
               ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
@@ -400,7 +421,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
             <div className="flex items-stretch gap-2.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
               <button onClick={() => (staffEdit || guestPreview ? openPanel('header') : navigate('/preview'))} className="w-[40%] shrink-0 text-right transition-transform active:scale-[0.98]">
                 <PhonePreview interactive={false} />
-                <span className="mt-2 block text-center text-xs font-bold text-[#3a3a3c]">{isDirty ? 'الحالي · غير محفوظ' : 'الحالي'}</span>
+                <span className="mt-2 block text-center text-xs font-bold text-[#3a3a3c]">{isDirty ? `الحالي · ${draftLabel}` : 'الحالي'}</span>
               </button>
 
               <div className="flex flex-1 flex-col items-center justify-center">{renderEditActions()}</div>
@@ -584,7 +605,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
           <nav className="flex flex-col items-center gap-5 pt-2">
             {[
               { id: 'header' as Tab, label: 'الهوية', icon: User, tone: 'bg-[#7cc4ff] text-[#0b4fa8]' },
-              { id: 'links' as Tab, label: 'الروابط', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
+              { id: 'links' as Tab, label: 'المحتوى', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
               ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
@@ -617,7 +638,7 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
               {renderEditActions(true)}
               <div className="flex items-center gap-2 px-2 text-sm text-[#6e6e73]">
                 <span className={`h-2 w-2 rounded-full ${isDirty ? 'bg-amber-500' : 'bg-[#34c759]'}`} />
-                {isDirty ? 'المعاينة فيها تعديلات لم تُحفظ' : isPublished ? 'هذه النسخة المنشورة' : 'كل التعديلات محفوظة'}
+                {isDirty ? draftLabel : isPublished ? 'هذه النسخة المنشورة' : 'كل التعديلات محفوظة'}
               </div>
             </div>
             <div className="flex min-h-0 w-full flex-1 items-center justify-center">
@@ -633,7 +654,14 @@ export default function Builder({ staffEdit }: { staffEdit?: { onExit: () => voi
         </div>
       </div>
 
-      {guestPreview && showGuestAuth && <AuthModal mode="signup" username={guestUsername} inEditor />}
+      {!staffEdit && <TemporaryPasswordGate />}
+
+      {designSheet && designOffer && (
+        <DesignServiceSheet priceSar={designOffer.priceSar} published={!isDraft} onClose={() => setDesignSheet(false)} onToCart={() => { setDesignSheet(false); chooseDesignService(); }} />
+      )}
+
+      {/* Note 50: a new visitor creates the account before editing; it cannot be skipped. */}
+      {guestPreview && !isAuthenticated && <AuthModal mode="signup" username={guestUsername} inEditor />}
       {showLogin && !isAuthenticated && !guestPreview && <AuthModal mode="login" inEditor />}
 
       {exitPrompt && (

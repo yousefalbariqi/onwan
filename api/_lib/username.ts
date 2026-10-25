@@ -67,8 +67,8 @@ export async function getUsernameAvailability(
 
   const heldResult = await pool.query(
     `select 1 from partner_orders
-     where username = $1 and status = 'awaiting_payment'
-       and created_at > now() - make_interval(days => $2)
+     where username = $1 and status in ('awaiting_payment', 'draft')
+       and coalesce(sent_at, created_at) > now() - make_interval(days => $2)
        and ($3::uuid is null or id <> $3)
      limit 1`,
     [validation.normalized, PARTNER_ORDER_WINDOW_DAYS, options.ignoreOrderId ?? null],

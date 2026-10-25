@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Mail } from 'lucide-react';
-import { sendEmailCode, verifyEmailCode } from '../lib/api';
+import { resendWait, sendEmailCode, verifyEmailCode } from '../lib/api';
 import { usePageContext } from '../context/PageContext';
 
 const CODE_LENGTH = 4;
 const RESEND_SECONDS = 60;
+const clock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
 // Email confirmation from the editor header (replaces the big banner): a small
 // «أكّد بريدك» button takes the header's place; the code is typed in a popup,
@@ -17,6 +18,8 @@ export function EmailVerifyChip() {
   const [wait, setWait] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Note 38: «sent» is shown only once the server accepted the request.
+  const [info, setInfo] = useState('');
   const [done, setDone] = useState(false);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -29,12 +32,17 @@ export function EmailVerifyChip() {
   const send = async () => {
     try {
       setError('');
+      setInfo('');
       setBusy(true);
-      await sendEmailCode();
-      setWait(RESEND_SECONDS);
-      window.setTimeout(() => inputs.current[0]?.focus(), 50);
+      const response = await sendEmailCode();
+      setInfo(response.message);
+      setWait(response.retryAfter ?? RESEND_SECONDS);
+      window.setTimeout(() => inputs.current[digits.findIndex((digit) => !digit) === -1 ? 0 : digits.findIndex((digit) => !digit)]?.focus(), 50);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'تعذر إرسال الرمز الآن.');
+      // Waiting before another code is normal, not an error.
+      const seconds = resendWait(err);
+      if (seconds) { setWait(seconds); setInfo('أرسلنا رمز التحقق إلى بريدك الإلكتروني. تحقق من صندوق الوارد.'); }
+      else setError(err instanceof Error ? err.message : 'تعذر إرسال الرمز الآن.');
     } finally {
       setBusy(false);
     }
@@ -50,8 +58,8 @@ export function EmailVerifyChip() {
       window.setTimeout(() => setAccount(response.account), 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'الرمز غير صحيح.');
-      setDigits(Array(CODE_LENGTH).fill(''));
-      inputs.current[0]?.focus();
+      // The typed code stays, so one wrong digit is fixed without retyping all.
+      window.setTimeout(() => inputs.current[CODE_LENGTH - 1]?.focus(), 0);
     } finally {
       setBusy(false);
     }
@@ -59,6 +67,7 @@ export function EmailVerifyChip() {
 
   const type = (index: number, value: string) => {
     const clean = value.replace(/\D/g, '');
+    setError('');
     const next = [...digits];
     // Pasting the whole code fills every box.
     clean.slice(0, CODE_LENGTH - index).split('').forEach((digit, offset) => (next[index + offset] = digit));
@@ -117,9 +126,13 @@ export function EmailVerifyChip() {
                     />
                   ))}
                 </div>
-                {error && <p className="mt-3 text-sm text-[#ff3b30]">{error}</p>}
+                {error ? (
+                  <p role="alert" className="mt-3 text-sm text-[#ff3b30]">{error}</p>
+                ) : info ? (
+                  <p role="status" className="mt-3 flex items-center justify-center gap-1.5 text-sm text-[#1f7a35]"><Check className="h-4 w-4 shrink-0" />{info}</p>
+                ) : null}
                 <button onClick={send} disabled={wait > 0 || busy} className="mt-4 text-sm font-bold text-[#0a84ff] disabled:text-[#8e8e93]">
-                  {wait > 0 ? `إعادة الإرسال بعد ${wait} ث` : 'إعادة إرسال الرمز'}
+                  {wait > 0 ? <>إعادة الإرسال بعد <span dir="ltr">{clock(wait)}</span></> : 'إعادة إرسال الرمز'}
                 </button>
                 <button onClick={() => setOpen(false)} className="mt-2 block w-full py-2 text-sm text-[#6e6e73]">لاحقًا</button>
               </>

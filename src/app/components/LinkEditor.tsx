@@ -23,7 +23,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { SOCIAL_PLATFORMS, SocialIcon } from './SocialIcons';
-import { Group, Panel, Segmented } from './ios';
+import { ConfirmSheet, Group, Panel, Segmented } from './ios';
 import { ImageCropper } from './ImageCropper';
 import { LinkAppearanceEditor } from './LinkAppearanceEditor';
 import { LINK_ICONS } from '../lib/linkIcons';
@@ -65,8 +65,9 @@ type Screen = { name: 'list' } | { name: 'choose' } | { name: 'form'; id?: strin
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 // FILE-01: صور وPDF فقط — must match ALLOWED_FILE_MIME_TYPES in api/_lib/page.ts.
 const ALLOWED_FILE_TYPES = [...IMAGE_TYPES, 'application/pdf'];
-// Files are stored inline for now; the final storage limits are pending (P-02).
+// REQ-001: PDFs allow 10 MB; images retain their existing cap.
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
+const MAX_PDF_SIZE = 10 * 1024 * 1024;
 const MAX_ICON_SOURCE_SIZE = 8 * 1024 * 1024;
 const WHATSAPP_PREFIX = 'https://wa.me/966';
 // General buttons can carry their own icon (D-11); brand platforms keep their logo.
@@ -220,23 +221,6 @@ function ItemIcon({ link }: { link: Link }) {
   return <SocialIcon platform={link.linkType === 'file' && link.fileMimeType?.startsWith('image/') ? 'image' : link.platform || 'custom'} iconStyle={link.iconStyle || 'color'} customIcon={link.customIcon} color={link.customIcon?.startsWith('icon:') ? '#3a3a3c' : undefined} className="h-5 w-5" />;
 }
 
-// A small two-choice sheet (note 23's style), for leaving a changed form and
-// for deleting a group.
-function ConfirmSheet({ title, message, confirmLabel, cancelLabel, onConfirm, onCancel }: { title: string; message: string; confirmLabel: string; cancelLabel: string; onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={onCancel}>
-      <div className="w-full max-w-[340px] overflow-hidden rounded-[22px] bg-white text-center shadow-2xl" onClick={(event) => event.stopPropagation()} role="alertdialog" aria-modal="true" aria-label={title}>
-        <p className="px-6 pb-1 pt-5 text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</p>
-        <p className="px-6 pb-4 text-sm leading-6 text-[#6e6e73]">{message}</p>
-        <div className="space-y-2 px-4 pb-4">
-          <button type="button" onClick={onConfirm} className="block w-full rounded-xl bg-[#ff3b30] py-3 text-[15px] font-bold text-white">{confirmLabel}</button>
-          <button type="button" onClick={onCancel} className="block w-full rounded-xl bg-[#f2f2f7] py-3 text-[15px] font-bold text-[#1d1d1f]">{cancelLabel}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Advanced({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -344,7 +328,8 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
 
   const pickFile = async (file: File) => {
     if (!ALLOWED_FILE_TYPES.includes(file.type)) { setFileError('اختر صورة (PNG أو JPG أو WebP أو GIF) أو ملف PDF.'); return; }
-    if (file.size > MAX_FILE_SIZE) { setFileError('حجم الملف كبير. الحد الأقصى 3MB.'); return; }
+    const isPdf = file.type === 'application/pdf';
+    if (file.size > (isPdf ? MAX_PDF_SIZE : MAX_FILE_SIZE)) { setFileError(isPdf ? 'حجم ملف PDF كبير. الحد الأقصى 10MB.' : 'حجم الصورة كبير. الحد الأقصى 3MB.'); return; }
     setFileError('');
     try {
       const url = await readFileAsDataUrl(file);
@@ -590,7 +575,7 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
           <>
             <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ff9500]/12 text-[#c76a00]"><Upload className="h-5 w-5" /></span>
             <span className="text-[15px] font-bold text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>اختيار صورة أو ملف PDF</span>
-            <span className="text-xs text-[#8e8e93]">حتى 3MB</span>
+            <span className="text-xs text-[#8e8e93]">PDF حتى 10MB · الصور تُحفظ حتى 1,000KB بعد الضغط</span>
           </>
         )}
         <input type="file" aria-label="اختيار الملف" accept={ALLOWED_FILE_TYPES.join(',')} className="sr-only" onChange={(event) => {

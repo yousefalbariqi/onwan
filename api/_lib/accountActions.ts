@@ -1,9 +1,12 @@
+import { attachReferral, getReferralOffer } from './partnerReferral.js';
+import { completeDemoPayment } from './demoPayment.js';
 import { getEnv } from './runtime.js';
+import { demoPricesOn } from './demoPrices.js';
 import { getAccountSummary, getPlans, isPlan, pricePlan, isValidEmail, isValidPhone, normalizeEmail, normalizePhone, requestSubscription } from './account.js';
 import { pool } from './db.js';
 import { sendAdminEmail } from './email.js';
 import { HttpError } from './http.js';
-import { consumeCode, issueCode } from './otp.js';
+import { codeFailure, consumeCode, issueCode } from './otp.js';
 import { getVisitStats } from './page.js';
 import { hashPassword, validatePassword } from './password.js';
 import { getDesignPrice, getLatestDesignPackage, getSettings, isPackageOpen } from './services.js';
@@ -39,7 +42,7 @@ function requireEmail(user: SessionUser) {
 // registered email.
 async function requireChangeCode(user: SessionUser, code: unknown) {
   if (!(await consumeCode(requireEmail(user), 'account_change', String(code ?? '')))) {
-    throw new HttpError(401, 'الرمز غير صحيح أو منتهي الصلاحية.');
+    throw await codeFailure(requireEmail(user), 'account_change');
   }
 }
 
@@ -54,6 +57,21 @@ function text(value: unknown, message: string, min: number, max: number) {
 }
 
 const handlers: Record<string, Handler> = {
+  'payment.demo.confirm': completeDemoPayment,
+  'referral.claim': async (params, user) => {
+    const client = await pool.connect();
+    try {
+      await client.query('begin');
+      await client.query('select id from users where id = $1 for update', [user.id]);
+      const existing = await client.query('select 1 from subscriptions where user_id = $1 and starts_at is not null union all select 1 from partner_orders where user_id = $1 limit 1', [user.id]);
+      if (existing.rowCount) throw new HttpError(409, 'عرض الشريك متاح للاشتراك الأول فقط؛ حسابك لديه اشتراك مسجل بالفعل.');
+      const attributed = await client.query('select 1 from partner_referrals where user_id = $1', [user.id]);
+      if (!attributed.rowCount) await attachReferral(client, user.id, params.partnerId);
+      await client.query('commit');
+    } catch (error) { await client.query('rollback'); throw error; }
+    finally { client.release(); }
+    return { ok: true };
+  },
   // PAGE-12 / REQ-01: saved for the administration panel, with a copy by email.
   // The internal status is never returned to the beneficiary (REQ-03).
   'request.send': async (params, user) => {
@@ -126,14 +144,20 @@ const handlers: Record<string, Handler> = {
       throw new HttpError(409, 'لديك طلب «صمّم لي» قائم لم ينتهِ بعد.');
     }
 
-    await pool.query('insert into design_packages (user_id, price) values ($1, $2)', [user.id, getDesignPrice()]);
+    const inserted = await pool.query<{ id: string }>('insert into design_packages (user_id, price) values ($1, $2) returning id', [user.id, getDesignPrice()]);
+    // Note 40: a short reference for the customer and the team.
+    const reference = inserted.rows[0].id.slice(0, 8).toUpperCase();
+    const name = await pool.query<{ username: string | null }>('select username from customer_names where user_id = $1', [user.id]);
+    const username = name.rows[0]?.username;
 
-    await sendAdminEmail(`طلب «صمّم لي» — ${user.email ?? user.phone}`, [
+    await sendAdminEmail(`طلب «صمّم لي» ${reference} — ${user.email ?? user.phone}`, [
+      `رقم الطلب: ${reference}`,
       `البريد: ${user.email ?? '—'}`,
       `الجوال: ${user.phone}`,
+      `الصفحة: ${username ? `https://${username}.${getEnv('ROOT_DOMAIN') || 'onwan.link'}` : '—'}`,
     ]);
 
-    return { message: 'سُجّل طلب «صمّم لي». سيتواصل معك فريق عنوان عبر واتساب لإتمام الدفع وبدء التصميم.' };
+    return { reference, message: `استلمنا طلبك رقم ${reference}. سيتواصل معك فريق عنوان عبر واتساب لإتمام الدفع وبدء التصميم.` };
   },
 
   // NFC-02: any quantity; the total and the shipping are shown before payment
@@ -216,8 +240,8 @@ const handlers: Record<string, Handler> = {
 
   // NEW-04 / NEW-05: everything the registration cart and its summary need.
   'cart.quote': async (_params, user) => {
-    const [plans, settings, pkg, cart, account] = await Promise.all([
-      getPlans(),
+    const [plans, settings, pkg, cart, account, referral] = await Promise.all([
+      getPlans(user.id),
       getSettings(),
       getLatestDesignPackage(user.id),
       pool.query(
@@ -228,6 +252,7 @@ const handlers: Record<string, Handler> = {
         [user.id],
       ),
       getAccountSummary(user.id),
+      getReferralOffer(user.id),
     ]);
 
     return {
@@ -237,6 +262,8 @@ const handlers: Record<string, Handler> = {
       nfcUnitPrice: settings.nfc_unit_price,
       nfcShippingPrice: settings.nfc_shipping_price,
       domainPriceSar: settings.custom_domain_price,
+      demoPrices: !referral && demoPricesOn(),
+      partnerOffer: referral ? { shopName: referral.shop_name } : null,
       cart: cart.rows[0] ?? null,
       account,
     };
@@ -407,7 +434,7 @@ const handlers: Record<string, Handler> = {
 
     const [subscription, plans] = await Promise.all([
       pool.query<{ expires_at: string | null }>('select expires_at from subscriptions where user_id = $1', [user.id]),
-      getPlans(),
+      getPlans(user.id),
     ]);
     const selectedPlan = plans.find((item) => item.plan === params.plan);
 
@@ -491,6 +518,20 @@ const handlers: Record<string, Handler> = {
     return { message: 'أرسلنا رمزًا إلى بريدك المسجل.' };
   },
 
+  // Note 72: replacing a temporary password needs no code — only an account
+  // that still carries the flag the administration set may use it.
+  'password.replaceTemporary': async (params, user) => {
+    const password = String(params.password ?? '');
+    const passwordError = validatePassword(password);
+    if (passwordError) throw new HttpError(400, passwordError);
+    const result = await pool.query(
+      "update users set password_hash = $2, must_change_password = false, updated_at = now() where id = $1 and to_jsonb(users)->>'must_change_password' = 'true' returning id",
+      [user.id, hashPassword(password)],
+    );
+    if (!result.rowCount) throw new HttpError(409, 'لا توجد كلمة مرور مؤقتة لتغييرها.');
+    return { account: await getAccountSummary(user.id) };
+  },
+
   'change.password': async (params, user) => {
     const password = String(params.password ?? '');
     const passwordError = validatePassword(password);
@@ -543,7 +584,7 @@ const handlers: Record<string, Handler> = {
     const newEmail = pending.rows[0]?.pending_email;
 
     if (!newEmail || !(await consumeCode(newEmail, 'new_email', String(params.code ?? '')))) {
-      throw new HttpError(401, 'الرمز غير صحيح أو منتهي الصلاحية.');
+      throw newEmail ? await codeFailure(newEmail, 'new_email') : new HttpError(400, 'لا يوجد بريد جديد بانتظار التأكيد.');
     }
 
     try {

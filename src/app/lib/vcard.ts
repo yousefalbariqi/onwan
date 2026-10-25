@@ -48,8 +48,26 @@ export function buildVCard(page: PageData) {
   return lines.join('\r\n');
 }
 
-export function downloadVCard(page: PageData) {
-  const blob = new Blob([buildVCard(page)], { type: 'text/vcard;charset=utf-8' });
+// A logo stored as a link (note 53) is read back into the card as base64.
+async function inlinePhoto(page: PageData): Promise<PageData> {
+  if (!page.profileImage || page.profileImage.startsWith('data:')) return page;
+  try {
+    const blob = await (await fetch(page.profileImage)).blob();
+    if (!/^image\/(png|jpeg)$/.test(blob.type)) return page;
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    return { ...page, profileImage: dataUrl };
+  } catch {
+    return page;
+  }
+}
+
+export async function downloadVCard(page: PageData) {
+  const blob = new Blob([buildVCard(await inlinePhoto(page))], { type: 'text/vcard;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
 

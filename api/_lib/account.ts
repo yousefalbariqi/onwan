@@ -1,3 +1,5 @@
+import { convertReferral, getReferralOffer } from './partnerReferral.js';
+import { DEMO_PRICES, demoPricesOn } from './demoPrices.js';
 import { PoolClient } from 'pg';
 import { pool } from './db.js';
 import { HttpError } from './http.js';
@@ -33,6 +35,7 @@ export async function getAccountSummary(userId: string) {
         u.email,
         u.phone,
         u.email_verified_at,
+        to_jsonb(u)->>'must_change_password' as must_change_password,
         cn.is_fixed as name_fixed,
         cn.hold_expires_at,
         p.status as page_status,
@@ -72,6 +75,8 @@ export async function getAccountSummary(userId: string) {
     email: row.email ?? '',
     phone: row.phone ?? '',
     emailVerified: Boolean(row.email_verified_at),
+    // Note 72: a temporary password set by the administration.
+    mustChangePassword: row.must_change_password === 'true',
     // NEW-01 (amended): held until payment, changeable until then.
     nameFixed: Boolean(row.name_fixed),
     nameHoldExpiresAt: (row.hold_expires_at ?? null) as string | null,
@@ -100,16 +105,18 @@ export async function getAccountSummary(userId: string) {
   };
 }
 
-export async function getPlans() {
+export async function getPlans(userId?: string) {
+  const referral = userId ? await getReferralOffer(userId) : null;
   const result = await pool.query<{ plan: Plan; price_sar: string | null; discount_percent: string | null }>(
     'select plan, price_sar, discount_percent from plans order by plan desc',
   );
 
+  const demo = demoPricesOn();
   return result.rows.map((row) => ({
     plan: row.plan,
-    priceSar: row.price_sar === null ? null : Number(row.price_sar),
+    priceSar: referral ? (referral[`sale_${row.plan}`] == null ? null : Number(referral[`sale_${row.plan}`])) : row.price_sar === null ? (demo ? DEMO_PRICES[row.plan] : null) : Number(row.price_sar),
     // PAY-02: the general discount the manager put on this plan, if any.
-    discountPercent: row.discount_percent === null ? null : Number(row.discount_percent),
+    discountPercent: referral ? null : row.discount_percent === null ? null : Number(row.discount_percent),
   }));
 }
 
@@ -124,12 +131,14 @@ export function normalizeDiscountCode(value: unknown) {
 // code touches the plan only. A code that cannot be used is reported, not
 // silently ignored.
 export async function pricePlan(plan: Plan, rawCode: unknown, userId: string) {
-  const info = (await getPlans()).find((item) => item.plan === plan);
+  const info = (await getPlans(userId)).find((item) => item.plan === plan);
 
   if (!info || info.priceSar === null) {
     return null;
   }
 
+  const referral = await getReferralOffer(userId);
+  if (referral && normalizeDiscountCode(rawCode)) throw new HttpError(400, 'سعر رابط الشريك خاص ولا يجمع مع كود خصم.');
   const listPrice = info.priceSar;
   const generalDiscount = info.discountPercent ? round2((listPrice * info.discountPercent) / 100) : 0;
   const afterGeneral = round2(listPrice - generalDiscount);
@@ -210,7 +219,19 @@ export async function activateSubscription(
   paymentReference: string,
   client?: PoolClient,
 ) {
-  const queryable = client ?? pool;
+  if (!client) {
+    const connection = await pool.connect();
+    try {
+      await connection.query('begin');
+      await activateSubscription(userId, plan, paymentReference, connection);
+      await connection.query('commit');
+      return;
+    } catch (error) {
+      await connection.query('rollback');
+      throw error;
+    } finally { connection.release(); }
+  }
+  const queryable = client;
   const period = plan === 'annual' ? '1 year' : '1 month';
 
   // NEW-01 (amended): payment is what fixes the held name. An expired hold
@@ -260,4 +281,5 @@ export async function activateSubscription(
     "update pages set status = 'published' where user_id = $1 and status = 'draft'",
     [userId],
   );
+  await convertReferral(queryable, userId, plan, paymentReference);
 }

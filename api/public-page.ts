@@ -1,3 +1,4 @@
+import { pool } from './_lib/db.js';
 import { getEnv, requestRuntime } from './_lib/runtime.js';
 import { escapeHtml } from './_lib/email.js';
 import { allowMethods, handleApiError, sendJson } from './_lib/http.js';
@@ -83,7 +84,7 @@ async function sendLogo(res: any, username: string) {
     return;
   }
 
-  if (/^https:\/\//i.test(image)) {
+  if (/^https:\/\//i.test(image) || image.startsWith('/media/files/')) {
     res.status(302).setHeader('Location', image);
     res.send('');
     return;
@@ -127,6 +128,13 @@ export default async function handler(req: any, res: any) {
     const page = await getPublicPageByUsername(username);
 
     if (!page) {
+      // Note 57: a partner's own link (slug.onwan.link) opens its storefront.
+      // (Before phase17 runs there is no slug column: then simply not found.)
+      const partner = await pool.query<{ id: string }>("select id from partners where to_jsonb(partners)->>'slug' = $1 and status = 'active' limit 1", [username]).catch(() => ({ rows: [] as { id: string }[] }));
+      if (partner.rows[0]) {
+        sendJson(res, 200, { partnerStorefront: partner.rows[0].id });
+        return;
+      }
       sendJson(res, 404, { error: 'Page not found' });
       return;
     }
@@ -144,6 +152,10 @@ export default async function handler(req: any, res: any) {
     // PAGE-15. A failed count must never fail the page.
     await recordVisit(page.pageId).catch((error) => console.error('Failed to record visit:', error));
 
+    // REQ-021: the Worker may keep this answer 60 s; the page id lets it still
+    // count each visit when it answers from that copy.
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60');
+    res.setHeader('X-Onwan-Page', page.pageId);
     sendJson(res, 200, { pageData: page.pageData });
   } catch (error) {
     handleApiError(res, error);

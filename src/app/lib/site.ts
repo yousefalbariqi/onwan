@@ -10,7 +10,7 @@ export const SUPPORT_WHATSAPP: string = (import.meta.env.VITE_SUPPORT_WHATSAPP |
 // Must match USERNAME_PATTERN in api/_lib/username.ts.
 export const USERNAME_PATTERN = /^(?=.{1,30}$)(?!.*--)[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
-export const MAX_LINKS = 20;
+export const MAX_LINKS = 30;
 
 export function pageHost(username: string) {
   return `${username}.${ROOT_DOMAIN}`;

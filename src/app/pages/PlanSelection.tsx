@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { ArrowRight, Check, Clock } from 'lucide-react';
-import QRCode from 'qrcode';
+import { ArrowRight, Check, ChevronDown, Clock, Globe, Minus, Nfc, Plus, Sparkles } from 'lucide-react';
 import { usePageContext } from '../context/PageContext';
 import { Account, Plan, accountCall } from '../lib/api';
-import { BRAND_NAME, pageHost, pageUrl } from '../lib/site';
+import { BRAND_NAME, pageHost } from '../lib/site';
 
 // A real gateway will return checkoutUrl from the server. Until then, local
 // development gets a clearly-labelled journey to review the screens.
@@ -17,6 +16,8 @@ type Quote = {
   nfcUnitPrice: number | null;
   nfcShippingPrice: number | null;
   domainPriceSar: number | null;
+  demoPrices?: boolean;
+  partnerOffer?: { shopName: string } | null;
   cart: {
     cart_number: number;
     plan: Plan;
@@ -39,22 +40,52 @@ const PLAN_LABELS: Record<Plan, { name: string; period: string }> = {
 };
 
 const money = (value: number) => `${value.toLocaleString('en', { maximumFractionDigits: 2 })} ريال`;
-const fieldClass = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500';
+const fieldClass = 'block w-full bg-transparent px-4 py-3 text-[15px] text-[#1d1d1f] placeholder:text-[#8e8e93] focus:outline-none';
 
-function Section({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
+const NFC_DEMO_VIDEO = '/media/nfc-demo.mp4';
+
+// An add-on in the Apple manner: an icon, a friendly question, what it gives,
+// the price, and one «إضافة» that becomes «مُضاف».
+function AddOn({ icon: Icon, tone, title, children, price, added, onToggle, disabled, action }: { icon: typeof Sparkles; tone: string; title: string; children: React.ReactNode; price: React.ReactNode; added: boolean; onToggle: () => void; disabled?: boolean; action?: string }) {
   return (
-    <section className={`rounded-[26px] border border-black/[0.045] bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.035)] sm:p-6 ${className}`}>
-      <h2 className="mb-4 text-base font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-        {title}
-      </h2>
-      {children}
+    <section className={`rounded-[26px] bg-white p-5 transition-shadow sm:p-6 ${added ? 'shadow-[0_0_0_2px_#34c759,0_8px_24px_rgba(52,199,89,0.12)]' : 'shadow-[0_1px_3px_rgba(0,0,0,0.05)]'}`}>
+      <div className="flex items-start gap-4">
+        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white ${tone}`}><Icon className="h-6 w-6" /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[19px] font-black leading-snug text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</h2>
+          <div className="mt-1.5 text-[15px] leading-7 text-[#6e6e73]">{children}</div>
+        </div>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#f2f2f7] pt-4">
+        <span className="text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{price}</span>
+        <button type="button" onClick={onToggle} disabled={disabled} aria-pressed={added} className={`flex min-h-10 items-center gap-1.5 rounded-full px-5 text-[15px] font-bold transition-colors disabled:opacity-40 ${added ? 'bg-[#34c759] text-white' : 'bg-[#0a84ff]/10 text-[#0a84ff]'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+          {added ? <><Check className="h-4 w-4" strokeWidth={3} />مُضاف</> : action ?? 'إضافة'}
+        </button>
+      </div>
     </section>
   );
 }
 
+// The NFC explainer video; until the file exists, a small animation shows the idea.
+function NfcVideo() {
+  const [failed, setFailed] = useState(false);
+  return (
+    <div className="relative mt-4 aspect-video overflow-hidden rounded-2xl bg-gradient-to-br from-[#1d1d1f] to-[#3a3a3c]">
+      {!failed && <video src={NFC_DEMO_VIDEO} muted loop autoPlay playsInline controls={false} preload="metadata" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full object-cover" aria-label="فيديو توضيحي لقطعة NFC" />}
+      {failed && (
+        <div className="absolute inset-0 flex items-center justify-center gap-6" aria-label="جوال يقترب من قطعة NFC فتفتح الصفحة">
+          <span className="h-16 w-16 rounded-2xl bg-white/90 shadow-lg" />
+          <span className="h-24 w-12 animate-[nfc-tap_2.4s_ease-in-out_infinite] rounded-[14px] border-2 border-white/80 bg-white/10" />
+          <style>{'@keyframes nfc-tap{0%,100%{transform:translateX(-28px)}45%,60%{transform:translateX(18px)}}'}</style>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // NEW-04: one cart for the plan, «صمّم لي» and NFC pieces, paid together.
-// NEW-05: before paying, a summary with the link, its QR code, the Apple
-// Wallet card and the total including shipping.
+// NEW-05: before paying, a summary with the link and the total including
+// shipping (note 48: the QR code and the Wallet preview left this card).
 export default function PlanSelection() {
   const navigate = useNavigate();
   // ?design=1: the beneficiary chose «صمّم لي» in the builder.
@@ -64,7 +95,6 @@ export default function PlanSelection() {
   const [plan, setPlan] = useState<Plan>('annual');
   const [design, setDesign] = useState(false);
   const [nfc, setNfc] = useState({ quantity: '0', name: '', phone: '', city: '', address: '' });
-  const [qr, setQr] = useState('');
   // DOMAIN-03: the entity's own domain, bought with the plan.
   const [wantsDomain, setWantsDomain] = useState(false);
   const [domain, setDomain] = useState('');
@@ -94,6 +124,11 @@ export default function PlanSelection() {
           setDesign(true);
         }
 
+        if (!response.cart) {
+          const available = response.plans.find(item => item.priceSar !== null);
+          if (available) setPlan(available.plan);
+        }
+
         // Reopen the cart that is already waiting for payment.
         if (response.cart) {
           setPlan(response.cart.plan);
@@ -116,11 +151,6 @@ export default function PlanSelection() {
 
   const username = pageData.username;
 
-  useEffect(() => {
-    if (!username) return;
-
-    QRCode.toDataURL(pageUrl(username), { width: 300, margin: 1, errorCorrectionLevel: 'M' }).then(setQr);
-  }, [username]);
 
   if (!quote) {
     return (
@@ -178,10 +208,9 @@ export default function PlanSelection() {
     setNfc({ ...nfc, [key]: event.target.value });
 
   const handleSubmit = async () => {
-    // Design review only: prices have not been entered yet, so there is no
-    // cart, charge, subscription activation, or page publishing here.
-    if (demoPaymentEnabled && total === null) {
-      navigate('/payment/demo?cart=TEST&total=0');
+    // With no prices yet, the server creates a zero-value test cart on confirmation.
+    if (demoPaymentEnabled && !quote.partnerOffer && total === null) {
+      navigate(`/payment/demo?cart=TEST&total=0&plan=${plan}`);
       return;
     }
 
@@ -241,246 +270,157 @@ export default function PlanSelection() {
 
       <div className="mx-auto max-w-6xl p-4 pb-28 sm:p-6 lg:pb-8">
         {isActive ? (
-          <Section title="اشتراكك فعّال">
-            <div className="flex items-center gap-3 text-sm text-gray-700">
-              <Check className="h-6 w-6 flex-shrink-0 text-emerald-600" />
-              {PLAN_LABELS[subscription.plan].name}. «صمّم لي» وقطع NFC تُطلب من تبويب «الحساب» في المحرر.
-            </div>
-          </Section>
+          <section className="mx-auto max-w-md rounded-[26px] bg-white p-6 text-center">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#34c759] text-white"><Check className="h-6 w-6" strokeWidth={3} /></span>
+            <h2 className="mt-3 text-xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>اشتراكك فعّال</h2>
+            <p className="mt-1 text-sm text-[#6e6e73]">{PLAN_LABELS[subscription.plan].name}. «صمّم لي» وقطع NFC تُطلب من «الإعدادات» في المحرر.</p>
+          </section>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,720px)_minmax(320px,360px)] lg:items-start lg:justify-center lg:gap-6">
-            <Section title="1. الاشتراك" className="lg:col-start-1">
-              <p className="mb-3 text-xs text-gray-500">نفس المزايا ومساحة التخزين في الخيارين.</p>
-              <div className="space-y-2">
-                {quote.plans.map((item) => (
-                  <button
-                    key={item.plan}
-                    onClick={() => choosePlan(item.plan)}
-                    className={`flex w-full items-center justify-between rounded-xl border-2 p-3 text-sm transition-all ${
-                      plan === item.plan ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <span className="font-bold text-gray-900" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                      {PLAN_LABELS[item.plan].name}
-                    </span>
-                    <span className="text-gray-700">
-                      {item.priceSar === null ? 'يُعلن السعر قريبًا' : `${money(item.priceSar)} ${PLAN_LABELS[item.plan].period}`}
-                      {item.priceSar !== null && item.discountPercent && (
-                        <span className="mr-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">خصم {item.discountPercent}%</span>
-                      )}
-                    </span>
-                  </button>
-                ))}
-              </div>
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,640px)_minmax(320px,360px)] lg:items-start lg:justify-center lg:gap-8">
+            <div className="space-y-5">
+              {quote.partnerOffer && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">أسعار خاصة عبر {quote.partnerOffer.shopName} · تُنسب أول عملية شراء لهذا الشريك.</p>}
+              {quote.demoPrices && <p className="rounded-xl bg-[#ff9500]/12 px-4 py-2.5 text-center text-[13px] font-bold text-[#9a5b00]">سعر تجريبي — الأسعار هنا للتجربة فقط وليست نهائية.</p>}
 
-              <div className="mt-4">
-                <label className="mb-1 block text-xs font-semibold text-gray-600">كود الخصم (إن وُجد)</label>
-                <div className="flex gap-2">
-                  <input
-                    value={codeInput}
-                    onChange={(e) => {
-                      setCodeInput(e.target.value.toUpperCase());
-                      setCode(null);
-                    }}
-                    placeholder="CODE"
-                    className={fieldClass}
-                    dir="ltr"
-                    maxLength={40}
-                  />
-                  <button
-                    onClick={() => applyCode()}
-                    disabled={!codeInput.trim() || listPrice === null}
-                    className="rounded-lg bg-gray-900 px-4 text-sm font-bold text-white disabled:opacity-50"
-                    style={{ fontFamily: 'Cairo, sans-serif' }}
-                  >
-                    تطبيق
-                  </button>
+              {/* Note 43: two choices only. */}
+              <section>
+                <h2 className="mb-3 px-1 text-[22px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>اختر اشتراكك</h2>
+                <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="الاشتراك">
+                  {quote.plans.map((item) => {
+                    const active = plan === item.plan;
+                    return (
+                      <button key={item.plan} type="button" role="radio" aria-checked={active} onClick={() => choosePlan(item.plan)} className={`relative rounded-[22px] bg-white p-4 text-right transition-shadow sm:p-5 ${active ? 'shadow-[0_0_0_2px_#0a84ff]' : 'shadow-[0_1px_3px_rgba(0,0,0,0.05)]'}`}>
+                        <span className={`absolute left-3 top-3 flex h-6 w-6 items-center justify-center rounded-full ${active ? 'bg-[#0a84ff] text-white' : 'border-2 border-[#d1d1d6]'}`}>{active && <Check className="h-3.5 w-3.5" strokeWidth={3} />}</span>
+                        {/* Owner decision (25 Oct 2026): the annual plan is the recommended one. */}
+                        {item.plan === 'annual' && <span className="mb-1 inline-block rounded-full bg-[#34c759] px-2 py-0.5 text-[11px] font-bold text-white">الأفضل للعميل</span>}
+                        <span className="block text-[15px] font-bold text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{PLAN_LABELS[item.plan].name}</span>
+                        <span className="mt-2 block text-[22px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{item.priceSar === null ? '—' : money(item.priceSar)}</span>
+                        <span className="block text-xs text-[#8e8e93]">{item.priceSar === null ? 'يُعلن قريبًا' : PLAN_LABELS[item.plan].period}</span>
+                        {item.priceSar !== null && item.discountPercent ? <span className="mt-2 inline-block rounded-full bg-[#34c759]/12 px-2 py-0.5 text-xs font-bold text-[#1f7a35]">خصم {item.discountPercent}%</span> : null}
+                      </button>
+                    );
+                  })}
                 </div>
-                {code && <p className="mt-1 text-xs font-semibold text-emerald-700">طُبّق الكود: خصم {money(code.discount)} على الاشتراك.</p>}
-                {codeNotice && <p className="mt-1 text-xs text-red-600">{codeNotice}</p>}
-                <p className="mt-1 text-xs text-gray-400">الكود يُخصم من الاشتراك فقط، ولا يشمل «صمّم لي» ولا قطع NFC.</p>
-              </div>
-            </Section>
 
-            <Section title="2. خدمة «صمّم لي» (اختياري)" className="lg:col-start-1">
+                {/* Note 44: a small, quiet line — text, box, «تطبيق». */}
+                <div className="mt-3 flex flex-wrap items-center gap-2 px-1 text-[13px]">
+                  <span className="text-[#8e8e93]">كود خصم؟</span>
+                  <input value={codeInput} onChange={(e) => { setCodeInput(e.target.value.toUpperCase()); setCode(null); setCodeNotice(''); }} placeholder="CODE" aria-label="كود الخصم" dir="ltr" maxLength={40} className="h-8 w-28 rounded-lg bg-white px-2 text-center text-[13px] text-[#1d1d1f] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] placeholder:text-[#c7c7cc] focus:outline-none focus:shadow-[0_0_0_2px_#0a84ff]" />
+                  <button type="button" onClick={() => applyCode()} disabled={!codeInput.trim() || listPrice === null} className="font-bold text-[#0a84ff] disabled:text-[#c7c7cc]">تطبيق</button>
+                  {code && <span className="font-bold text-[#1f7a35]">✓ خصم {money(code.discount)}</span>}
+                  {codeNotice && <span className="w-full text-[#ff3b30]">{codeNotice}</span>}
+                </div>
+              </section>
+
+              <h2 className="px-1 pt-2 text-[22px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>أضف لصفحتك <span className="text-[15px] font-bold text-[#8e8e93]">(اختياري)</span></h2>
+
+              {/* Note 45 */}
               {quote.designAvailable ? (
-                <label className="flex items-start gap-3 text-sm">
-                  <input type="checkbox" className="mt-1" checked={design} onChange={(e) => setDesign(e.target.checked)} disabled={quote.designPriceSar === null} />
-                  <span className="text-gray-700">
-                    يصمم فريق {BRAND_NAME} صفحتك لمرة واحدة، وتنتهي الخدمة باعتمادك للتصميم.{' '}
-                    <b>{quote.designPriceSar === null ? 'السعر يُعلن قريبًا.' : money(quote.designPriceSar)}</b>
-                  </span>
-                </label>
+                <AddOn icon={Sparkles} tone="bg-gradient-to-br from-violet-600 via-fuchsia-500 to-orange-400" title="وش رأيك نخلي فريقنا يصمم صفحتك؟" price={quote.designPriceSar === null ? 'يُعلن قريبًا' : money(quote.designPriceSar)} added={design} onToggle={() => setDesign(!design)} disabled={quote.designPriceSar === null}>
+                  فريق {BRAND_NAME} يصمم صفحتك لك بالأدوات نفسها التي بين يديك، ويبقى على تواصل معك ويعدّل حتى توصل لشكل يعجبك.
+                </AddOn>
               ) : (
-                <p className="text-sm text-gray-600">لديك طلب «صمّم لي» قائم.</p>
+                <p className="rounded-2xl bg-white px-5 py-4 text-sm text-[#6e6e73]">لديك طلب «صمّم لي» قائم، وفريقنا على تواصل معك.</p>
               )}
-            </Section>
 
-            <Section title="3. قطع NFC (اختياري)" className="lg:col-start-1">
-              <p className="mb-3 text-xs text-gray-500">
-                قطعة تفتح صفحتك عند تقريب الجوال منها.{' '}
-                {nfcPriced ? `سعر القطعة ${money(quote.nfcUnitPrice as number)} والشحن ${money(quote.nfcShippingPrice as number)}. نتواصل معك قبل الشحن.` : 'السعر يُعلن قريبًا.'}
-              </p>
-              {nfcPriced && (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 text-sm text-gray-700">
-                    عدد القطع
-                    <input type="number" min={0} value={nfc.quantity} onChange={setNfcField('quantity')} className={`${fieldClass} w-24`} dir="ltr" />
-                  </label>
-                  {quantity > 0 && (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input value={nfc.name} onChange={setNfcField('name')} placeholder="اسم المستلم" className={fieldClass} />
-                        <input value={nfc.phone} onChange={(e) => setNfc({ ...nfc, phone: e.target.value.replace(/[^0-9]/g, '') })} placeholder="جوال المستلم" className={fieldClass} dir="ltr" inputMode="numeric" />
+              {/* Note 46: the idea, the video, then the choice. */}
+              <AddOn
+                icon={Nfc}
+                tone="bg-[#1d1d1f]"
+                title="شارك صفحتك بلمسة"
+                price={nfcPriced ? <>{money(quote.nfcUnitPrice as number)} <span className="text-xs font-bold text-[#8e8e93]">للقطعة</span></> : 'يُعلن قريبًا'}
+                added={quantity > 0}
+                disabled={!nfcPriced}
+                action="أضف قطعة"
+                onToggle={() => setNfc({ ...nfc, quantity: quantity > 0 ? '0' : '1' })}
+              >
+                قطعة أنيقة تفتح صفحتك بمجرد أن يقرّب أحدهم جواله منها — بلا تطبيق ولا كتابة رابط. حل عصري للمشاركة السريعة في مكتبك أو معرضك أو على بطاقتك.
+                <NfcVideo />
+                {quantity > 0 && nfcPriced && (
+                  <div className="mt-4 space-y-3 text-[#1d1d1f]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[15px]">عدد القطع</span>
+                      <div className="flex items-center rounded-full bg-[#f2f2f7] p-1" dir="ltr">
+                        <button type="button" onClick={() => setNfc({ ...nfc, quantity: String(Math.max(0, quantity - 1)) })} aria-label="أقل" className="flex h-8 w-8 items-center justify-center rounded-full active:bg-white"><Minus className="h-4 w-4" /></button>
+                        <span className="w-8 text-center font-bold">{quantity}</span>
+                        <button type="button" onClick={() => setNfc({ ...nfc, quantity: String(quantity + 1) })} aria-label="أكثر" className="flex h-8 w-8 items-center justify-center rounded-full active:bg-white"><Plus className="h-4 w-4" /></button>
                       </div>
+                    </div>
+                    <div className="divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-[#f2f2f7]">
+                      <input value={nfc.name} onChange={setNfcField('name')} placeholder="اسم المستلم" className={fieldClass} />
+                      <input value={nfc.phone} onChange={(e) => setNfc({ ...nfc, phone: e.target.value.replace(/[^0-9]/g, '') })} placeholder="جوال المستلم" className={fieldClass} dir="ltr" inputMode="numeric" style={{ textAlign: 'right' }} />
                       <input value={nfc.city} onChange={setNfcField('city')} placeholder="المدينة" className={fieldClass} />
                       <textarea value={nfc.address} onChange={setNfcField('address')} placeholder="عنوان الشحن بالتفصيل" rows={2} className={`${fieldClass} resize-none`} />
-                    </>
-                  )}
-                </div>
-              )}
-            </Section>
-
-            <Section title="4. دومين خاص بجهتك (اختياري)" className="lg:col-start-1">
-              <p className="mb-3 text-sm text-gray-700">
-                بدل أن يكون رابطك <span dir="ltr" className="font-semibold">{username ? pageHost(username) : 'name.onwan.link'}</span>، تظهر صفحتك على دومين
-                جهتك نفسه، مثل <span dir="ltr" className="font-semibold">link.jameia.org</span> — كأن الصفحة جزء من موقعكم الرسمي.
-              </p>
-              <ul className="mb-3 list-disc space-y-1 pr-5 text-xs text-gray-500">
-                <li>تحتاج دومينًا تملكه جهتك (أو نطاقًا فرعيًا من دومين المنظمة). {BRAND_NAME} لا يبيع الدومينات.</li>
-                <li>بعد الدفع نعطيك سطرًا واحدًا يضيفه مسؤول التقنية عندكم في إعدادات الدومين، ثم نفعّله.</li>
-                <li>رابط {BRAND_NAME} يبقى يعمل معه، فلا تتأثر رموز QR ولا قطع NFC.</li>
-              </ul>
-              {quote.domainPriceSar === null ? (
-                <p className="text-sm text-gray-500">الخدمة تتاح قريبًا.</p>
-              ) : (
-                <>
-                  <label className="flex items-center gap-3 text-sm text-gray-700">
-                    <input type="checkbox" checked={wantsDomain} onChange={(e) => setWantsDomain(e.target.checked)} />
-                    أضف الدومين الخاص — <b>{money(quote.domainPriceSar)}</b>
-                  </label>
-                  {wantsDomain && (
-                    <input
-                      value={domain}
-                      onChange={(e) => setDomain(e.target.value.trim().toLowerCase())}
-                      placeholder="link.example.org"
-                      className={`${fieldClass} mt-2`}
-                      dir="ltr"
-                    />
-                  )}
-                </>
-              )}
-            </Section>
-
-            <Section title="ملخص الطلب" className="lg:col-start-2 lg:row-start-1 lg:row-span-4 lg:sticky lg:top-[76px]">
-              <div className="mb-4 rounded-xl bg-gray-50 p-3 text-sm">
-                <div className="text-xs text-gray-500">رابط صفحتك</div>
-                <div className="font-bold text-gray-900" dir="ltr" style={{ textAlign: 'right' }}>{username ? pageHost(username) : '—'}</div>
-                {!quote.account.nameFixed && (
-                  <div className="mt-1 text-xs text-amber-700">محجوز لك مؤقتًا ويُثبَّت بعد الدفع. لتغييره: تبويب «الحساب» في المحرر.</div>
+                    </div>
+                    <p className="text-xs text-[#8e8e93]">الشحن {money(quote.nfcShippingPrice as number)}، ونتواصل معك قبل الشحن.</p>
+                  </div>
                 )}
+              </AddOn>
+
+              {/* Note 47 */}
+              <AddOn
+                icon={Globe}
+                tone="bg-[#0a84ff]"
+                title="رابط باسمك أنت"
+                price={quote.domainPriceSar === null ? 'يُعلن قريبًا' : money(quote.domainPriceSar)}
+                added={wantsDomain}
+                disabled={quote.domainPriceSar === null}
+                action="نعم، أريدها"
+                onToggle={() => setWantsDomain(!wantsDomain)}
+              >
+                بدل ما يكون رابط صفحتك باسم عام، خلّه باسمك أو باسم مؤسستك — أكثر رسمية وأكثر ثقة عند من يزورك. هل تريد هذه الخدمة؟
+                {wantsDomain && (
+                  <div className="mt-4 space-y-2">
+                    <input value={domain} onChange={(e) => setDomain(e.target.value.trim().toLowerCase())} placeholder="link.example.org" aria-label="الدومين" dir="ltr" className="h-11 w-full rounded-xl bg-[#f2f2f7] px-3 text-[15px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none focus:ring-2 focus:ring-[#0a84ff]" />
+                    <details className="text-[13px] text-[#6e6e73]">
+                      <summary className="flex cursor-pointer list-none items-center gap-1 font-bold text-[#0a84ff]">كيف يعمل؟<ChevronDown className="h-3.5 w-3.5" /></summary>
+                      <ul className="mt-2 list-disc space-y-1 pr-5 leading-6">
+                        <li>تحتاج دومينًا تملكه جهتك أو نطاقًا فرعيًا منه؛ {BRAND_NAME} لا يبيع الدومينات.</li>
+                        <li>بعد الدفع نعطيك سطرًا واحدًا يضيفه مسؤول التقنية عندكم، ثم نفعّله.</li>
+                        <li>رابط {BRAND_NAME} الحالي يبقى يعمل، فلا تتأثر رموز QR ولا قطع NFC.</li>
+                      </ul>
+                    </details>
+                  </div>
+                )}
+              </AddOn>
+            </div>
+
+            {/* Note 48: the summary keeps the link and the numbers, nothing else. */}
+            <aside className="rounded-[26px] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-6 lg:sticky lg:top-[76px]">
+              <h2 className="text-[19px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>ملخص الطلب</h2>
+              <div className="mt-3 rounded-2xl bg-[#f5f5f7] px-4 py-3">
+                <p className="text-xs text-[#8e8e93]">رابط صفحتك</p>
+                <p className="truncate text-[15px] font-bold text-[#1d1d1f]" dir="ltr" style={{ textAlign: 'right' }}>{username ? pageHost(username) : '—'}</p>
+                {!quote.account.nameFixed && <p className="mt-1 text-xs text-[#9a5b00]">محجوز لك ويُثبَّت بعد الدفع.</p>}
               </div>
 
-              <div className="mb-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-gray-200 p-3 text-center">
-                  {qr ? <img src={qr} alt="رمز QR لرابط الصفحة" className="mx-auto h-28 w-28" /> : <div className="mx-auto h-28 w-28 animate-pulse rounded bg-gray-100" />}
-                  <div className="mt-2 text-xs text-gray-500">رمز QR للطباعة</div>
-                </div>
-                {/* A preview of the card only: issuing real Wallet passes is not built yet. */}
-                <div className="flex flex-col justify-between rounded-xl bg-gray-900 p-3 text-white">
-                  <div>
-                    <div className="text-[10px] opacity-60">Apple Wallet</div>
-                    <div className="mt-1 text-sm font-bold leading-tight" style={{ fontFamily: 'Cairo, sans-serif' }}>{pageData.name || 'اسم الجهة'}</div>
-                  </div>
-                  <div className="flex items-end justify-between">
-                    <div className="text-[10px] opacity-70" dir="ltr">{username ? pageHost(username) : ''}</div>
-                    {qr && <img src={qr} alt="" className="h-12 w-12 rounded bg-white p-0.5" />}
-                  </div>
-                </div>
-              </div>
-              <p className="mb-4 text-xs text-gray-500">معاينة البطاقة الرقمية. إصدارها إلى Apple Wallet سيتاح قريبًا.</p>
-
-              <dl className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-gray-600">{PLAN_LABELS[plan].name}</dt>
-                  <dd className="font-semibold">{listPrice === null ? 'يُعلن قريبًا' : money(listPrice)}</dd>
-                </div>
-                {generalDiscount > 0 && (
-                  <div className="flex justify-between text-emerald-700">
-                    <dt>خصم {planInfo?.discountPercent}%</dt>
-                    <dd className="font-semibold">− {money(generalDiscount)}</dd>
-                  </div>
-                )}
-                {code && code.discount > 0 && (
-                  <div className="flex justify-between text-emerald-700">
-                    <dt>كود {code.value}</dt>
-                    <dd className="font-semibold">− {money(code.discount)}</dd>
-                  </div>
-                )}
-                {wantsDesign && (
-                  <div className="flex justify-between">
-                    <dt className="text-gray-600">«صمّم لي»</dt>
-                    <dd className="font-semibold">{money(quote.designPriceSar as number)}</dd>
-                  </div>
-                )}
+              <dl className="mt-4 space-y-2.5 text-[15px]">
+                <div className="flex justify-between gap-3"><dt className="text-[#6e6e73]">{PLAN_LABELS[plan].name}</dt><dd className="font-bold">{listPrice === null ? '—' : money(listPrice)}</dd></div>
+                {generalDiscount > 0 && <div className="flex justify-between gap-3 text-[#1f7a35]"><dt>خصم {planInfo?.discountPercent}%</dt><dd className="font-bold">− {money(generalDiscount)}</dd></div>}
+                {code && code.discount > 0 && <div className="flex justify-between gap-3 text-[#1f7a35]"><dt>كود {code.value}</dt><dd className="font-bold">− {money(code.discount)}</dd></div>}
+                {wantsDesign && <div className="flex justify-between gap-3"><dt className="text-[#6e6e73]">صمّم لي</dt><dd className="font-bold">{money(quote.designPriceSar as number)}</dd></div>}
                 {quantity > 0 && nfcPriced && (
                   <>
-                    <div className="flex justify-between">
-                      <dt className="text-gray-600">قطع NFC × {quantity}</dt>
-                      <dd className="font-semibold">{money(quantity * (quote.nfcUnitPrice as number))}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-gray-600">الشحن</dt>
-                      <dd className="font-semibold">{money(quote.nfcShippingPrice as number)}</dd>
-                    </div>
+                    <div className="flex justify-between gap-3"><dt className="text-[#6e6e73]">قطع NFC × {quantity}</dt><dd className="font-bold">{money(quantity * (quote.nfcUnitPrice as number))}</dd></div>
+                    <div className="flex justify-between gap-3"><dt className="text-[#6e6e73]">الشحن</dt><dd className="font-bold">{money(quote.nfcShippingPrice as number)}</dd></div>
                   </>
                 )}
-                {domainChosen && (
-                  <div className="flex justify-between">
-                    <dt className="text-gray-600">
-                      دومين خاص <span dir="ltr">{domain}</span>
-                    </dt>
-                    <dd className="font-semibold">{money(quote.domainPriceSar as number)}</dd>
-                  </div>
-                )}
-                <div className="flex justify-between border-t border-gray-200 pt-2 text-base">
-                  <dt className="font-bold text-gray-900">الإجمالي شامل الشحن</dt>
-                  <dd className="font-black text-gray-900">{total === null ? '—' : money(total)}</dd>
-                </div>
+                {domainChosen && <div className="flex justify-between gap-3"><dt className="min-w-0 truncate text-[#6e6e73]">رابط باسمك</dt><dd className="font-bold">{money(quote.domainPriceSar as number)}</dd></div>}
+                <div className="flex justify-between gap-3 border-t border-[#e5e5ea] pt-3 text-[17px]"><dt className="font-black">الإجمالي</dt><dd className="font-black">{total === null ? '—' : money(total)}</dd></div>
               </dl>
 
-              {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-
+              {error && <p role="alert" className="mt-4 rounded-xl bg-[#ff3b30]/10 px-3 py-2.5 text-sm text-[#c4251c]">{error}</p>}
               {pendingCart && (
-                <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <Clock className="mt-0.5 h-5 w-5 flex-shrink-0" />
-                  <span>
-                    السلة #{pendingCart.cartNumber} مسجّلة بإجمالي {money(pendingCart.total)} وبانتظار الدفع. الدفع الإلكتروني غير مفعّل بعد؛ سيتواصل
-                    معك الفريق لإتمام السداد، وبعد تأكيده يُثبَّت اسمك وتُنشر صفحتك. يمكنك تعديل السلة وإرسالها من جديد.
-                  </span>
-                </div>
+                <p className="mt-4 flex items-start gap-2 rounded-xl bg-[#ff9500]/12 px-3 py-2.5 text-[13px] leading-6 text-[#9a5b00]">
+                  <Clock className="mt-1 h-4 w-4 shrink-0" />
+                  السلة #{pendingCart.cartNumber} بإجمالي {money(pendingCart.total)} بانتظار الدفع. يمكنك تعديلها وإرسالها من جديد.
+                </p>
               )}
 
-              <button
-                onClick={handleSubmit}
-                disabled={submitting || (!demoPaymentEnabled && (total === null || !nfcComplete || !domainValid))}
-                className="mt-4 hidden w-full rounded-2xl bg-emerald-600 py-4 text-lg font-bold text-white transition-all hover:bg-emerald-700 hover:shadow-lg disabled:opacity-50 lg:block"
-                style={{ fontFamily: 'Cairo, sans-serif' }}
-              >
-                {submitting
-                  ? 'لحظات...'
-                  : pendingCart
-                    ? 'تحديث السلة'
-                    : demoPaymentEnabled
-                      ? 'المتابعة إلى الدفع التجريبي'
-                      : 'المتابعة إلى الدفع'}
+              <button onClick={handleSubmit} disabled={submitting || (!demoPaymentEnabled && (total === null || !nfcComplete || !domainValid))} className="mt-5 hidden min-h-[52px] w-full rounded-2xl bg-[#34c759] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(52,199,89,0.3)] transition-transform active:scale-[0.98] disabled:opacity-50 lg:block" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                {submitting ? 'لحظات…' : pendingCart ? 'تحديث السلة' : demoPaymentEnabled ? 'المتابعة إلى الدفع التجريبي' : 'المتابعة إلى الدفع'}
               </button>
-              {demoPaymentEnabled && total === null ? (
-                <p className="mt-2 hidden text-center text-xs text-amber-700 lg:block">وضع اختبار: يمكنك فتح رحلة الدفع قبل إدخال الأسعار.</p>
-              ) : (
-                <p className="mt-2 hidden text-center text-xs text-gray-400 lg:block">الدفع بالريال السعودي، دفعة واحدة لكل ما في السلة.</p>
-              )}
-            </Section>
+              <p className="mt-2 hidden text-center text-xs text-[#8e8e93] lg:block">دفعة واحدة بالريال السعودي لكل ما في السلة.</p>
+            </aside>
           </div>
         )}
       </div>

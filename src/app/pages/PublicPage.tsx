@@ -4,7 +4,8 @@ import { useNavigate, useParams } from 'react-router';
 import { PageData, mergeWithDefaults, usePageContext } from '../context/PageContext';
 import { PageView } from '../components/PageView';
 import { fetchPublicPage, reportPage } from '../lib/api';
-import { getCustomHost, getSubdomainUsername, pageUrl } from '../lib/site';
+import PartnerStorefront from '../partner/PartnerStorefront';
+import { ROOT_DOMAIN, getCustomHost, getSubdomainUsername, pageUrl } from '../lib/site';
 import { downloadVCard } from '../lib/vcard';
 
 type Lang = 'ar' | 'en';
@@ -44,6 +45,7 @@ type RemoteState =
   | { status: 'loading' }
   | { status: 'not_found' }
   | { status: 'suspended'; message: string }
+  | { status: 'partner'; partnerId: string }
   | { status: 'ready'; pageData: PageData };
 
 // SEO-01: title and description are generated from the entity's name and
@@ -212,6 +214,10 @@ function VisitorActions({ page, lang, onSwitchLang }: { page: PageData; lang: La
           <Flag className="h-3 w-3" />
           {t.report}
         </button>
+        {/* Note 75: the owner's way in — sign-in and the editor live on the main site. */}
+        <a href={`https://${ROOT_DOMAIN}/builder`} className="text-xs opacity-50 transition-opacity hover:opacity-100" style={{ color: textColor }}>
+          {lang === 'en' ? 'Manage my page' : 'إدارة صفحتي'}
+        </a>
       </div>
 
       {reporting && <ReportDialog username={page.username} lang={lang} onClose={() => setReporting(false)} />}
@@ -258,6 +264,12 @@ export default function PublicPage() {
     fetchPublicPage(username ? { username } : { host: customHost as string })
       .then((response) => {
         if (cancelled) return;
+
+        // Note 57: the address is a partner's own link.
+        if (response.partnerStorefront) {
+          setRemote({ status: 'partner', partnerId: response.partnerStorefront });
+          return;
+        }
 
         // DOMAIN-02: the old name forwards to the new one for 30 days.
         if (response.movedTo) {
@@ -309,6 +321,10 @@ export default function PublicPage() {
         <div className="h-10 w-10 rounded-full border-4 border-emerald-100 border-t-emerald-500 animate-spin"></div>
       </div>
     );
+  }
+
+  if (remote.status === 'partner') {
+    return <PartnerStorefront partnerId={remote.partnerId} />;
   }
 
   if (remote.status === 'suspended') {

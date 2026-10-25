@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import QRCode from 'qrcode';
 import { usePageContext } from '../context/PageContext';
 import { pageHost, pageUrl } from '../lib/site';
+import { Account, accountCall } from '../lib/api';
 
 const money = (value: number) => `${value.toLocaleString('en', { maximumFractionDigits: 2 })} ريال`;
 
@@ -20,12 +21,30 @@ export function DemoPayment() {
   const [searchParams] = useSearchParams();
   const { cart, total, label } = cartDetails(searchParams);
 
-  const completeDemoPayment = () => {
-    const invoice = searchParams.get('invoice');
-    const params = new URLSearchParams({ total: String(total) });
-    if (invoice) params.set('invoice', invoice);
-    else params.set('cart', cart);
-    navigate(`/payment/success?${params.toString()}`, { replace: true });
+  const { save, setAccount } = usePageContext();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const completeDemoPayment = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await save();
+      const response = await accountCall<{ account: Account; cartNumber?: number }>('payment.demo.confirm', {
+        cart, invoice: searchParams.get('invoice'), plan: searchParams.get('plan') ?? 'annual',
+      });
+      setAccount(response.account);
+      const invoice = searchParams.get('invoice');
+      const params = new URLSearchParams({ total: String(total) });
+      if (invoice) params.set('invoice', invoice);
+      else params.set('cart', String(response.cartNumber ?? cart));
+      navigate(`/payment/success?${params.toString()}`, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر تفعيل الاشتراك.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -61,15 +80,17 @@ export function DemoPayment() {
 
           <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <ShieldCheck className="mt-0.5 h-5 w-5 flex-none" />
-            <p>هذه شاشة اختبار فقط: لن يُخصم أي مبلغ، ولن يتغير اشتراكك أو تُنشر صفحتك.</p>
+            <p>دفع تجريبي دون خصم أي مبلغ: سيتم تفعيل اشتراكك ونشر صفحتك فعليًا.</p>
           </div>
 
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
           <button
+            disabled={busy}
             onClick={completeDemoPayment}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-emerald-600 to-lime-500 px-5 py-4 text-base font-black text-white shadow-lg shadow-emerald-200 transition hover:-translate-y-0.5"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
-            تأكيد الدفع التجريبي
+            {busy ? 'جارٍ تفعيل الاشتراك ونشر الصفحة…' : 'تأكيد الدفع التجريبي والنشر'}
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button onClick={() => navigate('/plan-selection')} className="w-full text-sm font-bold text-gray-500 hover:text-gray-900">
@@ -131,13 +152,13 @@ export function DemoPaymentSuccess() {
         <p className="mt-6 text-sm font-bold text-emerald-700">اكتملت المحاكاة بنجاح</p>
         <h1 className="mt-2 text-2xl font-black text-gray-950" style={{ fontFamily: 'Cairo, sans-serif' }}>تم الدفع التجريبي</h1>
         <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-gray-600">
-          هذه هي وجهة النجاح التي سيصل إليها المستفيد بعد تأكيد بوابة الدفع لاحقًا.
+          تم تفعيل الاشتراك تجريبيًا. لم يتم خصم أي مبلغ.
         </p>
 
         <div className="mt-6 rounded-2xl bg-gray-50 p-4 text-right text-sm">
           <div className="flex justify-between text-gray-500"><span>{label}</span><span dir="ltr">#{cart}</span></div>
           <div className="mt-3 flex justify-between font-bold text-gray-900"><span>المبلغ المعروض</span><span>{money(total)}</span></div>
-          {username && <div className="mt-4 border-t border-gray-200 pt-3 text-xs text-gray-500">رابط الصفحة بعد الدفع الحقيقي <strong className="mr-1 text-gray-800" dir="ltr">{pageHost(username)}</strong></div>}
+          {username && <div className="mt-4 border-t border-gray-200 pt-3 text-xs text-gray-500">رابط الصفحة <strong className="mr-1 text-gray-800" dir="ltr">{pageHost(username)}</strong></div>}
         </div>
 
         {publicUrl && (
@@ -192,7 +213,7 @@ export function DemoPaymentSuccess() {
         </section>
 
         <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-right text-xs leading-5 text-amber-950">
-          هذه المحاكاة لا تُسجل دفعة ولا تنشر الصفحة. عند ربط البوابة الحقيقية، سيؤكد الخادم العملية ثم يفعّل الاشتراك وينشرها.
+          هذه عملية تفعيل تجريبية دون تحصيل مالي. تم تسجيل مرجع تجريبي للعملية على الخادم.
         </div>
 
         <div className="mt-6 grid gap-3">

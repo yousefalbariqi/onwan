@@ -27,3 +27,9 @@ npm run test:content
 npm run test:worker
 npm run deploy:worker   # نشر Worker وStatic Assets
 ```
+
+خيارات تفعيل الدفع التجريبي وخطوات إيقافها عند الإطلاق: [PAYMENT_GO_LIVE.md](./PAYMENT_GO_LIVE.md).
+
+ملاحظات أمنية مفتوحة قبل الإطلاق، ومنها آلية المصادقة الحالية: [SECURITY_NOTES.md](./SECURITY_NOTES.md).
+
+مسارا بيع الشريك والمحرر ورابط الأسعار الخاص: [PARTNER_SALES.md](./PARTNER_SALES.md).

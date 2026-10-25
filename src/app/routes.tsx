@@ -1,3 +1,6 @@
+import PartnerOrderEditor from './partner/PartnerOrderEditor';
+import PartnerSale from './partner/PartnerSale';
+import PartnerStorefront from './partner/PartnerStorefront';
 import { createBrowserRouter, Navigate, Outlet, useRouteError, useNavigate } from 'react-router';
 import { PageProvider } from './context/PageContext';
 import Landing from './pages/Landing';
@@ -147,6 +150,18 @@ export const router = createBrowserRouter([
       {
         path: 'partner',
         element: <PartnerPortal />,
+      },
+      {
+        path: 'partner/new',
+        element: <PartnerSale />,
+      },
+      {
+        path: 'partner/edit/:orderId',
+        element: <PartnerOrderEditor />,
+      },
+      {
+        path: 'via/:partnerId',
+        element: <PartnerStorefront />,
       },
       {
         path: 'pay/:token',

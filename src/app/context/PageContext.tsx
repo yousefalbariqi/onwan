@@ -1,8 +1,9 @@
 import { arrangeSections, moveSectionItem, reorderSectionItem, saveSectionItem } from '../../../shared/linkSections';
 import { expandPageData, slimPageData } from '../../../shared/pageTransfer';
+import { moveInlineMedia } from '../lib/mediaUpload';
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
-import { Account, fetchMyPage, saveMyPage } from '../lib/api';
-import { clearSessionToken, getSessionToken } from '../lib/session';
+import { Account, ApiError, fetchMyPage, saveMyDraft, saveMyPage } from '../lib/api';
+import { DRAFT_STORAGE_KEY, HISTORY_STORAGE_PREFIX, SESSION_CLEARED_EVENT, clearLocalAccountData, clearSessionToken, getSessionToken, sessionOwner } from '../lib/session';
 import { MAX_LINKS } from '../lib/site';
 
 export interface LinkDisplay {
@@ -111,7 +112,14 @@ export interface PageData {
     useCustomColor?: boolean;
     // 'brand' keeps each logo's colour (switched automatically when it would
     // vanish on the button); 'text' paints every logo in the button text colour.
-    iconColor?: 'brand' | 'text';
+    iconColor?: 'brand' | 'text' | 'custom';
+    // Notes 31–34: exact sizes (px) and independent colours; unset = the preset.
+    heightPx?: number;
+    fontPx?: number;
+    fontWeight?: 'normal' | 'medium' | 'bold';
+    iconPx?: number;
+    textColor?: string;
+    iconCustomColor?: string;
   };
   profileStyle: {
     type: 'circle' | 'rounded' | 'square' | 'hero' | 'hero_safe' | 'premium';
@@ -133,11 +141,14 @@ export interface PageData {
     nameColor?: string;
     bioColor?: string;
     usernameColor?: string;
+    headingColor?: string; // عناوين المجموعات والعناوين
+    paragraphColor?: string; // النبذات النصية
   };
   extractedColors?: string[]; // ألوان مستخرجة من الصورة الشخصية
 }
 
 interface PageContextType {
+  videoUploadToken?: string | null;
   pageData: PageData;
   account: Account | null;
   setAccount: (account: Account | null) => void;
@@ -157,6 +168,8 @@ interface PageContextType {
   // Puts an earlier version back into the draft; it still needs «حفظ».
   restoreVersion: (data: PageData) => void;
   saving: boolean;
+  // REQ-015: the unpublished draft kept on the server ('limit' = daily cap reached).
+  draftState: 'idle' | 'saving' | 'saved' | 'error' | 'limit';
   save: () => Promise<void>;
   logout: () => void;
   resetDesign: () => void;
@@ -340,28 +353,32 @@ const defaultThemes: Theme[] = [
 
 export const themes = defaultThemes;
 
-const LOCAL_STORAGE_KEY = 'bio_page_data';
+const LOCAL_STORAGE_KEY = DRAFT_STORAGE_KEY;
 // Earlier saved versions, kept in this browser only (no server history yet).
-const HISTORY_KEY_PREFIX = 'onwan_design_history_';
+const HISTORY_KEY_PREFIX = HISTORY_STORAGE_PREFIX;
 const HISTORY_LIMIT = 10;
 
 export type SavedVersion = { savedAt: string; data: PageData };
 
-function readHistory(username: string): SavedVersion[] {
-  if (!username) return [];
+// Note 74: earlier versions are filed under the account's id (from the
+// session), never under the page name, so another account on this browser —
+// or a later owner of a released name — can never see them.
+function readHistory(owner: string): SavedVersion[] {
+  if (!owner.startsWith('user:')) return [];
   try {
-    const raw = localStorage.getItem(HISTORY_KEY_PREFIX + username);
+    const raw = localStorage.getItem(HISTORY_KEY_PREFIX + owner);
     return raw ? (JSON.parse(raw) as SavedVersion[]).map((v) => ({ ...v, data: mergeWithDefaults(v.data) })) : [];
   } catch {
     return [];
   }
 }
 
-function writeHistory(username: string, history: SavedVersion[]) {
+function writeHistory(owner: string, history: SavedVersion[]) {
+  if (!owner.startsWith('user:') || owner !== sessionOwner()) return;
   // Uploaded images can exceed the quota: drop the oldest until it fits.
   for (let list = history; list.length > 0; list = list.slice(0, -1)) {
     try {
-      localStorage.setItem(HISTORY_KEY_PREFIX + username, JSON.stringify(list));
+      localStorage.setItem(HISTORY_KEY_PREFIX + owner, JSON.stringify(list));
       return;
     } catch {
       // try with fewer versions
@@ -436,8 +453,15 @@ function loadLocalPageData() {
     return defaultPageData;
   }
 
+  // Note 42: a draft is shown only to the account (or guest) that wrote it.
+  // Older drafts carry no owner and could be anyone's, so they are dropped.
   try {
-    return mergeWithDefaults(JSON.parse(saved));
+    const stored = JSON.parse(saved);
+    if (!stored || typeof stored !== 'object' || stored.owner !== sessionOwner() || !stored.data) {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      return defaultPageData;
+    }
+    return mergeWithDefaults(stored.data);
   } catch (error) {
     console.error('Error parsing saved data:', error);
     return defaultPageData;
@@ -448,6 +472,7 @@ function loadLocalPageData() {
 // beneficiary's own page; the administration passes its own source to edit a
 // customer's page with the same editor (PERM-01).
 export type PageSource = {
+  uploadToken?: () => string | null;
   load: () => Promise<{ pageData: any }>;
   save: (pageData: PageData) => Promise<{ pageData: any }>;
 };
@@ -462,6 +487,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   const [savedPageData, setSavedPageData] = useState<PageData | null>(null);
   const [savedHistory, setSavedHistory] = useState<SavedVersion[]>([]);
   const [saving, setSaving] = useState(false);
+  const [draftState, setDraftState] = useState<'idle' | 'saving' | 'saved' | 'error' | 'limit'>('idle');
+  // Whose page is in memory: the guest, or the account it was loaded for.
+  const draftOwner = useRef(source ? 'staff' : sessionOwner());
 
   useEffect(() => {
     // Someone else's page must never land in this browser's own draft.
@@ -472,8 +500,10 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     // Serialising a draft with inline images on every keystroke made typing
     // and saving sluggish; it is written once the editing pauses.
     const timer = window.setTimeout(() => {
+      // Never file one account's page under another session (or the guest).
+      if (draftOwner.current !== sessionOwner()) return;
       try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pageData));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ owner: draftOwner.current, data: pageData }));
       } catch (error) {
         // Uploaded images can exceed the localStorage quota; the draft still
         // lives in memory until it is saved.
@@ -515,12 +545,16 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         const response = await fetchMyPage();
 
         if (!cancelled && response.pageData) {
+          draftOwner.current = sessionOwner();
           const loaded = mergeWithDefaults(response.pageData);
-          setPageData(loaded);
+          // REQ-015: unpublished edits saved earlier (from any device) come back.
+          const draft = response.draft?.pageData ? mergeWithDefaults({ ...response.draft.pageData, username: loaded.username }) : null;
+          setPageData(draft ?? loaded);
           setSavedPageData(loaded);
-          setSavedHistory(readHistory(response.pageData.username || ''));
+          setSavedHistory(readHistory(sessionOwner()));
           setAccount(response.account);
-          setIsDirty(false);
+          setIsDirty(Boolean(draft));
+          setDraftState(draft ? 'saved' : 'idle');
           setIsAuthenticated(true);
         }
       } catch (error) {
@@ -545,7 +579,8 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   }, [source]);
 
   useEffect(() => {
-    if (!isDirty) {
+    // A draft already on the server is safe; warn only for edits not yet kept.
+    if (!isDirty || draftState === 'saved') {
       return;
     }
 
@@ -556,7 +591,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
 
     window.addEventListener('beforeunload', warnBeforeLeaving);
     return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
-  }, [isDirty]);
+  }, [isDirty, draftState]);
 
   // Every editor change goes through here so the draft is marked unsaved.
   // Undo / redo over editor changes. Saving does not clear it; loading a
@@ -612,11 +647,19 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     setIsDirty(true);
   }, [pushHistory]);
 
+  // Another account takes the screen (login, signup, set password): every
+  // trace of the previous one goes — draft, saved copy, versions, undo steps
+  // (note 74). The new account's own versions are read back.
   const replacePageData = useCallback((nextPageData: PageData) => {
+    draftOwner.current = sessionOwner();
     past.current = [];
     future.current = [];
     setHistoryTick((tick) => tick + 1);
-    setPageData(mergeWithDefaults(nextPageData));
+    const loaded = mergeWithDefaults(nextPageData);
+    setPageData(loaded);
+    savedRef.current = loaded;
+    setSavedPageData(loaded);
+    setSavedHistory(readHistory(draftOwner.current));
     setIsDirty(false);
   }, []);
 
@@ -647,18 +690,20 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         if (source) {
           savedData = mergeWithDefaults((await source.save(sent)).pageData);
         } else {
-          // Files unchanged since the last save are not uploaded again.
-          const body = slimPageData(sent, previous);
+          // Inline images and PDFs go to storage once (note 53); files
+          // unchanged since the last save are not sent again (note 28).
+          const prepared = await moveInlineMedia(sent);
+          const body = slimPageData(prepared, previous);
           const response = await saveMyPage(body);
-          const expanded = expandPageData(response.pageData, sent);
+          const expanded = expandPageData(response.pageData, prepared);
           savedData = mergeWithDefaults(expanded ?? (await fetchMyPage()).pageData);
           setAccount(response.account);
           if (previous) {
-            const username = response.pageData.username || sent.username;
+            const owner = draftOwner.current;
             const next = [{ savedAt: new Date().toISOString(), data: previous }, ...historyRef.current].slice(0, HISTORY_LIMIT);
             setSavedHistory(next);
             // Off the critical path: serialising earlier versions is slow.
-            window.setTimeout(() => writeHistory(username, next), 0);
+            window.setTimeout(() => writeHistory(owner, next), 0);
           }
           if (import.meta.env.DEV) {
             console.info(`[onwan] save ${Math.round(performance.now() - started)} ms · sent ${Math.round(JSON.stringify(body).length / 1024)} KB of ${Math.round(JSON.stringify(sent).length / 1024)} KB`);
@@ -671,6 +716,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         if (pageDataRef.current === sent) {
           setPageData(savedData);
           setIsDirty(false);
+          setDraftState('idle');
         } else {
           setIsDirty(true);
         }
@@ -684,15 +730,47 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     return inFlight.current;
   }, [source]);
 
+  // REQ-015: unpublished edits are kept on the server by themselves, merged —
+  // one save 2.5 s after the editing pauses, never one per change. They stay
+  // invisible to visitors until «احفظ تعديلاتي» publishes them. Files go to
+  // storage first so the draft stays small.
+  useEffect(() => {
+    if (source || !isAuthenticated || !isDirty || draftState === 'limit') return;
+    const timer = window.setTimeout(async () => {
+      if (inFlight.current) return;
+      const sent = pageDataRef.current;
+      setDraftState('saving');
+      try {
+        const prepared = await moveInlineMedia(sent);
+        await saveMyDraft(prepared);
+        // Stored files now travel as links; keep that unless the user moved on.
+        if (prepared !== sent && pageDataRef.current === sent) setPageData(prepared);
+        setDraftState('saved');
+      } catch (error) {
+        setDraftState(error instanceof ApiError && error.code === 'save_limit' ? 'limit' : 'error');
+      }
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [pageData, isDirty, isAuthenticated, source, draftState === 'limit']); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Edits undone back to the published version: the server draft goes too.
+  useEffect(() => {
+    if (source || !isAuthenticated || isDirty || draftState !== 'saved') return;
+    saveMyDraft(null).then(() => setDraftState('idle')).catch(() => undefined);
+  }, [isDirty, draftState, isAuthenticated, source]);
+
   const restoreVersion = useCallback((data: PageData) => {
     pushHistory(true);
     setPageData(mergeWithDefaults(data));
     setIsDirty(true);
   }, [pushHistory]);
 
-  const logout = useCallback(() => {
-    clearSessionToken();
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
+  // Drops the account from memory: its page, saved copy, versions and undo steps.
+  const forgetAccount = useCallback(() => {
+    draftOwner.current = 'guest';
+    past.current = [];
+    future.current = [];
+    setHistoryTick((tick) => tick + 1);
     setIsAuthenticated(false);
     setAccount(null);
     setPageData(defaultPageData);
@@ -700,6 +778,30 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     setSavedHistory([]);
     setIsDirty(false);
   }, []);
+
+  const logout = useCallback(() => {
+    clearSessionToken();
+    clearLocalAccountData();
+    forgetAccount();
+  }, [forgetAccount]);
+
+  // Note 42: when the session ends any other way (expired, banned, logged out
+  // in another tab), the previous account's page leaves the screen at once.
+  useEffect(() => {
+    if (source) return;
+    const onCleared = () => forgetAccount();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'bio_sa_session_token' || event.key === null) {
+        if (draftOwner.current !== sessionOwner()) forgetAccount();
+      }
+    };
+    window.addEventListener(SESSION_CLEARED_EVENT, onCleared);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(SESSION_CLEARED_EVENT, onCleared);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [source, forgetAccount]);
 
   // PAGE-08: restores the default look only. Content (name, description,
   // logo, contact details, buttons and files) is left untouched.
@@ -721,6 +823,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         ...prev.buttonStyle,
         useCustomColor: false, // إعادة تعيين اللون المخصص للأزرار
         customColor: undefined,
+        textColor: undefined, // الثيم يحدد لون نص الأزرار من جديد
       },
     }));
   }, [edit]);
@@ -797,6 +900,8 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         canRedo: historyTick >= 0 && future.current.length > 0,
         restoreDraft,
         saving,
+        draftState,
+        videoUploadToken: source?.uploadToken?.(),
         save,
         logout,
         resetDesign,

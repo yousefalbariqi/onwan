@@ -8,7 +8,7 @@ interface ProfileImageDisplayProps {
   profileStyle: PageData['profileStyle'];
   textColor: string;
   size?: 'small' | 'medium' | 'large';
-  backgroundColor?: string; // للـ gradient overlay في Hero
+  backgroundColor?: string; // unused since note 52 (the hero fades by mask); kept for callers
 }
 
 export function ProfileImageDisplay({
@@ -103,83 +103,18 @@ export function ProfileImageDisplay({
 
   // صورة كاملة (Hero)
   if (isHeroFillStyle || isHeroSafeStyle) {
-    // استخراج لون الخلفية للتدرج
-    const getGradientOverlay = () => {
-      if (!backgroundColor) {
-        // تدرج إلى أبيض صافي - يبدأ من 60% فقط الجزء السفلي
-        return 'linear-gradient(to bottom, transparent 0%, transparent 60%, rgba(255,255,255,0.2) 70%, rgba(255,255,255,0.4) 78%, rgba(255,255,255,0.6) 84%, rgba(255,255,255,0.8) 90%, rgba(255,255,255,0.95) 96%, #ffffff 100%)';
-      }
-      
-      // إذا كان gradient - استخدام أبيض
-      if (backgroundColor.includes('gradient')) {
-        return 'linear-gradient(to bottom, transparent 0%, transparent 60%, rgba(255,255,255,0.2) 70%, rgba(255,255,255,0.4) 78%, rgba(255,255,255,0.6) 84%, rgba(255,255,255,0.8) 90%, rgba(255,255,255,0.95) 96%, #ffffff 100%)';
-      }
-      
-      // إذا كان لون solid - استخدام نفس اللون بتدرج ناعم يبدأ من 60%
-      let colors = [];
-      let solidColor;
-      
-      if (backgroundColor.includes('#')) {
-        // hex color - نستخرج RGB ثم نضيف opacity متدرج
-        const hex = backgroundColor.replace('#', '');
-        const r = parseInt(hex.substr(0, 2), 16);
-        const g = parseInt(hex.substr(2, 2), 16);
-        const b = parseInt(hex.substr(4, 2), 16);
-        
-        colors = [
-          `rgba(${r}, ${g}, ${b}, 0.2)`,   // 70%
-          `rgba(${r}, ${g}, ${b}, 0.4)`,   // 78%
-          `rgba(${r}, ${g}, ${b}, 0.6)`,   // 84%
-          `rgba(${r}, ${g}, ${b}, 0.8)`,   // 90%
-          `rgba(${r}, ${g}, ${b}, 0.95)`,  // 96%
-        ];
-        solidColor = backgroundColor;
-      } else if (backgroundColor.includes('rgb')) {
-        // rgb color
-        const values = backgroundColor.match(/\d+/g);
-        if (values && values.length >= 3) {
-          colors = [
-            `rgba(${values[0]}, ${values[1]}, ${values[2]}, 0.2)`,
-            `rgba(${values[0]}, ${values[1]}, ${values[2]}, 0.4)`,
-            `rgba(${values[0]}, ${values[1]}, ${values[2]}, 0.6)`,
-            `rgba(${values[0]}, ${values[1]}, ${values[2]}, 0.8)`,
-            `rgba(${values[0]}, ${values[1]}, ${values[2]}, 0.95)`,
-          ];
-          solidColor = `rgb(${values[0]}, ${values[1]}, ${values[2]})`;
-        } else {
-          // fallback
-          colors = [
-            'rgba(255,255,255,0.2)',
-            'rgba(255,255,255,0.4)',
-            'rgba(255,255,255,0.6)',
-            'rgba(255,255,255,0.8)',
-            'rgba(255,255,255,0.95)',
-          ];
-          solidColor = '#ffffff';
-        }
-      } else {
-        // fallback
-        colors = [
-          'rgba(255,255,255,0.2)',
-          'rgba(255,255,255,0.4)',
-          'rgba(255,255,255,0.6)',
-          'rgba(255,255,255,0.8)',
-          'rgba(255,255,255,0.95)',
-        ];
-        solidColor = '#ffffff';
-      }
-      
-      // تدرج يبدأ من 60% - فقط الجزء السفلي من الصورة
-      return `linear-gradient(to bottom, transparent 0%, transparent 60%, ${colors[0]} 70%, ${colors[1]} 78%, ${colors[2]} 84%, ${colors[3]} 90%, ${colors[4]} 96%, ${solidColor} 100%)`;
-    };
+    // Note 52: the photo itself fades out at the bottom (a mask), so the
+    // page's real background — a colour, a gradient, a photo or a video —
+    // shows through. No fixed colour is painted over it and the box has no
+    // background of its own, hence no seam under the photo.
+    const fade = isHeroFillStyle && fit === 'cover'
+      ? { maskImage: 'linear-gradient(to bottom, #000 0%, #000 60%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0.6) 78%, rgba(0,0,0,0.4) 84%, rgba(0,0,0,0.2) 90%, rgba(0,0,0,0.05) 96%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 60%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0.6) 78%, rgba(0,0,0,0.4) 84%, rgba(0,0,0,0.2) 90%, rgba(0,0,0,0.05) 96%, transparent 100%)' }
+      : undefined;
 
     return (
-      <div
-        className="relative w-full min-h-[340px] overflow-hidden sm:min-h-[420px] lg:min-h-[520px]"
-        style={{ backgroundColor: backgroundColor && !backgroundColor.includes('gradient') ? backgroundColor : '#111827' }}
-      >
+      <div className="relative w-full min-h-[340px] overflow-hidden sm:min-h-[420px] lg:min-h-[520px]">
         {profileImage ? (
-          <>
+          <div className="absolute inset-0" style={fade}>
             {isHeroFillStyle && fit === 'cover' && (
               <div
                 className="absolute inset-0 scale-110 opacity-45 blur-2xl"
@@ -209,17 +144,9 @@ export function ProfileImageDisplay({
                 />
               </div>
             )}
-            {isHeroFillStyle && fit === 'cover' && (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background: getGradientOverlay(),
-                }}
-              />
-            )}
-          </>
+          </div>
         ) : (
-          <div className="w-full h-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center bg-white/10 backdrop-blur-sm">
             <User className="w-24 h-24 opacity-50" style={{ color: textColor }} />
           </div>
         )}

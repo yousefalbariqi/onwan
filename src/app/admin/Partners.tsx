@@ -3,6 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { ROOT_DOMAIN } from '../lib/site';
 import { StaffMember, adminCall } from './adminApi';
 import { Badge, Button, Card, Empty, ErrorNote, Field, PLAN_NAMES, formatDate, inputClass, useAction, useLoad } from './ui';
+import { PasswordInput } from '../components/PasswordInput';
 
 const PARTNER_STATUS: Record<string, { label: string; tone: 'gray' | 'green' | 'amber' | 'red' }> = {
   pending: { label: 'بانتظار الموافقة', tone: 'amber' },
@@ -12,7 +13,30 @@ const PARTNER_STATUS: Record<string, { label: string; tone: 'gray' | 'green' | '
   rejected: { label: 'مرفوض', tone: 'gray' },
 };
 
-const ORDER_STATUS: Record<string, string> = { awaiting_payment: 'بانتظار الدفع', completed: 'مكتمل', cancelled: 'ملغى' };
+const ORDER_STATUS: Record<string, string> = { draft: 'مسودة', awaiting_payment: 'بانتظار الدفع', completed: 'مكتمل', cancelled: 'ملغى' };
+
+// Note 69: an order's money, each part on its own. Only «المحصّل فعليًا»
+// comes from recorded payments; the dues follow the current rule (sale − the
+// partner's price, plus the design fee) until the owner settles the policy.
+function OrderMoney({ order }: { order: any }) {
+  const total = order.sale_price + order.design_price;
+  const collected = order.collected ?? 0;
+  const rows: [string, string][] = [
+    ['على العميل', money(total)],
+    ['مستحق المنصة', money(order.partner_price)],
+    ['مستحق الشريك', money(order.sale_price - order.partner_price + order.design_price)],
+    ['المحصّل فعليًا', money(collected)],
+    ['المتبقي', money(order.status === 'cancelled' ? 0 : Math.max(0, total - collected))],
+    ['طريقة الدفع / المرجع', order.payment_reference || (order.status === 'completed' ? '—' : 'لم يُدفع')],
+    // Owner decision (25 Oct 2026): every payment goes to عنوان through the gateway; no cash.
+    ['جهة الاستلام', 'عنوان (بوابة الدفع)'],
+  ];
+  return (
+    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-gray-50 p-2 text-xs sm:grid-cols-4">
+      {rows.map(([label, value]) => <div key={label}><dt className="text-gray-500">{label}</dt><dd className="font-semibold text-gray-900">{value}</dd></div>)}
+    </dl>
+  );
+}
 
 const money = (value: number | null) => (value === null ? '—' : `${value.toLocaleString('en', { maximumFractionDigits: 2 })} ريال`);
 
@@ -78,6 +102,7 @@ function PartnerDetail({ id, staff, onBack, onOpenCustomer }: { id: string; staf
   const [reason, setReason] = useState('');
   const [prices, setPrices] = useState<{ monthly: string; annual: string } | null>(null);
   const [rate, setRate] = useState('');
+  const [slug, setSlug] = useState<string | null>(null);
   const [payout, setPayout] = useState({ amount: '', renewalsCount: '', note: '' });
   const [amounts, setAmounts] = useState<Record<string, string>>({});
 
@@ -104,6 +129,17 @@ function PartnerDetail({ id, staff, onBack, onOpenCustomer }: { id: string; staf
           <div dir="ltr" className="text-right">{partner.phone}</div>
           <div>تاريخ الطلب: {formatDate(partner.created_at)}</div>
           {partner.status_reason && <div>السبب: {partner.status_reason}</div>}
+        </div>
+
+        {/* Note 57: the partner's own link; a customer who comes through it is attributed to the partner. */}
+        <div className="mt-4 rounded-xl bg-gray-50 p-3">
+          <p className="mb-2 text-sm font-bold text-gray-800">رابط الشريك</p>
+          <div className="flex flex-wrap items-center gap-2" dir="ltr">
+            <input value={slug ?? partner.slug ?? ''} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="bawariq" maxLength={30} className={`${inputClass} w-40`} />
+            <span className="text-sm text-gray-500">.{ROOT_DOMAIN}</span>
+            <Button disabled={action.busy || slug === null || slug === (partner.slug ?? '')} onClick={() => call('partners.setSlug', { slug }).then(() => setSlug(null))}>حفظ الرابط</Button>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">{partner.slug ? <>يعمل الآن: <span dir="ltr">{partner.slug}.{ROOT_DOMAIN}</span>. الاسم محجوز فلا يأخذه عميل.</> : 'اختر اسمًا قصيرًا غير مستخدم لصفحة عميل. يُحجز تلقائيًا.'}</p>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -198,6 +234,7 @@ function PartnerDetail({ id, staff, onBack, onOpenCustomer }: { id: string; staf
               <div className="text-xs text-gray-500" dir="ltr">
                 {order.username}.{ROOT_DOMAIN} · {order.customer_email} · {order.customer_phone}
               </div>
+              <OrderMoney order={order} />
               {order.status === 'awaiting_payment' && <ConfirmPayment order={order} onDone={reload} />}
             </li>
           ))}
@@ -305,13 +342,17 @@ export function Partners({ staff, onOpenCustomer }: { staff: StaffMember; onOpen
           <div className="grid gap-2 sm:grid-cols-3">
             {([['shopName', 'اسم المحل'], ['contactName', 'اسم المسؤول'], ['city', 'المدينة'], ['phone', 'الجوال'], ['email', 'البريد'], ['password', 'كلمة المرور (8+)']] as const).map(([key, label]) => (
               <Field key={key} label={label}>
-                <input
-                  type={key === 'password' ? 'password' : 'text'}
-                  value={form[key]}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                  className={inputClass}
-                  dir={['phone', 'email', 'password'].includes(key) ? 'ltr' : undefined}
-                />
+                {key === 'password' ? (
+                  <PasswordInput value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className={inputClass} dir="ltr" autoComplete="new-password" />
+                ) : (
+                  <input
+                    type="text"
+                    value={form[key]}
+                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                    className={inputClass}
+                    dir={['phone', 'email'].includes(key) ? 'ltr' : undefined}
+                  />
+                )}
               </Field>
             ))}
           </div>

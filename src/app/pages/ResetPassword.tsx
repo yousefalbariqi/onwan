@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TurnstileBox } from '../lib/turnstile';
 import { KeyRound } from 'lucide-react';
 import { AuthError, AuthField, AuthLayout, AuthSubmit } from '../components/AuthLayout';
 import { confirmPasswordReset, requestPasswordReset } from '../lib/api';
@@ -64,6 +65,7 @@ export default function ResetPassword() {
             required
             autoFocus
           />
+          <TurnstileBox />
           <AuthError message={error} />
           <AuthSubmit loading={loading} disabled={!email}>
             إرسال الرمز

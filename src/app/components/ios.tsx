@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
-import { Circle, Plus, Check, ChevronLeft, ZoomIn } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Circle, Plus, Check, ChevronLeft, Loader2, ZoomIn } from 'lucide-react';
 
 // Shared Apple-style (iOS Settings) controls for the editor panels: grouped
 // lists, rows, segmented controls, switches and a single row of colour dots.
@@ -145,4 +146,50 @@ export function EndsSlider({ label, start, end, min, max, step = 1, value, onCha
       <span className="shrink-0">{end}</span>
     </label>
   );
+}
+
+// A small two-choice sheet (note 23's style), for leaving a changed form and
+// for deleting a group.
+export function ConfirmSheet({ title, message, confirmLabel, cancelLabel, onConfirm, onCancel, tone = 'danger' }: { title: string; message: string; confirmLabel: string; cancelLabel: string; onConfirm: () => void; onCancel: () => void; tone?: 'danger' | 'default' }) {
+  return (
+    <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={onCancel}>
+      <div className="w-full max-w-[340px] overflow-hidden rounded-[22px] bg-white text-center shadow-2xl" onClick={(event) => event.stopPropagation()} role="alertdialog" aria-modal="true" aria-label={title}>
+        <p className="px-6 pb-1 pt-5 text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</p>
+        <p className="px-6 pb-4 text-sm leading-6 text-[#6e6e73]">{message}</p>
+        <div className="space-y-2 px-4 pb-4">
+          <button type="button" onClick={onConfirm} className={`block w-full rounded-xl py-3 text-[15px] font-bold text-white ${tone === 'danger' ? 'bg-[#ff3b30]' : 'bg-[#0a84ff]'}`}>{confirmLabel}</button>
+          <button type="button" onClick={onCancel} className="block w-full rounded-xl bg-[#f2f2f7] py-3 text-[15px] font-bold text-[#1d1d1f]">{cancelLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The one main action of a screen: filled, wide, 52 pt.
+export function PrimaryButton({ children, onClick, disabled, busy, tone = 'blue', type = 'button' }: { children: ReactNode; onClick?: () => void; disabled?: boolean; busy?: boolean; tone?: 'blue' | 'green' | 'red'; type?: 'button' | 'submit' }) {
+  const color = tone === 'green' ? 'bg-emerald-600 shadow-[0_6px_16px_rgba(5,150,105,0.28)]' : tone === 'red' ? 'bg-[#ff3b30] shadow-[0_6px_16px_rgba(255,59,48,0.25)]' : 'bg-[#0a84ff] shadow-[0_6px_16px_rgba(10,132,255,0.28)]';
+  return (
+    <button type={type} onClick={onClick} disabled={disabled || busy} className={`flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-[16px] font-bold text-white transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none ${color}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+      {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : children}
+    </button>
+  );
+}
+
+// A Settings row: coloured icon tile, label, value, and a chevron when it leads on.
+export function SettingsRow({ icon: Icon, tone, label, value, badge, onClick, danger = false }: { icon: LucideIcon; tone: string; label: string; value?: ReactNode; badge?: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-right active:bg-[#f2f2f7]">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-white ${tone}`}><Icon className="h-[18px] w-[18px]" /></span>
+      <span className={`min-w-0 flex-1 truncate text-[15px] ${danger ? 'text-[#ff3b30]' : 'text-[#1d1d1f]'}`}>{label}</span>
+      {badge && <span className="shrink-0 rounded-full bg-[#ff3b30] px-2 py-0.5 text-[11px] font-bold text-white">{badge}</span>}
+      {value !== undefined && <span className="max-w-[45%] shrink-0 truncate text-[15px] text-[#8e8e93]">{value}</span>}
+      {!danger && <ChevronLeft className="h-4 w-4 shrink-0 text-[#c7c7cc]" />}
+    </button>
+  );
+}
+
+// A calm status line: one colour per meaning (info / good / warning / problem).
+export function Notice({ tone = 'info', children }: { tone?: 'info' | 'good' | 'warn' | 'bad'; children: ReactNode }) {
+  const color = tone === 'good' ? 'bg-[#34c759]/10 text-[#1f7a35]' : tone === 'warn' ? 'bg-[#ff9500]/12 text-[#9a5b00]' : tone === 'bad' ? 'bg-[#ff3b30]/10 text-[#c4251c]' : 'bg-[#f2f2f7] text-[#3a3a3c]';
+  return <p role={tone === 'bad' ? 'alert' : 'status'} className={`rounded-xl px-3.5 py-2.5 text-[13px] leading-6 ${color}`}>{children}</p>;
 }

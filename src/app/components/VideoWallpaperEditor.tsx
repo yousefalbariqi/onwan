@@ -52,13 +52,14 @@ function VideoPreview({ src, poster, position, dim }: { src: string; poster?: st
 }
 
 export function VideoWallpaperEditor() {
-  const { pageData, updateWallpaper } = usePageContext();
+  const { pageData, updateWallpaper, videoUploadToken } = usePageContext();
   const current = pageData.wallpaper;
   const isVideo = current.type === 'video';
   const [file, setFile] = useState<File | null>(null);
   const [localPreview, setLocalPreview] = useState('');
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState<'uploading' | 'processing'>('uploading');
   const [error, setError] = useState('');
   const upload = useRef<AbortController | null>(null);
   useEffect(() => () => { if (localPreview) URL.revokeObjectURL(localPreview); }, [localPreview]);
@@ -79,7 +80,8 @@ export function VideoWallpaperEditor() {
     setError('');
     const posterPromise = isVideo && current.poster ? Promise.resolve(current.poster) : captureFirstFrame(preview);
     try {
-      const value = await uploadBackgroundVideo(selected, setProgress, controller.signal);
+      setPhase('uploading');
+      const value = await uploadBackgroundVideo(selected, setProgress, controller.signal, videoUploadToken, setPhase);
       const poster = await posterPromise;
       updateWallpaper({ type: 'video', value, poster, position, dim, uploaded: true, fileName: selected.name, fileSize: selected.size });
       setFile(null);
@@ -164,7 +166,8 @@ export function VideoWallpaperEditor() {
           {uploading && (
             <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[26px] bg-black/55 text-white">
               <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="text-sm font-bold" dir="ltr">{progress}%</span>
+              {/* REQ-023: after the upload, Stream compresses the video. */}
+              {phase === 'processing' ? <span className="px-2 text-center text-xs font-bold">جارٍ تجهيز الفيديو…</span> : <span className="text-sm font-bold" dir="ltr">{progress}%</span>}
               <button type="button" onClick={cancel} className="mt-1 rounded-full bg-white/20 px-3 py-1 text-xs font-bold">إلغاء</button>
             </span>
           )}

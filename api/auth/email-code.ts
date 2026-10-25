@@ -1,7 +1,7 @@
 import { getAccountSummary } from '../_lib/account.js';
 import { pool } from '../_lib/db.js';
 import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http.js';
-import { consumeCode, issueCode } from '../_lib/otp.js';
+import { OTP_RESEND_SECONDS, codeFailure, consumeCode, issueCode, resendWaitSeconds } from '../_lib/otp.js';
 import { requireUser } from '../_lib/session.js';
 
 // ACCT-04: confirm the signed-in account's email.
@@ -31,8 +31,16 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
+      // Note 38: the code sent at signup (or a moment ago) still stands, so
+      // opening the code window does not fail; it says so and counts down.
+      const wait = await resendWaitSeconds(user.email, 'verify_email');
+      if (wait > 0) {
+        sendJson(res, 200, { sent: false, retryAfter: wait, message: 'أرسلنا رمز التحقق إلى بريدك الإلكتروني. تحقق من صندوق الوارد.' });
+        return;
+      }
+
       await issueCode(user.email, 'verify_email', 'رمز تأكيد بريدك الإلكتروني في عنوان:');
-      sendJson(res, 200, { message: 'تم إرسال رمز التأكيد إلى بريدك الإلكتروني.' });
+      sendJson(res, 200, { sent: true, retryAfter: OTP_RESEND_SECONDS, message: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني. تحقق من صندوق الوارد.' });
       return;
     }
 
@@ -43,7 +51,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (!(await consumeCode(user.email, 'verify_email', code))) {
-      throw new HttpError(401, 'الرمز غير صحيح أو منتهي الصلاحية.');
+      throw await codeFailure(user.email, 'verify_email');
     }
 
     await pool.query('update users set email_verified_at = now(), updated_at = now() where id = $1', [user.id]);

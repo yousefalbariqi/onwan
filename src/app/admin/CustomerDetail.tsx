@@ -130,6 +130,10 @@ export function CustomerDetail({
   const [newUsername, setNewUsername] = useState('');
   const [feePaid, setFeePaid] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
+  // Note 72: sign-in help; a temporary password is shown once and never stored here.
+  const [identityChecked, setIdentityChecked] = useState(false);
+  const [access, setAccess] = useState<{ kind: 'link'; emailed: boolean } | { kind: 'temp'; password: string } | null>(null);
+  const accessAction = useAction();
 
   if (error) return <ErrorNote message={error} />;
   if (!data) return <Empty>جاري التحميل...</Empty>;
@@ -236,6 +240,32 @@ export function CustomerDetail({
             <p className="mt-2 text-xs text-gray-500">
               يُستخدم بعد استلام المبلغ. ينشر الصفحة إن لم تُنشر من قبل، والصفحة الموقوفة تحتاج «إعادة تفعيل» مستقلة.
             </p>
+          </Card>
+
+          <Card title="إدارة الدخول">
+            <p className="mb-3 text-sm text-gray-600">لمساعدة العميل على استعادة حسابه. لا يمكن عرض كلمة المرور الحالية، ولا تتغير ملكية الصفحة أو الاشتراك.</p>
+            <label className="mb-3 flex items-center gap-2 text-sm text-gray-800">
+              <input type="checkbox" checked={identityChecked} onChange={(e) => setIdentityChecked(e.target.checked)} />
+              تحققت من هوية العميل (مثلًا بالتواصل من جواله المسجّل)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={accessAction.busy || !identityChecked} onClick={() => accessAction.run(async () => { const r = await adminCall('user.sendAccessLink', { userId, identityChecked: true }); setAccess({ kind: 'link', emailed: r.emailed }); })}>
+                إرسال رابط تعيين كلمة المرور إلى بريده
+              </Button>
+              {isManager && (
+                <Button tone="danger" disabled={accessAction.busy || !identityChecked} onClick={() => window.confirm('إنشاء كلمة مرور مؤقتة؟ تُعرض مرة واحدة، ويُلزم العميل بتغييرها عند الدخول.') && accessAction.run(async () => { const r = await adminCall('user.tempPassword', { userId, identityChecked: true }); setAccess({ kind: 'temp', password: r.password }); })}>
+                  كلمة مرور مؤقتة (للمدير)
+                </Button>
+              )}
+            </div>
+            <ErrorNote message={accessAction.error} />
+            {access?.kind === 'link' && <p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{access.emailed ? 'أُرسل الرابط إلى بريد العميل.' : 'تعذر إرسال البريد. حاول مجددًا لاحقًا.'}</p>}
+            {access?.kind === 'temp' && (
+              <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                كلمة المرور المؤقتة (تُعرض الآن فقط): <b dir="ltr" className="select-all font-mono">{access.password}</b>
+                <p className="mt-1 text-xs">أبلغها للعميل بوسيلة آمنة. سيُطلب منه تغييرها فور دخوله.</p>
+              </div>
+            )}
           </Card>
 
           <Card title="الإيقاف والحظر">

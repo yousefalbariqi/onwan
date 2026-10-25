@@ -1,8 +1,9 @@
+import { assertHuman } from '../_lib/turnstile.js';
 import { getAccountSummary, normalizeEmail } from '../_lib/account.js';
 import { createSessionToken } from '../_lib/auth.js';
 import { pool } from '../_lib/db.js';
 import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http.js';
-import { consumeCode, issueCode } from '../_lib/otp.js';
+import { codeFailure, consumeCode, issueCode } from '../_lib/otp.js';
 import { ensurePageForUser, getPageDataByUserId } from '../_lib/page.js';
 import { hashPassword, validatePassword } from '../_lib/password.js';
 import { getBannedMessage } from '../_lib/session.js';
@@ -31,6 +32,7 @@ export default async function handler(req: any, res: any) {
     const user = userResult.rows[0];
 
     if (body.action === 'request') {
+      await assertHuman(req, body); // REQ-020
       // Same answer whether or not the email is registered — including when
       // the code could not be issued (cooldown, mail failure) — so the form
       // cannot be used to probe which emails have accounts.
@@ -60,7 +62,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (!user || !(await consumeCode(email, 'reset_password', String(body.code ?? '')))) {
-      throw new HttpError(401, 'الرمز غير صحيح أو منتهي الصلاحية.');
+      throw await codeFailure(email, 'reset_password');
     }
 
     if (user.status === 'banned') {

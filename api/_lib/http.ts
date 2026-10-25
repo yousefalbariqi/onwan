@@ -49,6 +49,16 @@ export function allowMethods(req: any, res: any, methods: string[]) {
 }
 
 export function handleApiError(res: any, error: unknown) {
+  const databaseError = error as { code?: string; message?: string } | null;
+  if (databaseError?.code === 'P0001') {
+    const messages: Record<string, [number, string]> = {
+      media_replacement_limit: [429, 'وصلت إلى حد 20 استبدال ملف يوميًا. حاول غدًا.'],
+      media_file_deleted: [409, 'أحد الملفات حُذف بعد انتهاء مهلة الاحتفاظ. أعد رفعه ثم احفظ.'],
+      media_inline_forbidden: [400, 'يجب رفع الملفات إلى Cloudflare قبل الحفظ.'],
+    };
+    const mapped = messages[databaseError.message ?? ''];
+    if (mapped) { sendJson(res, mapped[0], { error: mapped[1], code: databaseError.message }); return; }
+  }
   if (error instanceof HttpError) {
     sendJson(res, error.status, { error: error.message, code: error.code });
     return;
