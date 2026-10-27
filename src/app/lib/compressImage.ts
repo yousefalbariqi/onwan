@@ -8,10 +8,17 @@ const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp'];
 
 export class ImageProblem extends Error {}
 
+// An SVG logo is drawn into a PNG here, so the file never leaves the browser:
+// a stored SVG can carry script that would run on our domain when its link is
+// opened. Inside <img> no script runs, so drawing it is safe.
+const SVG_EDGE = 1024;
+const isSvg = (file: File) => file.type === 'image/svg+xml' || /\.svg$/i.test(file.name);
+
 const bytesOf = (dataUrl: string) => Math.ceil(((dataUrl.length - dataUrl.indexOf(',') - 1) * 3) / 4);
 
-export async function compressImage(file: File, maxEdge = 1600): Promise<string> {
-  if (!ACCEPTED.includes(file.type)) throw new ImageProblem(file.type === 'image/heic' || /\.heic$/i.test(file.name) ? 'صيغة HEIC غير مدعومة. صدّر الصورة من جوالك بصيغة JPG ثم أرفقها.' : 'اختر صورة PNG أو JPG أو WebP.');
+export async function compressImage(file: File, maxEdge = 1600, { allowSvg = false } = {}): Promise<string> {
+  if (allowSvg && isSvg(file)) return rasterizeSvg(file);
+  if (!ACCEPTED.includes(file.type)) throw new ImageProblem(file.type === 'image/heic' || /\.heic$/i.test(file.name) ? 'صيغة HEIC غير مدعومة. صدّر الصورة من جوالك بصيغة JPG ثم أرفقها.' : allowSvg ? 'اختر صورة PNG أو JPG أو WebP أو SVG.' : 'اختر صورة PNG أو JPG أو WebP.');
   if (file.size > MAX_SOURCE_BYTES) throw new ImageProblem('الصورة أكبر من 10MB. اختر صورة أصغر.');
   const url = URL.createObjectURL(file);
   try {
@@ -40,6 +47,38 @@ export async function compressImage(file: File, maxEdge = 1600): Promise<string>
       }
     }
     throw new ImageProblem('تعذّر تصغير الصورة بما يكفي. جرّب صورة أبسط أو أصغر أبعادًا.');
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function rasterizeSvg(file: File): Promise<string> {
+  if (file.size > 2 * 1024 * 1024) throw new ImageProblem('ملف SVG أكبر من 2MB. اختر ملفًا أصغر.');
+  const url = URL.createObjectURL(new Blob([await file.arrayBuffer()], { type: 'image/svg+xml' }));
+  try {
+    const image = new Image();
+    image.src = url;
+    try {
+      await image.decode();
+    } catch {
+      throw new ImageProblem('تعذّر فتح ملف SVG. صدّره من برنامج التصميم مرة أخرى، أو ارفع الشعار PNG.');
+    }
+    // An SVG without width/height reports 0 (or 300×150); a square is the safe default.
+    const width = image.naturalWidth || SVG_EDGE;
+    const height = image.naturalHeight || SVG_EDGE;
+    const factor = SVG_EDGE / Math.max(width, height);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width * factor));
+    canvas.height = Math.max(1, Math.round(height * factor));
+    const context = canvas.getContext('2d');
+    if (!context) throw new ImageProblem('المتصفح لم يستطع تجهيز الصورة. حدّث الصفحة وحاول مجددًا.');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    // PNG keeps a logo's sharp edges and transparency; WebP only if PNG is too big.
+    const png = canvas.toDataURL('image/png');
+    if (bytesOf(png) <= TARGET_BYTES) return png;
+    const webp = canvas.toDataURL('image/webp', 0.9);
+    if (webp.startsWith('data:image/webp') && bytesOf(webp) <= TARGET_BYTES) return webp;
+    throw new ImageProblem('الشعار معقّد جدًا بعد تحويله إلى صورة. ارفعه PNG بدلًا من SVG.');
   } finally {
     URL.revokeObjectURL(url);
   }

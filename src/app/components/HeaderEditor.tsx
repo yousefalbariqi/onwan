@@ -54,14 +54,15 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
       <section className="flex flex-col items-center gap-2 pt-1">
         <input
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg"
           onChange={(e) => {
             const file = e.target.files?.[0];
             e.target.value = '';
             if (!file) return;
             setImageError('');
             // Note (6)/(10): up to 10 MB in, made small automatically (the server takes 1,000 KB).
-            compressImage(file)
+            // An SVG logo becomes a PNG here, before anything is uploaded.
+            compressImage(file, 1600, { allowSvg: true })
               .then((image) => applyProfileImage(image))
               .catch((problem) => setImageError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'));
           }}

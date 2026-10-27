@@ -1,15 +1,11 @@
 import { parseYouTubeVideoSource } from '../../../shared/videoSources';
 
-export function VideoBlock({ url, title, textColor, surfaceColor }: { url: string; title: string; textColor: string; surfaceColor: string }) {
+// The video alone in its frame: no caption or link under it. The title stays
+// for screen readers and as the player's own title.
+export function VideoBlock({ url, title }: { url: string; title: string }) {
   const source = parseYouTubeVideoSource(url);
   if (!source) return null;
-  return <section aria-label={title} className="w-full overflow-hidden rounded-xl border border-current/10" style={{ color: textColor, backgroundColor: surfaceColor }}>
-    <div className="relative aspect-video min-h-[200px] overflow-hidden bg-black">
-      <iframe src={source.src} title={title} loading="lazy" allow="fullscreen; picture-in-picture; encrypted-media" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" className="absolute inset-0 h-full w-full border-0" />
-    </div>
-    <div className="space-y-1 px-4 py-3">
-      <h3 className="break-words text-sm font-semibold">{title}</h3>
-      <a href={source.url} target="_blank" rel="noopener noreferrer" className="inline-block text-xs underline opacity-80">فتح الفيديو في نافذة مستقلة</a>
-    </div>
+  return <section aria-label={title} className="relative aspect-video min-h-[200px] w-full overflow-hidden rounded-xl bg-black">
+    <iframe src={source.src} title={title} loading="lazy" allow="fullscreen; picture-in-picture; encrypted-media" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" className="absolute inset-0 h-full w-full border-0" />
   </section>;
 }
