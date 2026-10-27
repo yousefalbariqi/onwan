@@ -13,6 +13,8 @@ export const nonprofitEditorConfig: EditorConfig = {
   logoZoomOut: true,
   // Note 21: «شعار عادي» / «شعار مع بنر».
   logoBanner: true,
+  // Note 27: «الوثائق الرسمية» in «المحتوى» (never asked at signup).
+  officialDocuments: true,
 };
 
 export function NonprofitBuilderPage({ gate: Gate }: { gate: React.ComponentType<{ children: React.ReactNode }> }) {

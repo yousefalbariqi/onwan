@@ -10,6 +10,7 @@ import { WallpaperImage } from './WallpaperImage';
 import { ProfileImageDisplay } from './ProfileImageDisplay';
 import { SocialIcon, brandColor } from './SocialIcons';
 import { FONT_WEIGHTS, buttonMetrics } from '../lib/buttonSizes';
+import { OFFICIAL_DOCUMENTS } from '../lib/officialDocuments';
 
 interface PageViewProps {
   data: PageData;
@@ -95,6 +96,14 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
   // PAGE-06: hidden buttons stay in the editor list but are not rendered.
   // Note 25: a platform still waiting for its link is not drawn, even in the preview.
   const blocks = sectionBlocks(visibleSectionItems(data.links.filter((link) => link.url || link.linkType === 'file' || ['heading', 'text'].includes(link.display?.kind ?? ''))));
+  // Note 27: official documents next to each other share one grid of cards.
+  const isDocumentBlock = (block: Link[]) => block.length === 1 && block[0].display?.kind === 'document';
+  const groupedBlocks = blocks.reduce<Link[][]>((result, block) => {
+    const last = result[result.length - 1];
+    if (last && isDocumentBlock(block) && last.every((item) => item.display?.kind === 'document')) last.push(block[0]);
+    else result.push([...block]);
+    return result;
+  }, []);
 
   const backgroundStyle =
     wallpaper.type === 'gradient'
@@ -131,7 +140,24 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
     />
   );
 
+  // Note 27: an official document as a formal PDF card.
+  const renderDocument = (link: Link) => {
+    const kind = OFFICIAL_DOCUMENTS.find((item) => item.id === link.display?.docType);
+    const label = lang === 'en' ? kind?.titleEn ?? link.titleEn ?? link.title : link.title;
+    return (
+      <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-col items-center gap-2 rounded-2xl border px-3 pb-3 pt-4 text-center transition-opacity hover:opacity-90" style={{ borderColor: withAlpha(theme.textColor, 18), backgroundColor: withAlpha(theme.background, 70), color: theme.textColor }}>
+        <span className="relative flex h-14 w-11 items-end justify-center rounded-[6px] border bg-white pb-1.5 shadow-sm" style={{ borderColor: '#e5e5ea' }} aria-hidden="true">
+          <span className="absolute left-0 top-0 h-3 w-3 rounded-br-[4px] bg-[#e5e5ea]" />
+          <span className="rounded-[3px] bg-[#c0392b] px-1 text-[9px] font-black leading-4 text-white">PDF</span>
+        </span>
+        <span className="line-clamp-2 text-[13px] font-bold leading-5">{label}</span>
+        <span className="text-[11px] opacity-60">{lang === 'en' ? 'View document' : 'عرض الوثيقة'}</span>
+      </a>
+    );
+  };
+
   const renderLink = (link: Link) => {
+    if (link.display?.kind === 'document') return renderDocument(link);
     if (link.display?.kind === 'text') return <p key={link.id} className="whitespace-pre-wrap break-words text-start text-base leading-relaxed" style={{ color: paragraphColor }}>{(lang === 'en' && link.display.bodyEn) || link.display.body}</p>;
     if (link.display?.kind === 'video') return <VideoBlock key={`${link.id}:${link.url}`} url={link.url} title={(lang === 'en' && link.titleEn) || link.title} textColor={data.customColors?.bioColor || theme.textColor} surfaceColor={theme.background} />;
     if (link.display?.kind === 'heading') return <h2 key={link.id} className="break-words pt-5 pb-1 text-start text-lg font-bold" style={{ color: headingColor }}>{(lang === 'en' && link.titleEn) || link.title}</h2>;
@@ -264,7 +290,9 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
           )}
 
           <div className={`w-full space-y-4`}>
-            {blocks.map(block => block[0].display?.kind === 'heading' && block[0].display.sectionId
+            {groupedBlocks.map(block => block[0].display?.kind === 'document'
+              ? <div key={block[0].id} className="grid grid-cols-2 gap-3">{block.map(renderDocument)}</div>
+              : block[0].display?.kind === 'heading' && block[0].display.sectionId
               ? <SectionLayout key={`${block[0].id}:${block[0].display.sectionLayout ?? 'list'}`} heading={block[0]} items={block.slice(1)} renderItem={renderLink} lang={lang} />
               : block.map(renderLink))}
           </div>

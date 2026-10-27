@@ -23,7 +23,7 @@ export type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'accoun
 
 // A product built on this editor (e.g. the nonprofit editor) narrows or
 // renames its sections here. Without it the general editor is unchanged.
-export type EditorConfig = { sections?: Tab[]; labels?: Partial<Record<Tab, string>>; logoZoomOut?: boolean; logoBanner?: boolean };
+export type EditorConfig = { sections?: Tab[]; labels?: Partial<Record<Tab, string>>; logoZoomOut?: boolean; logoBanner?: boolean; officialDocuments?: boolean };
 
 // `staffEdit` is set when an employee edits a customer's page from the
 // administration panel (PERM-01): same editor, without the owner-only parts.
@@ -391,7 +391,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     }
 
     if (activeTab === 'links') {
-      return <LinkEditor onPendingChange={setContentFormPending} />;
+      return <LinkEditor onPendingChange={setContentFormPending} officialDocuments={editor?.officialDocuments} />;
     }
 
     if (activeTab === 'wallpaper') {

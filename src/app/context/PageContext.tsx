@@ -7,7 +7,9 @@ import { DRAFT_STORAGE_KEY, HISTORY_STORAGE_PREFIX, SESSION_CLEARED_EVENT, clear
 import { MAX_LINKS } from '../lib/site';
 
 export interface LinkDisplay {
-  kind?: 'heading' | 'video' | 'text';
+  kind?: 'heading' | 'video' | 'text' | 'document';
+  // Note 27: which official document (lib/officialDocuments.ts).
+  docType?: string;
   sectionLayout?: 'list' | 'grid' | 'carousel';
   body?: string;
   bodyEn?: string;

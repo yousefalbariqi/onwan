@@ -23,9 +23,8 @@ test('association landing offers signup and login without checkout or publishing
   new Function('require', 'module', 'exports', outputFiles[0].text)(require, module, module.exports);
   const React = require('react');
   const html = require('react-dom/server').renderToStaticMarkup(React.createElement(require('react-router').MemoryRouter, null, React.createElement(module.exports.default)));
-  assert.match(html, /للجمعيات الخيرية/);
-  assert.match(html, /id="features"/);
-  assert.match(html, /id="journey"/);
+  assert.match(html, /للجمعيات الأهلية/);
+  assert.doesNotMatch(html, /id="features"|id="journey"/);
   assert.match(html, /href="\/nonprofit\/signup"/);
   assert.match(html, /href="\/nonprofit\/login"/);
   assert.doesNotMatch(html, /href="[^"]*(payment|plan-selection)/);

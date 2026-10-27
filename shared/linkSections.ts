@@ -2,7 +2,7 @@
 export interface SectionItem {
   id?: string;
   hidden?: boolean;
-  display?: { kind?: 'heading' | 'video' | 'text'; sectionId?: string };
+  display?: { kind?: 'heading' | 'video' | 'text' | 'document'; sectionId?: string };
 }
 
 export function arrangeSections<T extends SectionItem>(items: T[]): T[] {

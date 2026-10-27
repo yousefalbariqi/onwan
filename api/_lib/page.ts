@@ -332,7 +332,9 @@ function normalizeCustomIcon(value: unknown, title: string) {
   throw new HttpError(400, `أيقونة الزر «${title}» غير صالحة. استخدم صورة صغيرة (PNG أو JPG أو WebP).`);
 }
 
-function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | 'video' | 'text'; body?: string; bodyEn?: string; sectionLayout?: 'list' | 'grid' | 'carousel'; sectionId?: string; layout?: 'card'; image?: string; imageFit?: 'cover' | 'contain'; positionX?: number; positionY?: number } {
+const DOCUMENT_TYPES = ['registration', 'license', 'fundraising', 'governance'];
+
+function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | 'video' | 'text' | 'document'; docType?: string; body?: string; bodyEn?: string; sectionLayout?: 'list' | 'grid' | 'carousel'; sectionId?: string; layout?: 'card'; image?: string; imageFit?: 'cover' | 'contain'; positionX?: number; positionY?: number } {
   const sectionId = typeof value?.sectionId === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(value.sectionId) ? value.sectionId : undefined;
   if (value?.kind === 'text') {
     const body = String(value.body ?? '').trim();
@@ -341,6 +343,11 @@ function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | '
     return { kind: 'text', body, ...(bodyEn ? { bodyEn } : {}), ...(sectionId ? { sectionId } : {}) };
   }
   if (value?.kind === 'video') return { kind: 'video', ...(sectionId ? { sectionId } : {}) };
+  // Note 27: an official nonprofit document (a PDF file item).
+  if (value?.kind === 'document') {
+    if (!DOCUMENT_TYPES.includes(value.docType)) throw new HttpError(400, `نوع الوثيقة «${title}» غير معروف.`);
+    return { kind: 'document', docType: value.docType, ...(sectionId ? { sectionId } : {}) };
+  }
   if (value?.kind === 'heading') return { kind: 'heading', ...(sectionId ? { sectionId, sectionLayout: value.sectionLayout === 'grid' || value.sectionLayout === 'carousel' ? value.sectionLayout : 'list' } : {}) };
   if (!value || typeof value !== 'object') return {};
   const image = validateImageValue(value.image, `صورة بطاقة «${title}»`);
@@ -395,6 +402,9 @@ function normalizeLinks(rawLinks: unknown) {
 
     if (common.display.kind === 'video' && !parseYouTubeVideoSource(url)) throw new HttpError(400, `رابط الفيديو «${title}» غير مدعوم. استخدم رابط فيديو يوتيوب محددًا.`);
     if (isFile && common.display.kind === 'video') throw new HttpError(400, 'أضف الفيديو برابط تشغيل، وليس كملف مرفق.');
+    if (common.display.kind === 'document' && (!isFile || (mediaMime(url) || (/^data:([^;,]+);base64,/i.exec(url)?.[1]?.toLowerCase() ?? '')) !== 'application/pdf')) {
+      throw new HttpError(400, `الوثيقة «${title}» يجب أن تكون ملف PDF.`);
+    }
     if (isFile) {
       const mimeType = mediaMime(url) || (/^data:([^;,]+);base64,/i.exec(url)?.[1]?.toLowerCase() ?? '');
 

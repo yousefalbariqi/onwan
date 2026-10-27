@@ -7,6 +7,7 @@ import { createBrowserRouter, Navigate, Outlet, useRouteError, useNavigate } fro
 import { PageProvider } from './context/PageContext';
 import Landing from './pages/Landing';
 import NonprofitLanding from './pages/NonprofitLanding';
+import NonprofitLegal from './pages/NonprofitLegal';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
@@ -96,6 +97,10 @@ export const router = createBrowserRouter(isNonprofitHost() ? [
     { path: 'builder', element: <NonprofitBuilder /> },
     { path: 'onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate> },
     { path: 'quote', element: <NonprofitQuote /> },
+    { path: 'privacy', element: <NonprofitLegal page="privacy" /> },
+    { path: 'terms', element: <NonprofitLegal page="terms" /> },
+    { path: 'reports', element: <NonprofitLegal page="reports" /> },
+    { path: 'contact', element: <NonprofitLegal page="contact" /> },
   ] },
   { path: '*', element: <Navigate to="/" replace /> },
 ] : [
@@ -122,6 +127,10 @@ export const router = createBrowserRouter(isNonprofitHost() ? [
       }, { path: 'nonprofit/builder', element: <NonprofitBuilder />,
       }, { path: 'nonprofit/onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate>,
       }, { path: 'nonprofit/quote', element: <NonprofitQuote />,
+      }, { path: 'nonprofit/privacy', element: <NonprofitLegal page="privacy" />,
+      }, { path: 'nonprofit/terms', element: <NonprofitLegal page="terms" />,
+      }, { path: 'nonprofit/reports', element: <NonprofitLegal page="reports" />,
+      }, { path: 'nonprofit/contact', element: <NonprofitLegal page="contact" />,
       }, { path: 'nonprofit/reset-password', element: <ResetPassword />,
       }, {
         path: 'signup',

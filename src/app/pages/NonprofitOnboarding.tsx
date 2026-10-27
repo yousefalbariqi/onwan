@@ -104,8 +104,8 @@ export function NonprofitOnboarding() {
       <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-44 pt-8">
         {step === 1 ? (
           <>
-            <h1 className="text-center text-[28px] font-black leading-tight sm:text-[34px]">أين تتواجد جمعيتكم؟</h1>
-            <p className="mt-2 text-center text-[15px] text-[#6e6e73] sm:text-base">اختاروا المنصات للبدء، ويمكنكم تعديلها في أي وقت.</p>
+            <h1 className="text-center text-[28px] font-black leading-tight sm:text-[34px]">محتوى صفحتك</h1>
+            <p className="mt-2 text-center text-[15px] text-[#6e6e73] sm:text-base">أضف وعدّل واحذف في أي وقت من محرر الصفحة.</p>
             <div className="mt-8 grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4">
               {PLATFORMS.map((p) => {
                 const active = chosen.includes(p.id);

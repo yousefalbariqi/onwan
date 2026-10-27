@@ -26,6 +26,7 @@ import { SOCIAL_PLATFORMS, SocialIcon } from './SocialIcons';
 import { ConfirmSheet, Group, Panel, Segmented } from './ios';
 import { ImageCropper } from './ImageCropper';
 import { LinkAppearanceEditor } from './LinkAppearanceEditor';
+import { OfficialDocumentsEditor } from './OfficialDocumentsEditor';
 import { LINK_ICONS } from '../lib/linkIcons';
 import { MAX_LINKS } from '../lib/site';
 
@@ -209,6 +210,7 @@ function itemSubtitle(link: Link, links: Link[]) {
   const kind = link.display?.kind;
   if (kind === 'text') return 'نبذة';
   if (kind === 'video') return 'فيديو يوتيوب داخل الصفحة';
+  if (kind === 'document') return `وثيقة رسمية · PDF${link.fileSize ? ` · ${formatFileSize(link.fileSize)}` : ''}`;
   if (kind === 'heading') {
     if (!link.display?.sectionId) return 'عنوان';
     const count = links.filter((item) => item.display?.kind !== 'heading' && item.display?.sectionId === link.display?.sectionId).length;
@@ -244,7 +246,8 @@ function Advanced({ children }: { children: ReactNode }) {
 
 // `onPendingChange`: the editor window is told while a form holds unadded
 // input, so closing it never drops that input silently.
-export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: boolean) => void } = {}) {
+// `officialDocuments` (note 27, nonprofit editor) adds «الوثائق الرسمية» above the list.
+export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingChange?: (pending: boolean) => void; officialDocuments?: boolean } = {}) {
   const { pageData, addLink, removeLink, updateLink, moveLink, reorderLink } = usePageContext();
   const links = pageData.links;
   const limitReached = links.length >= MAX_LINKS;
@@ -265,6 +268,7 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
+  const documentsRef = useRef<HTMLDivElement>(null);
 
   // Each new screen starts at its top (not on first opening the panel).
   const firstScreen = useRef(true);
@@ -760,6 +764,8 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
             </p>
           </div>
 
+          {officialDocuments && <OfficialDocumentsEditor ref={documentsRef} />}
+
           {links.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl bg-white px-6 py-10 text-center">
               <span className="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-[#0a84ff]/10 text-[#0a84ff]"><Link2 className="h-7 w-7" /></span>
@@ -781,7 +787,7 @@ export function LinkEditor({ onPendingChange }: { onPendingChange?: (pending: bo
                         <span {...dragHandlers(link.id)} className="flex h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center text-[#c7c7cc] active:cursor-grabbing" aria-label={`اسحب لنقل «${link.title}»`} role="button" tabIndex={-1}>
                           <GripVertical className="h-5 w-5" />
                         </span>
-                        <button type="button" onClick={() => openForm(formFromLink(link, links), link.id)} className={`flex min-w-0 flex-1 items-center gap-3 py-2 text-right ${link.hidden && !isIncomplete(link) ? 'opacity-45' : ''}`}>
+                        <button type="button" onClick={() => (link.display?.kind === 'document' ? documentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : openForm(formFromLink(link, links), link.id))} className={`flex min-w-0 flex-1 items-center gap-3 py-2 text-right ${link.hidden && !isIncomplete(link) ? 'opacity-45' : ''}`}>
                           <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-[#f2f2f7]"><ItemIcon link={link} /></span>
                           <span className="min-w-0 flex-1">
                             <span className={`block truncate text-[15px] text-[#1d1d1f] ${link.display?.kind === 'heading' ? 'font-bold' : ''}`}>{link.title}</span>
