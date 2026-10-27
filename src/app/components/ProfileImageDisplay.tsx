@@ -113,7 +113,7 @@ export function ProfileImageDisplay({
     const x = profileStyle.positionX ?? 50;
     return (
       <div className="relative w-full" style={{ paddingBottom: logo / 2 }}>
-        <div className="aspect-[2.4/1] w-full overflow-hidden rounded-t-3xl bg-black/5">
+        <div className="aspect-[2.4/1] w-full overflow-hidden rounded-t-3xl bg-black/5 sm:aspect-[3.2/1]">
           {profileStyle.bannerImage && <img src={profileStyle.bannerImage} alt="" className="h-full w-full object-cover" />}
         </div>
         <div
@@ -166,7 +166,7 @@ export function ProfileImageDisplay({
       : undefined;
 
     return (
-      <div className="relative w-full min-h-[340px] overflow-hidden sm:min-h-[420px] lg:min-h-[520px]">
+      <div className="relative w-full min-h-[340px] overflow-hidden sm:min-h-[400px]">
         {profileImage ? (
           <div className="absolute inset-0" style={fade}>
             {isHeroFillStyle && fit === 'cover' && !transparent && (

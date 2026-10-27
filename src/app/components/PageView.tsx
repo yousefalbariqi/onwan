@@ -162,7 +162,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
     if (link.display?.kind === 'video') return <VideoBlock key={`${link.id}:${link.url}`} url={link.url} title={(lang === 'en' && link.titleEn) || link.title} textColor={data.customColors?.bioColor || theme.textColor} surfaceColor={theme.background} />;
     if (link.display?.kind === 'heading') return <h2 key={link.id} className="break-words pt-5 pb-1 text-start text-lg font-bold" style={{ color: headingColor }}>{(lang === 'en' && link.titleEn) || link.title}</h2>;
     if (link.display?.layout === 'card' && link.display.image) return <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" download={link.linkType === 'file' ? link.fileName || true : undefined} className={`block w-full overflow-hidden transition-opacity hover:opacity-90 ${BUTTON_SHAPES[buttonStyle.shape]} ${buttonStyle.shadow ? 'shadow-lg' : ''} ${buttonStyle.border ? 'border-2' : ''}`} style={{ backgroundColor: buttonStyle.border ? 'transparent' : withAlpha(accentColor, buttonStyle.opacity ?? 100), color: buttonTextColor, borderColor: accentColor }}>
-      <div className="aspect-video w-full overflow-hidden bg-black/5"><img src={link.display.image} alt="" loading="lazy" className="h-full w-full" style={{ objectFit: link.display.imageFit ?? 'cover', objectPosition: `${link.display.positionX ?? 50}% ${link.display.positionY ?? 50}%` }} /></div>
+      <div className="aspect-video w-full overflow-hidden bg-black/5 sm:aspect-[2.2/1]"><img src={link.display.image} alt="" loading="lazy" className="h-full w-full" style={{ objectFit: link.display.imageFit ?? 'cover', objectPosition: `${link.display.positionX ?? 50}% ${link.display.positionY ?? 50}%` }} /></div>
       <span className={`block break-words ${BUTTON_SIZES[buttonStyle.size ?? 'medium']} ${link.textPosition === 'right' ? 'text-start' : 'text-center'}`} style={{ ...sizeStyle, minHeight: undefined, fontWeight }}>{(lang === 'en' && link.titleEn) || link.title}</span>
     </a>;
 
@@ -220,13 +220,27 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
 
   };
 
-  return (
+  // Note 03 (updated): on a wide screen the public page stays in the middle
+  // with a flexible width up to 680 px; the sides continue the page's own
+  // background — its photo or video poster enlarged and softly blurred, tinted
+  // with the page colour, or the same colour / gradient with a soft glow.
+  const backdropImage = wallpaper.type === 'image' ? wallpaper.value : wallpaper.type === 'video' ? wallpaper.poster : undefined;
+  const backdrop = isPublic && (
+    <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true" style={backdropImage ? { backgroundColor: theme.background } : backgroundStyle}>
+      {backdropImage && <div className="absolute -inset-24 bg-cover bg-center" style={{ backgroundImage: `url(${backdropImage})`, filter: 'blur(60px) saturate(1.15)', transform: 'scale(1.2)' }} />}
+      {backdropImage
+        ? <div className="absolute inset-0" style={{ backgroundColor: withAlpha(theme.background, 40) }} />
+        : <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 0%, ${withAlpha('#ffffff', 22)}, transparent 65%)` }} />}
+    </div>
+  );
+
+  const page = (
     <div
       className={
         isPublic
           // Content starts at the top (not vertically centred), so a short page
           // has no empty band above the photo.
-          ? 'relative min-h-screen flex items-start justify-center transition-all duration-500'
+          ? 'relative mx-auto flex min-h-screen w-full max-w-[680px] items-start justify-center overflow-hidden transition-all duration-500 min-[680px]:shadow-[0_8px_48px_rgba(0,0,0,0.12)]'
           : `relative w-full rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 ${
               isHeroLayout ? 'min-h-[700px]' : 'min-h-[600px]'
             }`
@@ -243,7 +257,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
         />
       )}
 
-      <div className="relative w-full max-w-md">
+      <div className={`relative w-full ${isPublic ? 'max-w-[600px]' : 'max-w-md'}`}>
         {isHeroLayout && (
           <div className="overflow-hidden rounded-t-3xl relative">{profileImage}</div>
         )}
@@ -251,7 +265,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
 
         <div
           className={`flex flex-col items-center ${
-            `px-4 ${isHeroLayout ? 'pt-6' : isBannerLayout ? 'pt-3' : 'pt-10'} pb-8`
+            `px-4 sm:px-8 ${isHeroLayout ? 'pt-6' : isBannerLayout ? 'pt-3' : 'pt-8'} pb-8`
           }`}
         >
           {!isHeroLayout && !isBannerLayout && profileImage}
@@ -259,7 +273,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
           {(name || !isPublic) && (
             <h1
               className={`${NAME_SIZES.public[nameSize]} font-black mb-3 text-center ${
-                isHeroLayout ? 'mt-0 drop-shadow-md' : 'mt-6'
+                isHeroLayout ? 'mt-0 drop-shadow-md' : 'mt-4'
               }`}
               style={{ color: data.customColors?.nameColor || theme.textColor, fontSize: data.typography?.namePx ? `${data.typography.namePx}px` : undefined }}
             >
@@ -278,7 +292,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
 
           {!!data.username && (
             <div
-              className={`text-sm text-center mb-10`}
+              className={`text-sm text-center mb-6`}
               style={{
                 color: data.customColors?.usernameColor || theme.textColor,
                 opacity: data.customColors?.usernameColor ? 1 : 0.7,
@@ -302,4 +316,6 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
       </div>
     </div>
   );
+
+  return isPublic ? <div className="relative min-h-screen">{backdrop}{page}</div> : page;
 }

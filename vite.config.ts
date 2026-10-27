@@ -79,6 +79,11 @@ export default defineConfig({
     },
   },
 
+  // Plain Vite has no R2: stored files (/media/...) come from the live site.
+  server: {
+    proxy: { '/media': { target: 'https://onwan.link', changeOrigin: true } },
+  },
+
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })

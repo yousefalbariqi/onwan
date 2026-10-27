@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, Copy, Flag, MessageCircle, Share2, UserPlus, X } from 'lucide-react';
+import { ArrowRight, Check, Flag, Share, UserPlus, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router';
 import { PageData, mergeWithDefaults, usePageContext } from '../context/PageContext';
 import { PageView } from '../components/PageView';
@@ -18,7 +18,7 @@ const TEXT = {
     share: 'مشاركة',
     whatsapp: 'واتساب',
     copy: 'نسخ الرابط',
-    copied: 'تم النسخ',
+    copied: 'تم نسخ الرابط',
     report: 'الإبلاغ عن الصفحة',
     reportPlaceholder: 'اكتب سبب البلاغ...',
     send: 'إرسال البلاغ',
@@ -31,7 +31,7 @@ const TEXT = {
     share: 'Share',
     whatsapp: 'WhatsApp',
     copy: 'Copy link',
-    copied: 'Copied',
+    copied: 'Link copied',
     report: 'Report this page',
     reportPlaceholder: 'Why are you reporting this page?',
     send: 'Send report',
@@ -165,36 +165,21 @@ function VisitorActions({ page, lang, onSwitchLang }: { page: PageData; lang: La
     await handleCopy();
   };
 
-  const actionClass =
-    'flex flex-1 flex-col items-center gap-1 rounded-xl border px-2 py-3 text-xs font-semibold transition-all hover:scale-105 active:scale-95';
-  const actionStyle = { color: textColor, borderColor: `${textColor}33` };
-
+  // Notes 02/03: the two buttons at the top of the page replace the four
+  // boxes that were here — the device share sheet covers WhatsApp and copying.
   return (
-    <div className="mt-10 w-full">
-      <div className="flex gap-2">
-        <button onClick={() => downloadVCard(page)} className={actionClass} style={actionStyle}>
+    <div className="w-full">
+      <div className="fixed inset-x-0 top-0 z-20 mx-auto flex max-w-[680px] items-center justify-between gap-3 px-4" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }} dir="rtl">
+        <button type="button" onClick={handleShare} aria-label={t.share} className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/90 text-[#1d1d1f] shadow-[0_2px_12px_rgba(0,0,0,0.12)] backdrop-blur-md transition-transform active:scale-95">
+          {copied ? <Check className="h-5 w-5" /> : <Share className="h-5 w-5" />}
+        </button>
+        {/* Note 02 (updated): icon above a short label keeps the button narrow. */}
+        <button type="button" onClick={() => downloadVCard(page)} className="flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl bg-white/90 px-3 text-[11px] font-semibold leading-tight text-[#1d1d1f] shadow-[0_2px_12px_rgba(0,0,0,0.12)] backdrop-blur-md transition-transform active:scale-95">
           <UserPlus className="h-5 w-5" />
           {t.saveContact}
         </button>
-        <button onClick={handleShare} className={actionClass} style={actionStyle}>
-          <Share2 className="h-5 w-5" />
-          {t.share}
-        </button>
-        <a
-          href={`https://wa.me/?text=${encodeURIComponent(`${page.name} ${url}`)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={actionClass}
-          style={actionStyle}
-        >
-          <MessageCircle className="h-5 w-5" />
-          {t.whatsapp}
-        </a>
-        <button onClick={handleCopy} className={actionClass} style={actionStyle}>
-          {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
-          {copied ? t.copied : t.copy}
-        </button>
       </div>
+      {copied && <p role="status" className="fixed inset-x-0 top-0 z-20 mx-auto mt-20 w-fit rounded-full bg-black/75 px-4 py-1.5 text-xs font-semibold text-white">{t.copied}</p>}
 
       <div className="mt-8 flex items-center justify-center gap-4">
         {onSwitchLang && (

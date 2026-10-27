@@ -14,11 +14,13 @@ function Scene() {
   return (
     <div className="relative mx-auto w-full max-w-md" role="img" aria-label="مثال توضيحي: صفحة جمعية على الجوال، تُشارك برمز QR وتُحفظ للرجوع إليها">
       <div aria-hidden="true" className="absolute inset-x-6 inset-y-4 rounded-[3rem] bg-[#FFF0E8]" />
-      <div aria-hidden="true" className="relative mx-auto w-44 rounded-[2rem] border-[6px] border-[#111111] bg-[#FFFFFF] p-4 shadow-lg shadow-[#111111]/10 sm:w-56 sm:p-5">
+      <div aria-hidden="true" className="relative mx-auto aspect-[1/2.1] w-44 rounded-[2rem] border-[6px] border-[#111111] bg-[#FFFFFF] px-4 pb-7 pt-12 shadow-lg shadow-[#111111]/10 sm:w-56 sm:rounded-[2.5rem] sm:px-5 sm:pb-8 sm:pt-14">
+        <div className="absolute left-1/2 top-2 h-4 w-14 -translate-x-1/2 rounded-full bg-[#111111] sm:top-2.5 sm:h-5 sm:w-[4.5rem]" />
         <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-[#111111] text-white sm:h-14 sm:w-14"><HeartHandshake size={26} /></div>
         <p className="mt-3 text-center text-sm font-bold sm:text-base">اسم الجهة</p>
         <p className="mt-1 text-center text-[11px] text-[#737373]">رسالتكم، أقرب للجميع</p>
         <div className="mt-4 space-y-2">{['برامجنا', 'شارك معنا', 'تواصل معنا'].map(label => <div key={label} className="flex items-center justify-between rounded-lg bg-[#F5F5F3] px-3 py-2 text-xs font-bold sm:py-2.5"><span>{label}</span><ArrowUpLeft size={13} /></div>)}</div>
+        <div className="absolute bottom-2 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-[#111111] sm:bottom-2.5 sm:w-20" />
       </div>
       <div aria-hidden="true" className="absolute bottom-6 right-0 flex items-center gap-2 rounded-2xl bg-white p-2.5 text-xs font-bold shadow-md shadow-[#111111]/10 sm:bottom-10"><span className="rounded-lg border border-[#111111]/15 bg-white p-1"><QrCode size={30} /></span>شاركوها<br />في لقاءاتكم</div>
       <div aria-hidden="true" className="absolute left-0 top-8 flex items-center gap-2 rounded-2xl bg-[#111111] px-3 py-2.5 text-xs font-bold text-white shadow-md shadow-[#111111]/15 sm:top-12"><Bookmark size={18} />محفوظة<br />للرجوع إليها</div>
