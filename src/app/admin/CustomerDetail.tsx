@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { adminLink } from '../lib/site';
 import { mergeWithDefaults } from '../context/PageContext';
 import { PageView } from '../components/PageView';
 import { ROOT_DOMAIN } from '../lib/site';
@@ -357,7 +358,7 @@ export function CustomerDetail({
           <Card
             title="المحتوى"
             actions={
-              <Button onClick={() => navigate(`/admin/edit/${userId}`)}>
+              <Button onClick={() => navigate(adminLink(`/edit/${userId}`))}>
                 <Pencil className="ml-1 inline h-4 w-4" />
                 تعديل الصفحة كاملة
               </Button>

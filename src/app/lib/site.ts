@@ -16,6 +16,27 @@ export function isNonprofitHost() {
   return typeof window !== 'undefined' && window.location.hostname.toLowerCase() === `nonprofit.${ROOT_DOMAIN}`;
 }
 
+// The control panel and staff/manager sign-in live on admin.onwan.link, off the
+// public site. On a local dev host there are no subdomains, so the panel is
+// reached at /admin instead; adminLink() gives the right path for each.
+export const ADMIN_HOST = `admin.${ROOT_DOMAIN}`;
+
+export function isAdminHost() {
+  return typeof window !== 'undefined' && window.location.hostname.toLowerCase() === ADMIN_HOST;
+}
+
+export function isLocalHost() {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  return host === 'localhost' || /^[0-9.]+$/.test(host) || host.endsWith('.local');
+}
+
+// A path inside the panel: root on the admin subdomain, under /admin in dev.
+export function adminLink(sub = '') {
+  const base = isAdminHost() ? '' : '/admin';
+  return (base + sub) || '/';
+}
+
 export function pageHost(username: string) {
   return `${username}.${ROOT_DOMAIN}`;
 }
@@ -39,7 +60,7 @@ export function getSubdomainUsername() {
 
   const label = host.slice(0, -suffix.length);
 
-  return label && label !== 'www' && label !== 'nonprofit' && USERNAME_PATTERN.test(label) ? label : null;
+  return label && label !== 'www' && label !== 'nonprofit' && label !== 'admin' && USERNAME_PATTERN.test(label) ? label : null;
 }
 
 // DOMAIN-03: the hostname when the app is opened on an entity's own domain

@@ -3,6 +3,7 @@ import { NonprofitOnboarding } from './pages/NonprofitOnboarding';
 import PartnerOrderEditor from './partner/PartnerOrderEditor';
 import PartnerSale from './partner/PartnerSale';
 import PartnerStorefront from './partner/PartnerStorefront';
+import { useEffect } from 'react';
 import { createBrowserRouter, Navigate, Outlet, useRouteError, useNavigate } from 'react-router';
 import { PageProvider } from './context/PageContext';
 import Landing from './pages/Landing';
@@ -22,7 +23,7 @@ import ThemeBuilder from './pages/ThemeBuilder';
 import SiteLegal from './pages/SiteLegal';
 import PartnerPortal from './partner/PartnerPortal';
 import { PartnerApply, PayOrder, Welcome } from './partner/PartnerPublic';
-import { getCustomHost, getSubdomainUsername, isNonprofitHost } from './lib/site';
+import { getCustomHost, getSubdomainUsername, isAdminHost, isLocalHost, isNonprofitHost, ROOT_DOMAIN } from './lib/site';
 import { Home } from 'lucide-react';
 
 // On name.onwan.link — or on the entity's own domain (DOMAIN-03) — the root
@@ -88,7 +89,22 @@ function NotFound() {
   );
 }
 
-export const router = createBrowserRouter(isNonprofitHost() ? [
+// On the public site, old /admin links move to the admin subdomain.
+function AdminRedirect() {
+  useEffect(() => {
+    const rest = window.location.pathname.replace(/^\/admin/, '') || '/';
+    window.location.replace(`https://admin.${ROOT_DOMAIN}${rest}${window.location.search}`);
+  }, []);
+  return null;
+}
+
+export const router = createBrowserRouter(isAdminHost() ? [
+  { path: '/', element: <PageProvider><Outlet /></PageProvider>, errorElement: <ErrorBoundary />, children: [
+    { index: true, element: <AdminApp /> },
+    { path: 'edit/:userId', element: <StaffPageEditor /> },
+    { path: '*', element: <Navigate to="/" replace /> },
+  ] },
+] : isNonprofitHost() ? [
   { path: '/', element: <PageProvider><Outlet /></PageProvider>, errorElement: <ErrorBoundary />, children: [
     { index: true, element: <NonprofitLanding /> },
     { path: 'signup', element: <NonprofitAuth mode="signup" /> },
@@ -185,11 +201,11 @@ export const router = createBrowserRouter(isNonprofitHost() ? [
       },
       {
         path: 'admin',
-        element: <AdminApp />,
+        element: isLocalHost() ? <AdminApp /> : <AdminRedirect />,
       },
       {
         path: 'admin/edit/:userId',
-        element: <StaffPageEditor />,
+        element: isLocalHost() ? <StaffPageEditor /> : <AdminRedirect />,
       },
       {
         path: 'partners',

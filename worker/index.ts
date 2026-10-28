@@ -158,7 +158,7 @@ async function dispatch(request: Request, env: RuntimeEnv): Promise<Response> {
     if (!env.ASSETS) return new Response('Static assets unavailable', { status: 503 });
     return env.ASSETS.fetch(request);
   }
-  if (path === '/' && label !== 'www' && /^(?=.{1,30}$)(?!.*--)[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(label)) {
+  if (path === '/' && label !== 'www' && label !== 'admin' && /^(?=.{1,30}$)(?!.*--)[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(label)) {
     // Override query values, just as the former host rewrite did.
     return cachedPublic(request, () => invokeHandler(request, publicPage, { render: 'html', username: label }));
   }

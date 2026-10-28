@@ -69,7 +69,7 @@ export async function notifyNonprofit(id: string) {
   const to = getEnv('ADMIN_EMAIL');
   const sent = Boolean(to) && await sendNoticeEmail(to!, `طلب عرض سعر جمعية #${row.request_number}`, [
     `الجمعية: ${row.organization_name}`, `مسؤول التواصل: ${row.contact_name}`, `الهاتف: ${row.phone}`, `البريد: ${row.email}`,
-    `الملاحظات: ${row.notes || 'لا توجد'}`, `الطلب محفوظ للمراجعة في تبويب الجمعيات: https://${getEnv('ROOT_DOMAIN') || 'onwan.link'}/admin?section=nonprofits`,
+    `الملاحظات: ${row.notes || 'لا توجد'}`, `الطلب محفوظ للمراجعة في تبويب الجمعيات: https://admin.${getEnv('ROOT_DOMAIN') || 'onwan.link'}/?section=nonprofits`,
     'إرسال عرض السعر وتأكيد التحويل والتفعيل يتم يدويًا؛ لم يتم نشر الصفحة.',
   ]);
   await pool.query('update nonprofit_quote_requests set email_status=$2 where id=$1', [id,sent?'sent':'failed']);
