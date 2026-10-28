@@ -70,17 +70,17 @@ export default async function handler(req: any, res: any) {
     }
 
     // Receiving the code proves ownership of the mailbox as well.
-    await pool.query(
+    const updated = await pool.query<{ session_version: number }>(
       `update users
-       set password_hash = $2, email_verified_at = coalesce(email_verified_at, now()), updated_at = now()
-       where id = $1`,
+       set password_hash = $2, session_version = session_version + 1, email_verified_at = coalesce(email_verified_at, now()), updated_at = now()
+       where id = $1 returning session_version`,
       [user.id, hashPassword(password)],
     );
 
     await ensurePageForUser(user.id);
 
     sendJson(res, 200, {
-      token: createSessionToken(user.id, email),
+      token: createSessionToken(user.id, email, undefined, updated.rows[0].session_version),
       pageData: await getPageDataByUserId(user.id),
       account: await getAccountSummary(user.id),
     });

@@ -6,6 +6,7 @@ import { SUPPORT_WHATSAPP } from '../lib/site';
 import { OnwanLogo } from '../components/OnwanLogo';
 import { NonprofitFooter } from '../components/NonprofitFooter';
 import { clearLocalAccountData, clearSessionToken, getSessionToken } from '../lib/session';
+import { onboardingPending } from '../lib/nonprofitOnboarding';
 
 
 // Note 31: colours are the «عنوان» brand tokens (onwan-brand.html).
@@ -79,10 +80,10 @@ export default function NonprofitLanding() {
       <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-6 px-4 pb-6 sm:px-6 lg:grid-cols-2 lg:gap-12">
         <div>
           <h1 className="text-[2rem] font-bold tracking-[-0.02em] leading-[1.45] sm:text-5xl sm:leading-[1.5]">لرسالتكم أثر.<br /><span className="text-[#FF6B2C]">ولجمعيتكم عنوان.</span></h1>
-          <p className="mt-3 max-w-lg text-base leading-8 text-[#737373] sm:mt-5 sm:text-lg sm:leading-9">حضور يليق بكم، يجمع برامجكم وروابطكم بهويتكم، ويقرّبها من المستفيدين والداعمين.</p>
+          <p className="mt-3 max-w-lg text-base leading-8 text-[#737373] sm:mt-5 sm:text-lg sm:leading-9"><span className="block font-bold text-[#111111]">حضور يليق بكم</span>يجمع البرامج والروابط بالهوية المناسبة، ويقرّبكم من المستفيدين والداعمين.</p>
           <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 sm:mt-8">
             {/* Note 30: one large filled start button for a new association. */}
-            <Link to={nonprofitPath(signedIn ? 'builder' : 'signup')} className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FF6B2C] px-8 py-3.5 text-base font-bold text-white shadow-md shadow-[#FF6B2C]/25 transition hover:bg-[#F25A18] active:scale-[0.98] focus-visible:outline-[#FF6B2C] focus-visible:outline-2 focus-visible:outline-offset-4 sm:w-auto sm:text-lg">{signedIn ? 'متابعة تصميم صفحة الجمعية' : 'أنشئ صفحة جمعيتك'} <ArrowUpLeft size={19} aria-hidden="true" /></Link>
+            <Link to={nonprofitPath(signedIn ? (onboardingPending() ? 'onboarding' : 'builder') : 'signup')} className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FF6B2C] px-8 py-3.5 text-base font-bold text-white shadow-md shadow-[#FF6B2C]/25 transition hover:bg-[#F25A18] active:scale-[0.98] focus-visible:outline-[#FF6B2C] focus-visible:outline-2 focus-visible:outline-offset-4 sm:w-auto sm:text-lg">{signedIn ? 'متابعة تصميم صفحة الجمعية' : 'أنشئ صفحة جمعيتك'} <ArrowUpLeft size={19} aria-hidden="true" /></Link>
             {SUPPORT_WHATSAPP && <a href={`https://wa.me/${SUPPORT_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center px-2 text-sm font-bold underline underline-offset-4">تواصلوا معنا</a>}
           </div>
           <p className="mt-2 text-xs text-[#737373]">منتج مخصص للجمعيات الخيرية بتكلفة مخفّضة.</p>

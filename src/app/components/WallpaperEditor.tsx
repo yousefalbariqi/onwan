@@ -72,10 +72,10 @@ function scaleImage(source: string) {
 }
 
 // A phone-shaped card, as in Apple's wallpaper picker.
-function PhoneCard({ name, style, active, onClick, children }: { name: string; style: CSSProperties; active: boolean; onClick: () => void; children?: ReactNode }) {
+function PhoneCard({ name, style, active, onClick, children, short = false }: { name: string; style: CSSProperties; active: boolean; onClick: () => void; children?: ReactNode; short?: boolean }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={active} className="min-w-0 text-right transition-transform active:scale-[0.97]">
-      <span className={`relative block aspect-[9/19] overflow-hidden rounded-[22px] border shadow-[0_8px_18px_rgba(15,23,42,0.14)] transition-all ${active ? 'border-[#0a84ff] ring-2 ring-[#0a84ff]/60 ring-offset-2' : 'border-black/5'}`} style={style}>
+      <span className={`relative block ${short ? 'aspect-[9/13]' : 'aspect-[9/19]'} overflow-hidden rounded-[22px] border shadow-[0_8px_18px_rgba(15,23,42,0.14)] transition-all ${active ? 'border-[#0a84ff] ring-2 ring-[#0a84ff]/60 ring-offset-2' : 'border-black/5'}`} style={style}>
         {children}
         {active && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0a84ff] text-white shadow"><Check className="h-3.5 w-3.5" /></span>}
       </span>
@@ -175,7 +175,11 @@ function PhotoFraming({ onClose }: { onClose: () => void }) {
 }
 
 // «الخلفية» now also holds the themes: one place for the page's overall look.
-export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected }: { initialSegment?: WallpaperSegment; onThemeSelected?: (themeName: string) => void }) {
+// `segments` (note 47): the association's editor offers only «لون / صورة / فيديو»
+// here, and the themes in a section of their own («ثيمات الصفحة»).
+export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, segments }: { initialSegment?: WallpaperSegment; onThemeSelected?: (themeName: string) => void; segments?: WallpaperSegment[] }) {
+  const simple = Boolean(segments);
+  const shownSegments = segments ? segments.map((id) => ({ id, label: id === 'colors' ? 'لون' : SEGMENTS.find((item) => item.id === id)!.label })) : SEGMENTS;
   const { pageData, updateWallpaper, updateTheme } = usePageContext();
   const [imageError, setImageError] = useState('');
   const [preparing, setPreparing] = useState(false);
@@ -183,6 +187,8 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected }: 
   const [segment, setSegment] = useState<WallpaperSegment>(initialSegment);
   // Searching only narrows what is shown; the current choice stays as it is.
   const [query, setQuery] = useState('');
+  // Note 51: themes three rows at a time; «عرض المزيد» adds a row of three.
+  const [themeCount, setThemeCount] = useState(9);
   const isImage = pageData.wallpaper.type === 'image';
   const extractedColors = Array.from(
     new Set((pageData.extractedColors || []).filter((color) => /^#([A-Fa-f0-9]{6})$/.test(color))),
@@ -232,17 +238,21 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected }: 
 
   return (
     <Panel>
-      <Segmented large options={SEGMENTS} value={segment} onChange={(id) => setSegment(id as WallpaperSegment)} />
+      {shownSegments.length > 1 && <Segmented large options={shownSegments} value={segment} onChange={(id) => setSegment(id as WallpaperSegment)} />}
 
-      {searchable && <SearchField value={query} onChange={setQuery} placeholder={segment === 'themes' ? 'ابحث عن ثيم بالاسم' : segment === 'colors' ? 'ابحث عن لون' : 'ابحث عن تدرج'} />}
+      {simple && segment === 'photo' && <p className="-mt-2 px-1 text-xs text-[#6e6e73]">استخدم صورة كخلفية للصفحة.</p>}
+      {simple && segment === 'video' && <p className="-mt-2 px-1 text-xs text-[#6e6e73]">استخدم مقطع فيديو كخلفية متحركة للصفحة.</p>}
+
+      {searchable && !(simple && segment === 'colors') && <SearchField value={query} onChange={setQuery} placeholder={segment === 'themes' ? 'ابحث عن ثيم بالاسم' : segment === 'colors' ? 'ابحث عن لون' : 'ابحث عن تدرج'} />}
 
       {segment === 'video' && <VideoWallpaperEditor />}
 
       {segment === 'themes' && (shownThemes.length ? (
         <Group title={query ? `${shownThemes.length} من ${themes.length}` : `${themes.length} ثيمًا`} footer="الثيم يغيّر الخلفية ولون الأزرار والنص معًا، ثم تقدر تعدّل كل جزء من «الأسلوب».">
           <div className="grid grid-cols-3 gap-x-3 gap-y-4 p-3">
-            {shownThemes.map((theme) => (
+            {(query ? shownThemes : shownThemes.slice(0, themeCount)).map((theme) => (
               <PhoneCard
+                short
                 key={theme.id}
                 name={theme.name}
                 style={{ background: theme.background }}
@@ -256,15 +266,52 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected }: 
                 <span className="absolute inset-x-0 top-3 text-center text-base font-bold" style={{ color: theme.textColor }} dir="ltr">9:41</span>
                 <span className="absolute left-1/2 top-10 h-6 w-6 -translate-x-1/2 rounded-full opacity-30" style={{ backgroundColor: theme.textColor }} />
                 {[0, 1, 2].map((row) => (
-                  <span key={row} className="absolute inset-x-3 h-3.5 rounded-md" style={{ top: `${50 + row * 13}%`, backgroundColor: theme.buttonColor }} />
+                  <span key={row} className="absolute inset-x-3 h-3.5 rounded-md" style={{ top: `${46 + row * 16}%`, backgroundColor: theme.buttonColor }} />
                 ))}
               </PhoneCard>
             ))}
           </div>
+          {!query && themeCount < shownThemes.length && (
+            <button type="button" onClick={() => setThemeCount((count) => count + 3)} className="block w-full border-t border-[#e5e5ea] py-3 text-center text-[15px] font-bold text-[#0a84ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              عرض المزيد ({shownThemes.length - themeCount})
+            </button>
+          )}
         </Group>
       ) : <NoResults onClear={() => setQuery('')} />)}
 
-      {segment === 'colors' && (
+      {simple && segment === 'colors' && (
+        <>
+          {/* Note 47: the logo's colours first, «اختيار لون آخر» beside them. A saved
+              gradient is left as it is until another colour is picked. */}
+          {pageData.wallpaper.type === 'gradient' && (
+            <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-xs text-[#6e6e73]">
+              <span className="h-8 w-8 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: pageData.wallpaper.value }} />
+              خلفيتك الحالية متدرجة، وتبقى كما هي حتى تختار لونًا.
+            </div>
+          )}
+          <Group title={extractedColors.length ? 'ألوان شعارك' : 'لون الخلفية'}>
+            <div className="flex flex-wrap items-center gap-3 p-4">
+              {extractedColors.map((color) => (
+                <button key={color} type="button" onClick={() => updateWallpaper({ type: 'color', value: color })} aria-label={color} className={`h-10 w-10 rounded-full ring-1 ring-black/10 ${solid === color ? 'outline outline-2 outline-offset-2 outline-[#0a84ff]' : ''}`} style={{ backgroundColor: color }} />
+              ))}
+              <label className="flex h-10 cursor-pointer items-center gap-2 rounded-full bg-[#f2f2f7] px-4 text-sm font-bold text-[#0a84ff] focus-within:ring-2 focus-within:ring-[#0a84ff]/40">
+                <span className="h-5 w-5 rounded-full ring-1 ring-black/10" style={{ background: solid ?? 'conic-gradient(#ff3b30, #ffcc00, #34c759, #0a84ff, #af52de, #ff3b30)' }} />
+                اختيار لون آخر
+                <input type="color" className="sr-only" value={solid && /^#[0-9a-f]{6}$/i.test(solid) ? solid : '#ffffff'} onChange={(event) => updateWallpaper({ type: 'color', value: event.target.value })} />
+              </label>
+            </div>
+          </Group>
+          <Group title="ألوان جاهزة">
+            <div className="flex flex-wrap gap-3 p-4">
+              {colors.map((color) => (
+                <button key={color.value} type="button" onClick={() => updateWallpaper({ type: 'color', value: color.value })} aria-label={color.name} title={color.name} className={`h-10 w-10 rounded-full ring-1 ring-black/10 ${solid === color.value ? 'outline outline-2 outline-offset-2 outline-[#0a84ff]' : ''}`} style={{ backgroundColor: color.value }} />
+              ))}
+            </div>
+          </Group>
+        </>
+      )}
+
+      {!simple && segment === 'colors' && (
         <>
           {shownColors.length ? (
             <Group title="لون سادة">

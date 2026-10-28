@@ -46,6 +46,15 @@ export function saveSectionItem<T extends SectionItem>(items: T[], item: T, memb
     next = next.map(value => value.display?.kind === 'heading' ? value : members.has(value.id ?? '')
       ? { ...value, display: { ...value.display, sectionId: key } }
       : value.display?.sectionId === key ? { ...value, display: { ...value.display, sectionId: undefined } } : value);
+    // Note 40: the members take the order given in the group's own window;
+    // every other item keeps its place.
+    const slots = next.map((value, index) => (members.has(value.id ?? '') && value.display?.kind !== 'heading' ? index : -1)).filter(index => index >= 0);
+    const ordered = memberIds.map(id => next.find(value => value.id === id && value.display?.kind !== 'heading')).filter((value): value is T => Boolean(value));
+    if (ordered.length === slots.length) {
+      const copy = [...next];
+      slots.forEach((slot, position) => { copy[slot] = ordered[position]; });
+      next = copy;
+    }
   }
   return arrangeSections(next);
 }

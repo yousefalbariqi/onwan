@@ -1,0 +1,149 @@
+@font-face {
+  font-family: 'DG Shamael';
+  src: url('/fonts/DGShamael-Regular.ttf') format('truetype');
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+/* Scoped to quote chrome; the design inside the preview keeps its own style. */
+.onwan-quote {
+  --onwan-ink: #111111;
+  --onwan-muted: #737373;
+  --onwan-border: #E7E7E7;
+  --onwan-accent: #FF6B2C;
+  min-height: 100svh;
+  background: #F8F8F6;
+  color: var(--onwan-ink);
+  font-family: 'DG Shamael', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.onwan-quote :is(input, textarea, button) { font-family: inherit; }
+.onwan-quote [dir='ltr'] { font-family: Inter, system-ui, sans-serif; }
+.onwan-quote :is(a, button, summary, input, textarea):focus-visible {
+  outline: 2px solid var(--onwan-accent);
+  outline-offset: 3px;
+}
+.onwan-quote :is(a, button, summary) { -webkit-tap-highlight-color: transparent; }
+.quote-header {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 22px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.quote-nav { display: flex; align-items: center; gap: 16px; }
+.quote-back { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; min-height: 44px; }
+.quote-logout { width: 36px; height: 44px; display: grid; place-items: center; color: var(--onwan-muted); }
+.quote-main { max-width: 960px; margin: 0 auto; padding: 20px 28px 40px; }
+.quote-heading { margin-bottom: 24px; }
+.quote-eyebrow { display: block; font-size: 12px; color: var(--onwan-muted); margin-bottom: 6px; }
+.quote-heading h1 { font-size: 30px; line-height: 1.2; font-weight: 700; letter-spacing: -0.025em; }
+.quote-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; border: 0; padding: 0; margin: 0; min-width: 0; align-items: start; }
+.quote-overview { background: #fff; border: 1px solid var(--onwan-border); border-radius: 22px; padding: 22px 22px 0; min-width: 0; box-shadow: 0 6px 24px rgb(17 17 17 / 2%); }
+.quote-design { display: flex; align-items: center; gap: 18px; padding-bottom: 20px; }
+.quote-thumbnail { width: 60px; flex-shrink: 0; }
+.quote-thumbnail > div { box-shadow: 0 3px 10px rgb(17 17 17 / 8%); border-radius: 12px; padding: 2px; }
+.quote-design-info { min-width: 0; flex: 1; }
+.quote-design-info h2 { font-size: 18px; font-weight: 600; line-height: 1.4; margin-top: 3px; overflow-wrap: anywhere; }
+.quote-caption { color: var(--onwan-muted); font-size: 12px; }
+.quote-page-link { color: var(--onwan-muted); font-size: 11px; overflow-wrap: anywhere; text-align: right; margin-top: 4px; }
+.quote-text-link { font-size: 12px; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; text-decoration: underline; text-decoration-color: #D1D1CB; text-underline-offset: 4px; }
+.quote-text-link:hover { text-decoration-color: var(--onwan-ink); }
+.quote-offer { padding: 20px 0; border-top: 1px solid var(--onwan-border); }
+.quote-price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.quote-price { display: flex; align-items: center; gap: 9px; }
+.quote-price strong { font-size: 54px; font-weight: 600; line-height: 1; letter-spacing: -0.04em; }
+.quote-price > span { font-size: 14px; }
+.quote-price small { display: block; font-size: 11px; color: var(--onwan-muted); margin-top: 1px; }
+.quote-gift { font-size: 12px; line-height: 1.5; text-align: center; padding: 8px 12px; border-radius: 12px; background: #FFF0E8; color: var(--onwan-ink); }
+.quote-gift em { display: block; font-style: normal; font-size: 11px; color: #9B3A12; }
+.quote-ownership { font-size: 14px; font-weight: 600; margin-top: 16px; }
+.quote-renewal { font-size: 11px; color: var(--onwan-muted); line-height: 1.6; margin-top: 4px; }
+.quote-disclosure summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; font-size: 13px; }
+.quote-disclosure summary::-webkit-details-marker { display: none; }
+.quote-disclosure[open] summary > svg { transform: rotate(180deg); }
+.quote-includes { border-top: 1px solid var(--onwan-border); }
+.quote-includes summary { min-height: 50px; }
+.quote-perks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; padding: 0 0 18px; margin: 0; list-style: none; }
+.quote-perks li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--onwan-muted); }
+.quote-perks svg { color: var(--onwan-ink); flex-shrink: 0; }
+.quote-details { min-width: 0; padding-top: 4px; }
+.quote-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.quote-section-heading h2 { font-size: 17px; font-weight: 600; }
+.quote-section-heading > span { font-size: 11px; color: var(--onwan-muted); }
+.quote-fields { overflow: hidden; border-radius: 16px; background: white; border: 1px solid var(--onwan-border); }
+.quote-field { display: flex; align-items: center; min-height: 48px; padding: 0 14px; gap: 12px; }
+.quote-field + .quote-field { border-top: 1px solid var(--onwan-border); }
+.quote-field > span { width: 50px; flex-shrink: 0; font-size: 13px; color: var(--onwan-muted); }
+.quote-field input { width: 0; flex: 1; min-width: 0; border: 0; background: transparent; border-radius: 5px; padding: 11px 0; color: var(--onwan-ink); font-size: 16px; line-height: 1.5; }
+.quote-field input::placeholder { color: #999; font-size: 14px; }
+.quote-field:focus-within { box-shadow: inset -2px 0 var(--onwan-accent); }
+.onwan-quote .quote-field input:focus-visible { outline: none; }
+.quote-options { margin-top: 10px; }
+.quote-domain-choice { display: flex; align-items: center; gap: 9px; min-height: 44px; font-size: 13px; cursor: pointer; }
+.quote-domain-choice input { width: 16px; height: 16px; accent-color: var(--onwan-accent); flex-shrink: 0; }
+.quote-optional { margin-inline-start: auto; font-size: 11px; color: var(--onwan-muted); }
+.quote-domain { padding: 0 0 10px; }
+.quote-domain input, .quote-notes textarea { width: 100%; border: 1px solid var(--onwan-border); border-radius: 10px; padding: 10px 12px; background: #fff; font-size: 16px; color: var(--onwan-ink); }
+.quote-domain p { font-size: 11px; margin-top: 6px; color: var(--onwan-muted); }
+.quote-notes { border-top: 1px solid var(--onwan-border); }
+.quote-notes summary > span:first-child { display: flex; align-items: center; gap: 7px; }
+.quote-notes textarea { min-height: 80px; resize: vertical; margin-bottom: 8px; }
+.quote-action { margin-top: 20px; }
+.quote-submit { display: flex; justify-content: center; align-items: center; gap: 12px; width: 100%; min-height: 48px; border-radius: 999px; padding: 12px 16px; background: var(--onwan-accent); color: var(--onwan-ink); font-size: 16px; font-weight: 600; transition: background .15s; }
+.quote-submit:hover { background: #F25A18; }
+.quote-submit:disabled { opacity: .55; cursor: wait; }
+.quote-submit > svg:last-child { transform: rotate(180deg); }
+.quote-action > p { text-align: center; font-size: 11px; color: var(--onwan-muted); margin-top: 9px; }
+.quote-error { font-size: 13px; color: #DC2626; margin: 12px 0; }
+.quote-loading { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--onwan-muted); }
+.quote-confirmation { max-width: 520px; margin: 0 auto; padding: 24px; background: white; border: 1px solid var(--onwan-border); border-radius: 22px; }
+.quote-confirmation-check { width: 44px; height: 44px; background: #FFF0E8; border-radius: 50%; display: grid; place-items: center; margin-bottom: 16px; }
+.quote-confirmation h2 { font-size: 18px; font-weight: 600; }
+.quote-confirmation > p { margin: 10px 0; font-size: 13px; }
+.quote-receipt { margin: 20px 0; }
+.quote-receipt > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; font-size: 13px; }
+.quote-receipt dt { color: var(--onwan-muted); flex-shrink: 0; }
+.quote-receipt dd { overflow-wrap: anywhere; min-width: 0; }
+@media (max-width: 699px) {
+  .quote-header { padding: 8px 18px; }
+  .quote-header .quote-nav { gap: 8px; }
+  .quote-header .quote-logout { width: 28px; }
+  .quote-header > a > span { gap: 6px; }
+  .quote-header > a svg { width: 32px; height: 32px; }
+  .quote-header > a > span > span { font-size: 25px; }
+  .quote-main { max-width: 480px; padding: 6px 18px max(20px, env(safe-area-inset-bottom)); }
+  .quote-heading { margin-bottom: 14px; }
+  .quote-eyebrow { font-size: 11px; margin-bottom: 3px; }
+  .quote-heading h1 { font-size: 25px; }
+  .quote-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .quote-overview { border-radius: 18px; padding: 16px 16px 0; }
+  .quote-design { gap: 14px; padding-bottom: 12px; }
+  .quote-thumbnail { width: 46px; }
+  .quote-design-info h2 { font-size: 16px; margin-top: 2px; }
+  .quote-caption { font-size: 11px; }
+  .quote-text-link { min-height: 28px; font-size: 11px; }
+  .quote-page-link { font-size: 10px; }
+  .quote-offer { padding: 14px 0; }
+  .quote-price strong { font-size: 44px; }
+  .quote-gift { padding: 6px 9px; font-size: 11px; }
+  .quote-gift em { font-size: 10px; }
+  .quote-ownership { margin-top: 12px; font-size: 13px; }
+  .quote-renewal { font-size: 11px; }
+  .quote-includes summary { min-height: 40px; font-size: 12px; }
+  .quote-details { padding-top: 0; }
+  .quote-section-heading { margin-bottom: 9px; }
+  .quote-section-heading h2 { font-size: 16px; }
+  .quote-section-heading > span { font-size: 10px; }
+  .quote-field { min-height: 46px; padding: 0 12px; }
+  .quote-field input { padding: 10px 0; }
+  .quote-options { margin-top: 6px; }
+  .quote-domain-choice { min-height: 40px; font-size: 12px; }
+  .quote-notes summary { min-height: 40px; font-size: 12px; }
+  .quote-action { margin-top: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .onwan-quote * { transition: none !important; }
+}

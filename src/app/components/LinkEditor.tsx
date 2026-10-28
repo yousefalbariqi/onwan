@@ -26,7 +26,7 @@ import { SOCIAL_PLATFORMS, SocialIcon } from './SocialIcons';
 import { ConfirmSheet, Group, Panel, Segmented } from './ios';
 import { ImageCropper } from './ImageCropper';
 import { LinkAppearanceEditor } from './LinkAppearanceEditor';
-import { OfficialDocumentsEditor } from './OfficialDocumentsEditor';
+import { OFFICIAL_DOCUMENT_ICON } from '../lib/officialDocuments';
 import { LINK_ICONS } from '../lib/linkIcons';
 import { MAX_LINKS } from '../lib/site';
 
@@ -71,7 +71,44 @@ const ALLOWED_FILE_TYPES = [...IMAGE_TYPES, 'application/pdf'];
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
 const MAX_PDF_SIZE = 10 * 1024 * 1024;
 const MAX_ICON_SOURCE_SIZE = 8 * 1024 * 1024;
-const WHATSAPP_PREFIX = 'https://wa.me/966';
+const WHATSAPP_BASE = 'https://wa.me/';
+
+// Note 34: one «الرابط» field takes a link, an email address or a WhatsApp
+// number with its country code, and says what it is. Returns the stored link
+// and its kind, or a plain-language error.
+type ParsedLink = { url: string; mode: LinkMode; platform: string } | { error: string } | null;
+function parseLinkInput(raw: string): ParsedLink {
+  const value = raw.trim();
+  if (!value) return null;
+  if (/^mailto:/i.test(value) || /^[^\s@/]+@[^\s@/]+\.[a-z]{2,}$/i.test(value)) {
+    const address = value.replace(/^mailto:/i, '');
+    return /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(address) ? { url: `mailto:${address}`, mode: 'email', platform: 'email' } : { error: 'البريد الإلكتروني غير مكتمل.' };
+  }
+  if (/^\+?[\d\s()-]{7,}$/.test(value)) {
+    let digits = value.replace(/\D/g, '');
+    if (value.startsWith('+')) { /* already international */ }
+    else if (digits.startsWith('00')) digits = digits.slice(2);
+    else if (/^05\d{8}$/.test(digits)) digits = `966${digits.slice(1)}`;
+    else if (/^5\d{8}$/.test(digits)) digits = `966${digits}`;
+    else if (!digits.startsWith('966')) return { error: 'أضف مفتاح الدولة قبل الرقم، مثل ‎+966‎.' };
+    return /^\d{8,15}$/.test(digits) ? { url: `${WHATSAPP_BASE}${digits}`, mode: 'whatsapp', platform: 'whatsapp' } : { error: 'رقم الواتساب غير صحيح.' };
+  }
+  const url = /^https?:\/\//i.test(value) ? value : /^[^\s]+\.[^\s]{2,}/.test(value) ? `https://${value}` : '';
+  try {
+    if (!url || !new URL(url).hostname.includes('.')) throw new Error();
+  } catch {
+    return { error: 'أدخل رابطًا صحيحًا أو بريدًا إلكترونيًا أو رقم واتساب.' };
+  }
+  const platform = detectPlatform(url) ?? 'website';
+  if (platform === 'whatsapp') return { url, mode: 'whatsapp', platform };
+  return { url, mode: SOCIAL_IDS.includes(platform) ? 'social' : 'url', platform };
+}
+// What the field shows for a stored link.
+const rawFromUrl = (url: string) => (url.startsWith('mailto:') ? url.slice(7) : /^https:\/\/wa\.me\/\d+$/.test(url) ? `+${url.slice(WHATSAPP_BASE.length)}` : url);
+
+// Note 34: a short video on finding an account's link; the help link shows
+// once its address is set here.
+const LINK_HELP_VIDEO = '';
 // General buttons can carry their own icon (D-11); brand platforms keep their logo.
 const ICON_PLATFORMS = ['website', 'custom', 'file'];
 
@@ -113,7 +150,7 @@ function detectPlatform(raw: string) {
   return PLATFORM_HOSTS.find(([pattern]) => pattern.test(host))?.[1] ?? 'website';
 }
 
-// Social platforms offered in «تواصل اجتماعي» (WhatsApp and email have their own tabs).
+// Social platforms offered under «تغيير المنصة» (WhatsApp and email are recognised from what is typed).
 const SOCIAL_IDS: string[] = SOCIAL_PLATFORMS.map((platform) => platform.id as string).filter((id) => !['file', 'email', 'whatsapp', 'custom', 'website'].includes(id));
 
 const platformName = (id: string) => (id === 'twitter' ? 'X' : SOCIAL_PLATFORMS.find((platform) => platform.id === id)?.name ?? '');
@@ -157,7 +194,7 @@ function formFromLink(link: Link, links: Link[]): FormState {
   const sectionId = link.display?.sectionId;
   return {
     kind,
-    mode: link.platform === 'whatsapp' && link.url.startsWith(WHATSAPP_PREFIX) ? 'whatsapp' : link.platform === 'email' && link.url.startsWith('mailto:') ? 'email' : SOCIAL_IDS.includes(link.platform || '') ? 'social' : 'url',
+    mode: link.platform === 'whatsapp' && link.url.startsWith(WHATSAPP_BASE) ? 'whatsapp' : link.platform === 'email' && link.url.startsWith('mailto:') ? 'email' : SOCIAL_IDS.includes(link.platform || '') ? 'social' : 'url',
     textStyle: link.display?.kind === 'heading' ? 'heading' : 'body',
     title: link.title,
     titleTouched: true,
@@ -182,7 +219,7 @@ function isReady(form: FormState) {
   if (!form.title.trim() || !form.url.trim()) return false;
   if (form.display.kind === 'video') return Boolean(parseYouTubeVideoSource(form.url));
   if (form.mode === 'email') return /^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.url);
-  if (form.mode === 'whatsapp') return /^https:\/\/wa\.me\/9665\d{8}$/.test(form.url);
+  if (form.mode === 'whatsapp') return /^https:\/\/wa\.me\/\d{8,15}$/.test(form.url);
   return form.display.layout !== 'card' || Boolean(form.display.image);
 }
 
@@ -201,11 +238,19 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
-// Note 25: chosen at signup, link not added yet.
-const isIncomplete = (link: Link) => !link.url && link.linkType !== 'file' && !['heading', 'text'].includes(link.display?.kind ?? '');
+// Note 25 / 13: chosen at signup, link or file not added yet.
+const isIncomplete = (link: Link) => !link.url && !['heading', 'text'].includes(link.display?.kind ?? '');
+// Note 16: what is still missing, in plain words; shown in the editor only.
+const incompleteLabel = (link: Link) =>
+  link.display?.kind === 'document' ? 'لم تُرفع الوثيقة بعد'
+  : link.display?.kind === 'video' || link.title === 'مقطع' ? 'لم يُضف المقطع بعد'
+  : link.linkType === 'file' ? (link.title === 'صورة' ? 'لم تُرفع الصورة بعد' : 'لم يُرفع الملف بعد')
+  : link.platform === 'whatsapp' ? 'لم يُضف رقم التواصل بعد'
+  : link.platform === 'email' ? 'لم يُضف البريد بعد'
+  : 'لم يُضف الرابط بعد';
 
 function itemSubtitle(link: Link, links: Link[]) {
-  if (isIncomplete(link)) return 'يرجى إكمال الرابط';
+  if (isIncomplete(link)) return incompleteLabel(link);
   if (link.hidden) return 'مخفي عن الزوار';
   const kind = link.display?.kind;
   if (kind === 'text') return 'نبذة';
@@ -218,7 +263,7 @@ function itemSubtitle(link: Link, links: Link[]) {
   }
   if (link.display?.layout === 'card') return 'بطاقة مصوّرة';
   if (link.linkType === 'file') return [link.fileMimeType === 'application/pdf' ? 'PDF' : 'صورة', formatFileSize(link.fileSize)].filter(Boolean).join(' · ');
-  if (link.url.startsWith(WHATSAPP_PREFIX)) return `+966 ${link.url.slice(WHATSAPP_PREFIX.length)}`;
+  if (/^https:\/\/wa\.me\/\d+$/.test(link.url)) return `+${link.url.slice(WHATSAPP_BASE.length)}`;
   return link.url.replace(/^mailto:/i, '').replace(/^https?:\/\/(www\.)?/i, '');
 }
 
@@ -228,7 +273,49 @@ function ItemIcon({ link }: { link: Link }) {
   if (kind === 'video') return <PlayCircle className="h-5 w-5 text-[#ff3b30]" />;
   if (kind === 'heading') return link.display?.sectionId ? <FolderOpen className="h-5 w-5 text-[#8e3bb8]" /> : <Type className="h-5 w-5 text-[#6e6e73]" />;
   if (link.display?.layout === 'card' && link.display.image) return <img src={link.display.image} alt="" className="h-full w-full rounded-[10px] object-cover" />;
-  return <SocialIcon platform={link.linkType === 'file' && link.fileMimeType?.startsWith('image/') ? 'image' : link.platform || 'custom'} iconStyle={link.iconStyle || 'color'} customIcon={link.customIcon} color={link.customIcon?.startsWith('icon:') ? '#3a3a3c' : undefined} className="h-5 w-5" />;
+  return <SocialIcon platform={link.linkType === 'file' && link.fileMimeType?.startsWith('image/') ? 'image' : link.platform || 'custom'} iconStyle={link.iconStyle || 'color'} customIcon={link.customIcon ?? (link.display?.kind === 'document' ? OFFICIAL_DOCUMENT_ICON : undefined)} color={link.customIcon?.startsWith('icon:') ? '#3a3a3c' : undefined} className="h-5 w-5" />;
+}
+
+// Note 45: tiny drawings, one quiet style (current colour, rounded bars), that
+// show the result: several platforms in one link, a title with lines, a title
+// gathering buttons, and the three ways a group is laid out.
+function KindArt({ id, Icon }: { id: ContentKind; Icon: typeof Link2 }) {
+  if (id === 'link') return (
+    <span className="relative block h-8 w-11" aria-hidden="true">
+      <span className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm"><SocialIcon platform="instagram" iconStyle="color" className="h-3 w-3" /></span>
+      <span className="absolute right-3.5 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm"><SocialIcon platform="whatsapp" iconStyle="color" className="h-3 w-3" /></span>
+      <span className="absolute right-7 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm"><PlayCircle className="h-3 w-3 text-[#ff3b30]" /></span>
+      <span className="absolute bottom-0 right-1 flex h-3 w-9 items-center justify-center rounded-full bg-current opacity-80"><Link2 className="h-2 w-2 text-white" /></span>
+    </span>
+  );
+  if (id === 'text') return (
+    <span className="flex w-10 flex-col items-start gap-1" aria-hidden="true">
+      <span className="h-1.5 w-7 rounded-full bg-current" />
+      <span className="h-1 w-10 rounded-full bg-current opacity-45" />
+      <span className="h-1 w-8 rounded-full bg-current opacity-45" />
+    </span>
+  );
+  if (id === 'group') return (
+    <span className="flex w-10 flex-col items-stretch gap-1" aria-hidden="true">
+      <span className="h-1.5 w-6 self-start rounded-full bg-current" />
+      <span className="h-2 rounded-full bg-current opacity-55" />
+      <span className="h-2 rounded-full bg-current opacity-55" />
+      <span className="h-2 rounded-full bg-current opacity-55" />
+    </span>
+  );
+  return <Icon className="h-6 w-6" />;
+}
+
+function LayoutArt({ id }: { id: 'list' | 'grid' | 'carousel' }) {
+  const bar = 'rounded-md bg-current opacity-60';
+  if (id === 'list') return <span className="flex w-12 flex-col gap-1" aria-hidden="true">{[0, 1, 2].map((i) => <span key={i} className={`h-2 ${bar}`} />)}</span>;
+  if (id === 'grid') return <span className="grid w-12 grid-cols-2 gap-1" aria-hidden="true">{[0, 1, 2, 3].map((i) => <span key={i} className={`h-3 ${bar}`} />)}</span>;
+  return (
+    <span className="flex w-12 flex-col items-center gap-1" aria-hidden="true">
+      <span className="flex w-full gap-1 overflow-hidden"><span className={`h-6 w-9 shrink-0 ${bar}`} /><span className={`h-6 w-4 shrink-0 ${bar} opacity-30`} /></span>
+      <span className="flex gap-0.5"><span className="h-1 w-1 rounded-full bg-current" /><span className="h-1 w-1 rounded-full bg-current opacity-35" /><span className="h-1 w-1 rounded-full bg-current opacity-35" /></span>
+    </span>
+  );
 }
 
 function Advanced({ children }: { children: ReactNode }) {
@@ -246,8 +333,8 @@ function Advanced({ children }: { children: ReactNode }) {
 
 // `onPendingChange`: the editor window is told while a form holds unadded
 // input, so closing it never drops that input silently.
-// `officialDocuments` (note 27, nonprofit editor) adds «الوثائق الرسمية» above the list.
-export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingChange?: (pending: boolean) => void; officialDocuments?: boolean } = {}) {
+// `focusId` (note 22): an item tapped in the preview opens here for completing.
+export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingChange?: (pending: boolean) => void; focusId?: string | null; onFocused?: () => void } = {}) {
   const { pageData, addLink, removeLink, updateLink, moveLink, reorderLink } = usePageContext();
   const links = pageData.links;
   const limitReached = links.length >= MAX_LINKS;
@@ -268,7 +355,6 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
-  const documentsRef = useRef<HTMLDivElement>(null);
 
   // Each new screen starts at its top (not on first opening the panel).
   const firstScreen = useRef(true);
@@ -279,6 +365,9 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
 
   const openForm = (next: FormState, id?: string) => {
     setForm(next);
+    setRawLink(rawFromUrl(next.url));
+    setEditingTitle(false);
+    setChoosingPlatform(false);
     formStart.current = JSON.stringify(next);
     setFileError('');
     setIconError('');
@@ -287,6 +376,25 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
     setActionsFor(null);
     setScreen({ name: 'form', id });
   };
+
+  // Note 23: the item tapped in the preview opens its form. Unadded input in
+  // another form is never dropped: the usual «تجاهل؟» question comes first.
+  const pendingFocus = useRef<string | null>(null);
+  const focusItem = (id: string) => {
+    const link = links.find((item) => item.id === id);
+    if (link) openForm(formFromLink(link, links), link.id);
+  };
+  useEffect(() => {
+    if (!focusId) return;
+    if (formChanged && !(screen.name === 'form' && screen.id === focusId)) {
+      pendingFocus.current = focusId;
+      setConfirm({ kind: 'leave' });
+    } else if (!(screen.name === 'form' && screen.id === focusId)) {
+      focusItem(focusId);
+    }
+    onFocused?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId]);
 
   const formChanged = screen.name === 'form' && JSON.stringify(form) !== formStart.current;
   useEffect(() => onPendingChange?.(formChanged), [formChanged, onPendingChange]);
@@ -299,15 +407,20 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
     return next.titleTouched || next.kind !== 'link' ? next : { ...next, title: suggestedTitle(next) };
   });
 
-  const webMode = (mode: LinkMode) => mode === 'url' || mode === 'social';
-  const setLinkMode = (mode: LinkMode) => update({
-    mode,
-    // Moving between «رابط» and «تواصل اجتماعي» keeps the link and its platform.
-    platform: webMode(mode) ? (webMode(form.mode) ? form.platform : 'website') : mode,
-    url: mode === form.mode || (webMode(mode) && webMode(form.mode)) ? form.url : '',
-    display: { ...form.display, kind: undefined },
-  });
   const [platformQuery, setPlatformQuery] = useState('');
+  // Note 34: what was typed in «الرابط», read on every change.
+  const [rawLink, setRawLink] = useState('');
+  const [choosingPlatform, setChoosingPlatform] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const changeLink = (raw: string) => {
+    setRawLink(raw);
+    const parsed = parseLinkInput(raw);
+    if (!parsed || 'error' in parsed) { update({ url: '' }); return; }
+    // A recognised platform takes over; a platform picked by hand stays for a plain site.
+    const platform = parsed.mode === 'url' && SOCIAL_IDS.includes(form.platform) && choosingPlatform ? form.platform : parsed.platform;
+    update({ url: parsed.url, mode: parsed.mode, platform, display: { ...form.display, kind: form.display.kind === 'video' && parseYouTubeVideoSource(parsed.url) ? 'video' : undefined } });
+  };
 
   const submit = () => {
     if (!isReady(form)) return;
@@ -345,6 +458,8 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
 
   const pickFile = async (file: File) => {
     if (!ALLOWED_FILE_TYPES.includes(file.type)) { setFileError('اختر صورة (PNG أو JPG أو WebP أو GIF) أو ملف PDF.'); return; }
+    // An official document stays a PDF (the server checks it too).
+    if (form.display.kind === 'document' && file.type !== 'application/pdf') { setFileError('الوثيقة الرسمية تُرفع بصيغة PDF.'); return; }
     const isPdf = file.type === 'application/pdf';
     if (file.size > (isPdf ? MAX_PDF_SIZE : MAX_FILE_SIZE)) { setFileError(isPdf ? 'حجم ملف PDF كبير. الحد الأقصى 10MB.' : 'حجم الصورة كبير. الحد الأقصى 3MB.'); return; }
     setFileError('');
@@ -488,7 +603,7 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
   };
 
   const groupSelect = form.kind !== 'group' && !(form.kind === 'text' && form.textStyle === 'heading') && groups.length > 0 && (
-    <Group title="المجموعة" footer="اختياري. نقل العنصر بين المجموعات يحافظ على بياناته.">
+    <Group title="المجموعة">
       <label className="flex min-h-[48px] items-center gap-3 px-4">
         <span className="shrink-0 text-[15px] text-[#1d1d1f]">ضمن</span>
         <select aria-label="مجموعة العنصر" value={form.display.sectionId ?? ''} onChange={(event) => update({ display: { ...form.display, sectionId: event.target.value || undefined } })} className="min-w-0 flex-1 rounded-lg bg-[#f2f2f7] px-2 py-2 text-[15px]">
@@ -507,67 +622,35 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
 
   // ——— the form of each kind ———
   const renderLinkFields = () => {
-    const web = webMode(form.mode);
-    const detected = web ? detectPlatform(form.url) : null;
-    const youtube = web && parseYouTubeVideoSource(form.url);
-    const chosen = SOCIAL_PLATFORMS.find((platform) => platform.id === form.platform);
+    const parsed = parseLinkInput(rawLink);
+    const linkError = parsed && 'error' in parsed ? parsed.error : '';
+    const youtube = form.mode !== 'email' && form.mode !== 'whatsapp' && parseYouTubeVideoSource(form.url);
     const query = platformQuery.trim().toLowerCase();
     const platforms = SOCIAL_IDS.map((id) => SOCIAL_PLATFORMS.find((platform) => platform.id === id)!).filter((platform) => !query || `${platform.name} ${platform.id}`.toLowerCase().includes(query));
     return (
       <>
-        <Segmented options={[{ id: 'url', label: 'رابط' }, { id: 'social', label: 'تواصل اجتماعي' }, { id: 'whatsapp', label: 'واتساب' }, { id: 'email', label: 'بريد' }] as const} value={form.mode} onChange={setLinkMode} />
-
-        {/* Note (5): the title first — what visitors read on the button. */}
-        <Group title="العنوان" footer="النص الذي يراه زوارك على الزر.">
-          <div className="px-4 py-1"><input aria-label="عنوان الزر" maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder={form.mode === 'social' && chosen && SOCIAL_IDS.includes(chosen.id) ? platformName(chosen.id) : 'عنوان الزر'} className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
-        </Group>
-
-        <Group title={form.mode === 'whatsapp' ? 'رقم الواتساب' : form.mode === 'email' ? 'البريد الإلكتروني' : form.mode === 'social' ? 'رابط الحساب أو القناة' : 'الرابط'}>
-          {web && (
-            <div className="flex items-center gap-2 px-4 py-1">
-              {/* The chosen platform's logo shows beside its link. */}
-              {(form.mode === 'social' || (detected && detected !== 'website')) && <SocialIcon platform={form.platform} iconStyle="color" className="h-5 w-5 shrink-0" />}
-              <input
-                type="url"
-                dir="ltr"
-                inputMode="url"
-                autoFocus={!form.url && form.mode === 'url'}
-                aria-label="الرابط"
-                value={form.url}
-                onChange={(event) => {
-                  const url = event.target.value;
-                  // A known address sets its platform; otherwise a chosen platform stays.
-                  const found = detectPlatform(url);
-                  const platform = found && found !== 'website' ? found : form.mode === 'social' && SOCIAL_IDS.includes(form.platform) ? form.platform : found ?? 'website';
-                  // A YouTube video stays a link unless chosen to play inside the page.
-                  update({ url, platform, display: { ...form.display, kind: form.display.kind === 'video' && parseYouTubeVideoSource(url) ? 'video' : undefined }, customIcon: ICON_PLATFORMS.includes(platform) ? form.customIcon : '' });
-                }}
-                placeholder={form.mode === 'social' && chosen?.placeholder && SOCIAL_IDS.includes(chosen.id) ? chosen.placeholder : 'الصق الرابط هنا'}
-                className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-right placeholder:text-[#c7c7cc] focus:outline-none"
-              />
+        {/* Note 34: one field first — a link, an email or a WhatsApp number. */}
+        <Group title="الرابط">
+          <div className="flex items-center gap-2 px-4 py-1" dir="ltr">
+            {!!form.url && <SocialIcon platform={form.platform} iconStyle="color" className="h-5 w-5 shrink-0" />}
+            <input
+              dir="ltr"
+              inputMode="url"
+              autoFocus={!form.url}
+              aria-label="الرابط"
+              aria-invalid={Boolean(linkError)}
+              value={rawLink}
+              onChange={(event) => changeLink(event.target.value)}
+              placeholder="رابط، بريد إلكتروني، أو رقم واتساب ‎+966…"
+              className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-right placeholder:text-[#c7c7cc] focus:outline-none"
+            />
+          </div>
+          {linkError && <p role="alert" className="px-4 py-2 text-xs text-[#ff3b30]">{linkError}</p>}
+          {!!form.url && (
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5 text-xs">
+              <span className="flex items-center gap-2 font-bold text-[#1f8a3b]"><Check className="h-4 w-4" />{form.mode === 'email' ? 'بريد إلكتروني' : form.mode === 'whatsapp' ? 'واتساب' : form.platform === 'website' || form.platform === 'custom' ? 'رابط موقع' : platformName(form.platform)}</span>
+              {form.mode !== 'email' && form.mode !== 'whatsapp' && <button type="button" onClick={() => setChoosingPlatform(!choosingPlatform)} className="font-bold text-[#0a84ff]">{choosingPlatform ? 'إغلاق' : 'تغيير الشعار'}</button>}
             </div>
-          )}
-          {form.mode === 'whatsapp' && (
-            <label className="flex min-h-[48px] items-center gap-2 px-4" dir="ltr">
-              <SocialIcon platform="whatsapp" iconStyle="color" className="h-5 w-5 shrink-0" />
-              <span className="text-[16px] text-[#8e8e93]">+966</span>
-              <input type="tel" inputMode="numeric" aria-label="رقم الواتساب" autoFocus value={form.url.startsWith(WHATSAPP_PREFIX) ? form.url.slice(WHATSAPP_PREFIX.length) : ''} onChange={(event) => {
-                const digits = event.target.value.replace(/\D/g, '').replace(/^(966|0)/, '').slice(0, 9);
-                update({ url: digits ? `${WHATSAPP_PREFIX}${digits}` : '' });
-              }} placeholder="5X XXX XXXX" className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
-            </label>
-          )}
-          {form.mode === 'email' && (
-            <div className="flex items-center gap-2 px-4 py-1" dir="ltr">
-              <SocialIcon platform="email" iconStyle="color" className="h-5 w-5 shrink-0" />
-              <input type="email" inputMode="email" aria-label="البريد الإلكتروني" autoFocus value={form.url.replace(/^mailto:/i, '')} onChange={(event) => {
-                const address = event.target.value.trim();
-                update({ url: address ? `mailto:${address}` : '' });
-              }} placeholder="name@example.com" className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
-            </div>
-          )}
-          {form.mode === 'url' && detected && detected !== 'website' && (
-            <p className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-[#1f8a3b]"><Check className="h-4 w-4" />تعرّفنا على {platformName(detected)} وأضفنا شعاره</p>
           )}
           {youtube && (
             <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#1d1d1f]">
@@ -575,40 +658,77 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
               <input type="checkbox" checked={form.display.kind === 'video'} onChange={(event) => update({ display: { ...form.display, kind: event.target.checked ? 'video' : undefined, layout: undefined } })} className="h-5 w-5 accent-[#0a84ff]" />
             </label>
           )}
-          {web && !!form.url && form.display.kind === 'video' && !youtube && <p role="alert" className="px-4 py-2 text-xs text-[#ff3b30]">ضع رابط فيديو يوتيوب محدد، وليس رابط قناة.</p>}
+          {/* Note 37: the video's title and YouTube link, set right here with the video. */}
+          {youtube && form.display.kind === 'video' && (
+            <>
+              <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#1d1d1f]">
+                <span>إظهار العنوان ورابط يوتيوب</span>
+                <input type="checkbox" checked={Boolean(form.display.caption)} onChange={(event) => update({ display: { ...form.display, caption: event.target.checked ? 'below' : undefined } })} className="h-5 w-5 accent-[#0a84ff]" />
+              </label>
+              {form.display.caption && (
+                <div className="px-4 py-2.5"><Segmented options={[{ id: 'below', label: 'تحت المقطع' }, { id: 'above', label: 'فوق المقطع' }] as const} value={form.display.caption} onChange={(caption) => update({ display: { ...form.display, caption } })} /></div>
+              )}
+            </>
+          )}
         </Group>
+        {LINK_HELP_VIDEO && (
+          <button type="button" onClick={() => setHelpOpen(true)} className="-mt-3 flex items-center gap-1.5 px-4 text-xs font-bold text-[#0a84ff]">
+            <span className="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px]">؟</span>كيف أحصل على رابط حسابي؟
+          </button>
+        )}
 
-        {/* Note (5): the platform — chosen and searchable in «تواصل اجتماعي»; never required for a plain link. */}
-        {form.mode === 'social' && (
-          <Group title="المنصة" footer="يظهر شعارها على الزر تلقائيًا، ويمكنك تغيير الأيقونة من الأسفل.">
+        {choosingPlatform && !!form.url && (
+          <Group title="الشعار" footer="يتغيّر الشعار فقط؛ الرابط والعنوان يبقيان كما هما.">
             <div className="space-y-3 p-3">
               <div className="relative">
                 <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8e8e93]" />
                 <input type="search" aria-label="ابحث عن منصة" placeholder="ابحث: يوتيوب، سناب، تيك توك…" value={platformQuery} onChange={(event) => setPlatformQuery(event.target.value)} className="h-10 w-full rounded-xl bg-[#f2f2f7] pl-3 pr-9 text-sm focus:outline-none" />
               </div>
               <div className="grid grid-cols-4 gap-2">
-                {platforms.map((platform) => {
+                {[{ id: 'website', name: 'موقع' }, ...platforms].map((platform) => {
                   const active = form.platform === platform.id;
                   return (
-                    <button key={platform.id} type="button" aria-pressed={active} onClick={() => update({ platform: platform.id, customIcon: '' })} className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
+                    <button key={platform.id} type="button" aria-pressed={active} onClick={() => update({ platform: platform.id, mode: platform.id === 'website' ? 'url' : 'social', title: form.title, titleTouched: form.titleTouched || Boolean(form.title.trim()) })} className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
                       <SocialIcon platform={platform.id} iconStyle="color" className="h-6 w-6" />
-                      <span className="max-w-full truncate text-[10px] text-[#3a3a3c]">{platformName(platform.id)}</span>
+                      <span className="max-w-full truncate text-[10px] text-[#3a3a3c]">{platform.id === 'website' ? 'موقع' : platformName(platform.id)}</span>
                     </button>
                   );
                 })}
               </div>
-              {!platforms.length && <p className="py-2 text-center text-xs text-[#6e6e73]">لا توجد منصة بهذا الاسم. استخدم «رابط» لأي موقع آخر.</p>}
             </div>
           </Group>
         )}
 
+        {/* Then the title, suggested from what was recognised and free to change. */}
+        {/* Note 42: the suggested title shows as text; «تغيير العنوان» opens the field. */}
+        {!!form.url && (
+          <Group title="العنوان">
+            {editingTitle || !form.title.trim() ? (
+              <div className="px-4 py-1"><input aria-label="عنوان الزر" autoFocus={editingTitle} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="عنوان الزر" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+            ) : (
+              <div className="flex min-h-[48px] items-center justify-between gap-3 px-4">
+                <span className="min-w-0 truncate text-[16px] font-bold text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{form.title}</span>
+                <button type="button" onClick={() => setEditingTitle(true)} className="shrink-0 text-xs font-bold text-[#0a84ff]">تغيير العنوان</button>
+              </div>
+            )}
+          </Group>
+        )}
+
+        {helpOpen && (
+          // The video plays inside the app; closing removes the player, which stops it.
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" onClick={() => setHelpOpen(false)} role="dialog" aria-modal="true" aria-label="كيف أحصل على رابط حسابي؟">
+            <div className="w-full max-w-[560px] overflow-hidden rounded-2xl bg-black" onClick={(event) => event.stopPropagation()}>
+              <div className="relative aspect-video w-full"><iframe src={LINK_HELP_VIDEO} title="كيف أحصل على رابط حسابي؟" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen className="absolute inset-0 h-full w-full border-0" /></div>
+              <button type="button" onClick={() => setHelpOpen(false)} className="block w-full bg-white py-3 text-[15px] font-bold text-[#1d1d1f]">إغلاق</button>
+            </div>
+          </div>
+        )}
+
+        {/* Note 42: how it shows, and its group, in view; the rest stays folded. */}
+        {!!form.url && form.display.kind !== 'video' && <LinkAppearanceEditor display={form.display} onChange={(display) => update({ display })} />}
+        {!!form.url && groupSelect}
         {form.display.kind !== 'video' && renderIconChooser()}
-        <Advanced>
-          {englishTitle}
-          {groupSelect}
-          {form.display.kind !== 'video' && <LinkAppearanceEditor display={form.display} onChange={(display) => update({ display })} />}
-          {!englishTitle && !groupSelect && form.display.kind === 'video' && <p className="px-4 text-xs text-[#8e8e93]">لا توجد خيارات إضافية لهذا العنصر.</p>}
-        </Advanced>
+        {englishTitle && <Advanced>{englishTitle}</Advanced>}
       </>
     );
   };
@@ -644,12 +764,11 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
       <Group title="العنوان" footer="النص الذي يراه زوارك على الزر.">
         <div className="px-4 py-1"><input aria-label="عنوان الملف" maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="مثل: الملف التعريفي" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
       </Group>
+      {/* Note 44: display and group in view for files too; the rest stays folded. */}
+      {!!form.url && <LinkAppearanceEditor display={form.display} onChange={(display) => update({ display })} />}
+      {groupSelect}
       {renderIconChooser()}
-      <Advanced>
-        {englishTitle}
-        {groupSelect}
-        <LinkAppearanceEditor display={form.display} onChange={(display) => update({ display })} />
-      </Advanced>
+      {englishTitle && <Advanced>{englishTitle}</Advanced>}
     </>
   );
 
@@ -692,22 +811,59 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
         <Group title="اسم المجموعة">
           <div className="px-4 py-1"><input aria-label="اسم المجموعة" autoFocus={!form.title} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
         </Group>
-        <Group title="عناصر المجموعة" footer={candidates.length ? 'اختياري. يمكنك أيضًا إضافة العناصر إليها لاحقًا أو سحبها إليها.' : 'أضف روابط أو ملفات، ثم اجمعها هنا.'}>
-          {candidates.map((item) => {
-            const elsewhere = item.display?.sectionId && item.display.sectionId !== form.display.sectionId ? groups.find((group) => group.display?.sectionId === item.display?.sectionId) : undefined;
+        {/* Note 40: the chosen items, in their order — moved here with ↑↓ — kept
+            apart from the items that can still be added. */}
+        <Group title="عناصر المجموعة" footer={form.sectionMembers.length ? 'رتّبها بالسهمين؛ يظهر الترتيب نفسه في القائمة والصفحة.' : 'لم تُضف عناصر بعد. اختر من الأسفل.'}>
+          {form.sectionMembers.map((id, index) => {
+            const item = candidates.find((value) => value.id === id);
+            if (!item) return null;
+            const move = (delta: number) => {
+              const members = [...form.sectionMembers];
+              [members[index], members[index + delta]] = [members[index + delta], members[index]];
+              update({ sectionMembers: members });
+            };
             return (
-              <label key={item.id} className="flex min-h-[48px] cursor-pointer items-center gap-3 px-4 py-2 text-[15px] text-[#1d1d1f]">
-                <input type="checkbox" checked={form.sectionMembers.includes(item.id)} onChange={(event) => update({ sectionMembers: event.target.checked ? [...form.sectionMembers, item.id] : form.sectionMembers.filter((id) => id !== item.id) })} className="h-5 w-5 shrink-0 accent-[#0a84ff]" />
+              <div key={item.id} className="flex min-h-[48px] items-center gap-2 px-3 py-1.5 text-[15px] text-[#1d1d1f]">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-[#f2f2f7]"><ItemIcon link={item} /></span>
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                {elsewhere && <span className="shrink-0 text-[11px] text-[#8e8e93]">في «{elsewhere.title}»</span>}
-              </label>
+                <span className="flex shrink-0 flex-col">
+                  <button type="button" disabled={index === 0} onClick={() => move(-1)} aria-label={`نقل «${item.title}» للأعلى`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#3a3a3c] active:bg-[#f2f2f7] disabled:text-[#d1d1d6]"><ArrowUp className="h-4 w-4" /></button>
+                  <button type="button" disabled={index === form.sectionMembers.length - 1} onClick={() => move(1)} aria-label={`نقل «${item.title}» للأسفل`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#3a3a3c] active:bg-[#f2f2f7] disabled:text-[#d1d1d6]"><ArrowDown className="h-4 w-4" /></button>
+                </span>
+                <button type="button" onClick={() => update({ sectionMembers: form.sectionMembers.filter((value) => value !== item.id) })} aria-label={`إخراج «${item.title}» من المجموعة`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#ff3b30] active:bg-[#f2f2f7]">−</button>
+              </div>
             );
           })}
         </Group>
+        {candidates.some((item) => !form.sectionMembers.includes(item.id)) && (
+          <Group title="إضافة عناصر" footer="العنصر المختار يُضاف إلى نهاية المجموعة.">
+            {candidates.filter((item) => !form.sectionMembers.includes(item.id)).map((item) => {
+              const elsewhere = item.display?.sectionId && item.display.sectionId !== form.display.sectionId ? groups.find((group) => group.display?.sectionId === item.display?.sectionId) : undefined;
+              return (
+                <button key={item.id} type="button" onClick={() => update({ sectionMembers: [...form.sectionMembers, item.id] })} className="flex min-h-[48px] w-full items-center gap-3 px-4 py-2 text-right text-[15px] text-[#1d1d1f]">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0a84ff] text-white"><Plus className="h-4 w-4" /></span>
+                  <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                  {elsewhere && <span className="shrink-0 text-[11px] text-[#8e8e93]">في «{elsewhere.title}»</span>}
+                </button>
+              );
+            })}
+          </Group>
+        )}
         <Advanced>
           {englishTitle}
           <Group title="طريقة عرض المجموعة">
-            <div className="p-3"><Segmented options={[{ id: 'list', label: 'قائمة' }, { id: 'grid', label: 'شبكة' }, { id: 'carousel', label: 'شرائح أفقية' }] as const} value={form.display.sectionLayout ?? 'list'} onChange={(sectionLayout) => update({ display: { ...form.display, sectionLayout } })} /></div>
+            {/* Note 45: each layout drawn, its name under it. */}
+            <div className="grid grid-cols-3 gap-2 p-3" role="radiogroup" aria-label="طريقة عرض المجموعة">
+              {([['list', 'قائمة'], ['grid', 'شبكة'], ['carousel', 'شرائح أفقية']] as const).map(([id, label]) => {
+                const active = (form.display.sectionLayout ?? 'list') === id;
+                return (
+                  <button key={id} type="button" role="radio" aria-checked={active} onClick={() => update({ display: { ...form.display, sectionLayout: id } })} className={`flex flex-col items-center gap-1.5 rounded-xl px-1 py-2.5 transition-colors ${active ? 'bg-[#0a84ff]/10 text-[#0a84ff] ring-2 ring-[#0a84ff]' : 'bg-[#f2f2f7] text-[#8e8e93]'}`}>
+                    <span className="flex h-9 items-center"><LayoutArt id={id} /></span>
+                    <span className={`text-[12px] ${active ? 'font-bold' : 'text-[#3a3a3c]'}`}>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </Group>
         </Advanced>
       </>
@@ -764,7 +920,6 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
             </p>
           </div>
 
-          {officialDocuments && <OfficialDocumentsEditor ref={documentsRef} />}
 
           {links.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl bg-white px-6 py-10 text-center">
@@ -783,16 +938,20 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
                   const showActions = actionsFor === link.id;
                   return (
                     <div key={link.id} data-item-id={link.id} className={`transition-colors ${overId === link.id ? 'bg-[#0a84ff]/10' : ''} ${dragId === link.id ? 'opacity-50' : ''} ${isMember ? 'border-r-[3px] border-r-[#af52de]/30 pr-3' : ''}`}>
-                      <div className="flex min-h-[60px] items-center gap-1 pl-1.5 pr-1">
+                      <div className="flex min-h-[52px] items-center gap-1 pl-1.5 pr-1">
                         <span {...dragHandlers(link.id)} className="flex h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center text-[#c7c7cc] active:cursor-grabbing" aria-label={`اسحب لنقل «${link.title}»`} role="button" tabIndex={-1}>
                           <GripVertical className="h-5 w-5" />
                         </span>
-                        <button type="button" onClick={() => (link.display?.kind === 'document' ? documentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : openForm(formFromLink(link, links), link.id))} className={`flex min-w-0 flex-1 items-center gap-3 py-2 text-right ${link.hidden && !isIncomplete(link) ? 'opacity-45' : ''}`}>
+                        <button type="button" onClick={() => openForm(formFromLink(link, links), link.id)} className={`flex min-w-0 flex-1 items-center gap-3 py-2 text-right ${link.hidden && !isIncomplete(link) ? 'opacity-45' : ''}`}>
                           <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-[#f2f2f7]"><ItemIcon link={link} /></span>
                           <span className="min-w-0 flex-1">
                             <span className={`block truncate text-[15px] text-[#1d1d1f] ${link.display?.kind === 'heading' ? 'font-bold' : ''}`}>{link.title}</span>
-                            <span className={`flex items-center gap-1 truncate text-xs ${isIncomplete(link) ? 'font-bold text-amber-700' : 'text-[#8e8e93]'}`}>{isIncomplete(link) && <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />}{itemSubtitle(link, links)}</span>
+                            {/* Note 43: a row shows its logo and title only; details wait in its
+                                form. Only what still needs doing is said under the title. */}
+                            {isIncomplete(link) && <span className="flex items-center gap-1 truncate text-xs font-bold text-amber-700"><span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />{itemSubtitle(link, links)}</span>}
                           </span>
+                          {/* Note 16: the item stays off the public page until this is done. */}
+                          {isIncomplete(link) && <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800">أكمل البيانات</span>}
                         </button>
                         {/* Note (8): one step up or down per tap; dragging still works. */}
                         <span className="flex shrink-0 flex-col">
@@ -830,7 +989,8 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
           <div className="grid grid-cols-2 gap-3">
             {KINDS.map(({ id, label, hint, Icon, tone }) => (
               <button key={id} type="button" onClick={() => openForm(emptyForm(id))} className="flex min-h-[132px] flex-col items-start gap-3 rounded-2xl bg-white p-4 text-right shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-transform active:scale-[0.97]">
-                <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone}`}><Icon className="h-6 w-6" /></span>
+                {/* Note 45: a tiny drawing of what gets added, in the same box size. */}
+                <span className={`flex h-11 w-14 items-center justify-center overflow-hidden rounded-xl ${tone}`}><KindArt id={id} Icon={Icon} /></span>
                 <span>
                   <span className="block text-[16px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{label}</span>
                   <span className="mt-0.5 block text-xs leading-5 text-[#6e6e73]">{hint}</span>
@@ -875,7 +1035,7 @@ export function LinkEditor({ onPendingChange, officialDocuments }: { onPendingCh
       )}
 
       {confirm?.kind === 'leave' && (
-        <ConfirmSheet title="تجاهل ما كتبته؟" message="لم تُضف هذه التعديلات بعد." confirmLabel="تجاهل والرجوع" cancelLabel="متابعة التعديل" onConfirm={() => { setConfirm(null); backToList(); }} onCancel={() => setConfirm(null)} />
+        <ConfirmSheet title="تجاهل ما كتبته؟" message="لم تُضف هذه التعديلات بعد." confirmLabel="تجاهل والرجوع" cancelLabel="متابعة التعديل" onConfirm={() => { setConfirm(null); backToList(); const next = pendingFocus.current; pendingFocus.current = null; if (next) focusItem(next); }} onCancel={() => { pendingFocus.current = null; setConfirm(null); }} />
       )}
       {confirm?.kind === 'deleteGroup' && (
         <ConfirmSheet

@@ -141,9 +141,13 @@ function ReportDialog({ username, lang, onClose }: { username: string; lang: Lan
 
 // Visitor actions (SHARE-01, SHARE-02, PUB-03). No account, no QR download,
 // and no «عنوان» branding on the entity's page (DEF-06, DEF-09).
-function VisitorActions({ page, lang, onSwitchLang }: { page: PageData; lang: Lang; onSwitchLang?: () => void }) {
+// `shareNotice`: in the editor's preview of a page not yet published, sharing
+// explains that it needs publishing instead of sharing a dead link.
+// `middle`: in the preview only, «العودة للتحرير» between the two top buttons.
+function VisitorActions({ page, lang, onSwitchLang, shareNotice, middle }: { page: PageData; lang: Lang; onSwitchLang?: () => void; shareNotice?: string; middle?: React.ReactNode }) {
   const t = TEXT[lang];
   const [copied, setCopied] = useState(false);
+  const [notice, setNotice] = useState('');
   const [reporting, setReporting] = useState(false);
   // On the entity's own domain, that is the address visitors share.
   const url = getCustomHost() ? window.location.origin : pageUrl(page.username);
@@ -156,6 +160,11 @@ function VisitorActions({ page, lang, onSwitchLang }: { page: PageData; lang: La
   };
 
   const handleShare = async () => {
+    if (shareNotice) {
+      setNotice(shareNotice);
+      window.setTimeout(() => setNotice(''), 2600);
+      return;
+    }
     if (navigator.share) {
       // The visitor closing the share sheet rejects the promise; not an error.
       await navigator.share({ title: page.name, url }).catch(() => undefined);
@@ -173,12 +182,14 @@ function VisitorActions({ page, lang, onSwitchLang }: { page: PageData; lang: La
         <button type="button" onClick={handleShare} aria-label={t.share} className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/90 text-[#1d1d1f] shadow-[0_2px_12px_rgba(0,0,0,0.12)] backdrop-blur-md transition-transform active:scale-95">
           {copied ? <Check className="h-5 w-5" /> : <Share className="h-5 w-5" />}
         </button>
+        {middle}
         {/* Note 02 (updated): icon above a short label keeps the button narrow. */}
         <button type="button" onClick={() => downloadVCard(page)} className="flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl bg-white/90 px-3 text-[11px] font-semibold leading-tight text-[#1d1d1f] shadow-[0_2px_12px_rgba(0,0,0,0.12)] backdrop-blur-md transition-transform active:scale-95">
           <UserPlus className="h-5 w-5" />
           {t.saveContact}
         </button>
       </div>
+      {notice && <p role="status" className="fixed inset-x-0 top-0 z-20 mx-auto mt-20 w-fit max-w-[90vw] rounded-full bg-black/75 px-4 py-1.5 text-center text-xs font-semibold text-white">{notice}</p>}
       {copied && <p role="status" className="fixed inset-x-0 top-0 z-20 mx-auto mt-20 w-fit rounded-full bg-black/75 px-4 py-1.5 text-xs font-semibold text-white">{t.copied}</p>}
 
       <div className="mt-8 flex items-center justify-center gap-4">
@@ -234,7 +245,7 @@ export default function PublicPage() {
   // DOMAIN-03: on the entity's own domain the page is found by host. Only the
   // root path is the page; /preview there is still the editor's draft.
   const customHost = !username && window.location.pathname === '/' ? getCustomHost() : null;
-  const { pageData } = usePageContext();
+  const { pageData, account } = usePageContext();
   const [remote, setRemote] = useState<RemoteState>({ status: 'loading' });
   // PAGE-16 / PUB-04: the device language when the page has that version,
   // otherwise Arabic; the visitor can switch by hand.
@@ -284,18 +295,36 @@ export default function PublicPage() {
   usePageMeta((username || customHost) && remote.status === 'ready' ? remote.pageData : null);
 
   // /preview: the editor's unsaved draft, never the published page (PAGE-07).
+  const previewPage: PageData = { ...pageData, contactPhone: account?.phone || undefined, contactEmail: account?.email || undefined };
+  const previewHasEnglish = Boolean(pageData.translations?.en?.name || pageData.translations?.en?.bio);
+  const previewLang: Lang = previewHasEnglish ? chosenLang ?? (navigator.language.toLowerCase().startsWith('en') ? 'en' : 'ar') : 'ar';
   if (!username && !customHost) {
     return (
+      // Note 32: the preview is the published page itself — the same layout,
+      // top buttons, language switch and footer — built from the draft. The
+      // contact card uses the account's phone and email, as the public page
+      // does; sharing gives the public link, or says it needs publishing.
+      // Only «العودة للتحرير» is extra, between the two top buttons.
       <>
-        <button
-          onClick={() => navigate('/builder')}
-          className="fixed top-4 right-4 z-10 flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-md"
-          style={{ fontFamily: 'Cairo, sans-serif' }}
-        >
-          <ArrowRight className="h-4 w-4" />
-          العودة للتحرير
-        </button>
-        <PageView data={pageData} variant="public" />
+        <PageView data={previewPage} variant="public" lang={previewLang}>
+          <VisitorActions
+            page={previewPage}
+            lang={previewLang}
+            onSwitchLang={previewHasEnglish ? () => setChosenLang(previewLang === 'en' ? 'ar' : 'en') : undefined}
+            shareNotice={account?.pageStatus === 'published' ? undefined : (previewLang === 'en' ? 'Sharing is available once the page is published.' : 'تُتاح مشاركة الصفحة بعد نشرها.')}
+            middle={
+              // The draft lives in the editor's state, so going back keeps every edit.
+              <button
+                onClick={() => navigate('/builder')}
+                className="flex h-11 min-w-0 shrink items-center gap-1.5 rounded-full bg-black/75 px-3.5 text-[13px] font-semibold text-white shadow-lg backdrop-blur-md sm:px-4 sm:text-sm"
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                <ArrowRight className="h-4 w-4 shrink-0" />
+                <span className="truncate">العودة للتحرير</span>
+              </button>
+            }
+          />
+        </PageView>
       </>
     );
   }

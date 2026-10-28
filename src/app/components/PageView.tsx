@@ -1,16 +1,17 @@
 import { sectionBlocks, visibleSectionItems } from '../../../shared/linkSections';
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { FONT_OPTIONS, Link, PageData } from '../context/PageContext';
 import { pageHost } from '../lib/site';
-import { customFontFamily, loadCustomFont, loadFont } from '../lib/fonts';
+import { customFontActive, customFontFamily, loadCustomFont, loadFont } from '../lib/fonts';
 import { SectionLayout } from './SectionLayout';
 import { VideoBlock } from './VideoBlock';
+import { ITEM_SPACING, pageDesign } from '../lib/pageDesign';
 import { VideoBackground } from './VideoBackground';
 import { WallpaperImage } from './WallpaperImage';
 import { ProfileImageDisplay } from './ProfileImageDisplay';
 import { SocialIcon, brandColor } from './SocialIcons';
 import { FONT_WEIGHTS, buttonMetrics } from '../lib/buttonSizes';
-import { OFFICIAL_DOCUMENTS } from '../lib/officialDocuments';
+import { OFFICIAL_DOCUMENT_ICON } from '../lib/officialDocuments';
 
 interface PageViewProps {
   data: PageData;
@@ -20,7 +21,21 @@ interface PageViewProps {
   // PAGE-16: 'en' shows the manually entered English text where it exists.
   lang?: 'ar' | 'en';
   children?: ReactNode;
+  // Note 22: the editor's own preview also shows items chosen but not yet
+  // completed, faded with a small mark. Note 23: there, tapping any item opens
+  // it in «المحتوى» instead of following it. Never set for visitors.
+  showIncomplete?: boolean;
+  onItemClick?: (id: string) => void;
 }
+
+// Note 44: a picture card's photo in its fixed frame — moved and zoomed as set
+// in the editor, never stretched. Shared with the editor's own frame.
+export const cardImageStyle = (display: { imageFit?: 'cover' | 'contain'; positionX?: number; positionY?: number; zoom?: number }): React.CSSProperties => {
+  const origin = `${display.positionX ?? 50}% ${display.positionY ?? 50}%`;
+  return { objectFit: display.imageFit ?? 'cover', objectPosition: origin, transform: display.zoom && display.zoom > 1 ? `scale(${display.zoom})` : undefined, transformOrigin: origin };
+};
+
+const isIncompleteItem = (link: Link) => !link.url && !['heading', 'text'].includes(link.display?.kind ?? '');
 
 const NAME_SIZES = {
   preview: { small: 'text-xl', medium: 'text-2xl', large: 'text-3xl' },
@@ -75,7 +90,7 @@ function withAlpha(color: string, opacityPercent: number) {
   return `rgba(${r}, ${g}, ${b}, ${opacityPercent / 100})`;
 }
 
-export function PageView({ data, variant, lang = 'ar', children }: PageViewProps) {
+export function PageView({ data, variant, lang = 'ar', children, showIncomplete = false, onItemClick }: PageViewProps) {
   const english = lang === 'en' ? data.translations?.en : undefined;
   const name = english?.name || data.name;
   const bio = english?.bio || data.bio;
@@ -84,8 +99,10 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
   const isBannerLayout = data.profileStyle.type === 'banner';
   const builtInFamily = (FONT_OPTIONS.find((font) => font.id === data.typography?.font) ?? FONT_OPTIONS[0]).family;
   // Note (9): an uploaded font, with the chosen built-in one as its fallback.
-  const customFont = data.typography?.customFont?.url;
-  useEffect(() => loadCustomFont(customFont), [customFont]);
+  const customFont = customFontActive(data.typography) ? data.typography?.customFont?.url : undefined;
+  // Note 26: loaded into the document this page is drawn in (the preview frame too).
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => loadCustomFont(customFont, rootRef.current?.ownerDocument), [customFont]);
   const fontFamily = customFont ? `${customFontFamily(customFont)}, ${builtInFamily}` : builtInFamily;
   useEffect(() => loadFont(data.typography?.font), [data.typography?.font]);
   // nameSize / bioSize override the shared size for each text.
@@ -93,17 +110,12 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
   const nameSize = data.typography?.nameSize ?? textSize;
   const bioSize = data.typography?.bioSize ?? textSize;
   const { buttonStyle, theme, wallpaper } = data;
+  const design = pageDesign(data);
   // PAGE-06: hidden buttons stay in the editor list but are not rendered.
   // Note 25: a platform still waiting for its link is not drawn, even in the preview.
-  const blocks = sectionBlocks(visibleSectionItems(data.links.filter((link) => link.url || link.linkType === 'file' || ['heading', 'text'].includes(link.display?.kind ?? ''))));
-  // Note 27: official documents next to each other share one grid of cards.
-  const isDocumentBlock = (block: Link[]) => block.length === 1 && block[0].display?.kind === 'document';
-  const groupedBlocks = blocks.reduce<Link[][]>((result, block) => {
-    const last = result[result.length - 1];
-    if (last && isDocumentBlock(block) && last.every((item) => item.display?.kind === 'document')) last.push(block[0]);
-    else result.push([...block]);
-    return result;
-  }, []);
+  // Incomplete items are kept hidden from visitors; the editor preview un-hides them.
+  const shownLinks = showIncomplete ? data.links.map((link) => (isIncompleteItem(link) ? { ...link, hidden: false } : link)) : data.links;
+  const blocks = sectionBlocks(visibleSectionItems(shownLinks.filter((link) => link.url || link.linkType === 'file' || ['heading', 'text'].includes(link.display?.kind ?? '') || (showIncomplete && isIncompleteItem(link)))));
 
   const backgroundStyle =
     wallpaper.type === 'gradient'
@@ -140,33 +152,46 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
     />
   );
 
-  // Note 27: an official document as a formal PDF card.
-  const renderDocument = (link: Link) => {
-    const kind = OFFICIAL_DOCUMENTS.find((item) => item.id === link.display?.docType);
-    const label = lang === 'en' ? kind?.titleEn ?? link.titleEn ?? link.title : link.title;
+  // Note 22: an incomplete item in its final shape, faded, with a small mark.
+  // Note 23: in the editor every item is a way into its own settings.
+  const renderItem = (link: Link) => {
+    const incomplete = showIncomplete && isIncompleteItem(link);
+    if (!incomplete && !onItemClick) return renderLink(link);
+    const inner = incomplete && link.display?.kind === 'video'
+      ? <div className={`flex aspect-video w-full items-center justify-center ${design.mediaRadius} bg-black/80 text-white`}><svg viewBox="0 0 24 24" className="h-10 w-10" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg></div>
+      : renderLink(link);
+    const open = onItemClick && (() => onItemClick(link.id));
     return (
-      <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-col items-center gap-2 rounded-2xl border px-3 pb-3 pt-4 text-center transition-opacity hover:opacity-90" style={{ borderColor: withAlpha(theme.textColor, 18), backgroundColor: withAlpha(theme.background, 70), color: theme.textColor }}>
-        <span className="relative flex h-14 w-11 items-end justify-center rounded-[6px] border bg-white pb-1.5 shadow-sm" style={{ borderColor: '#e5e5ea' }} aria-hidden="true">
-          <span className="absolute left-0 top-0 h-3 w-3 rounded-br-[4px] bg-[#e5e5ea]" />
-          <span className="rounded-[3px] bg-[#c0392b] px-1 text-[9px] font-black leading-4 text-white">PDF</span>
-        </span>
-        <span className="line-clamp-2 text-[13px] font-bold leading-5">{label}</span>
-        <span className="text-[11px] opacity-60">{lang === 'en' ? 'View document' : 'عرض الوثيقة'}</span>
-      </a>
+      <div key={link.id} role={open ? 'button' : undefined} tabIndex={open ? 0 : undefined} title={open ? 'اضغط للتعديل' : undefined}
+        className={`relative [&>a]:h-full ${incomplete ? 'opacity-55' : ''} ${open ? 'cursor-pointer rounded-xl outline-2 outline-offset-2 outline-transparent transition-[outline-color,opacity] hover:outline-[#0a84ff]/50 [outline-style:solid]' : ''}`}
+        onClickCapture={open ? (event) => { event.preventDefault(); event.stopPropagation(); open(); } : undefined}
+        onKeyDown={open ? (event) => { if (event.key === 'Enter') open(); } : undefined}>
+        {inner}
+        {/* A playing video would swallow the tap; in the editor it opens the item instead. */}
+        {open && link.display?.kind === 'video' && <span className="absolute inset-0" aria-hidden="true" />}
+        {incomplete && <span className="pointer-events-none absolute -top-1.5 left-2 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm" style={{ fontFamily: 'Cairo, sans-serif' }}>غير مكتمل</span>}
+      </div>
     );
   };
 
   const renderLink = (link: Link) => {
-    if (link.display?.kind === 'document') return renderDocument(link);
-    if (link.display?.kind === 'text') return <p key={link.id} className="whitespace-pre-wrap break-words text-start text-base leading-relaxed" style={{ color: paragraphColor }}>{(lang === 'en' && link.display.bodyEn) || link.display.body}</p>;
-    if (link.display?.kind === 'video') return <VideoBlock key={`${link.id}:${link.url}`} url={link.url} title={(lang === 'en' && link.titleEn) || link.title} />;
-    if (link.display?.kind === 'heading') return <h2 key={link.id} className="break-words pt-5 pb-1 text-start text-lg font-bold" style={{ color: headingColor }}>{(lang === 'en' && link.titleEn) || link.title}</h2>;
-    if (link.display?.layout === 'card' && link.display.image) return <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" download={link.linkType === 'file' ? link.fileName || true : undefined} className={`block w-full overflow-hidden transition-opacity hover:opacity-90 ${BUTTON_SHAPES[buttonStyle.shape]} ${buttonStyle.shadow ? 'shadow-lg' : ''} ${buttonStyle.border ? 'border-2' : ''}`} style={{ backgroundColor: buttonStyle.border ? 'transparent' : withAlpha(accentColor, buttonStyle.opacity ?? 100), color: buttonTextColor, borderColor: accentColor }}>
-      <div className="aspect-video w-full overflow-hidden bg-black/5 sm:aspect-[2.2/1]"><img src={link.display.image} alt="" loading="lazy" className="h-full w-full" style={{ objectFit: link.display.imageFit ?? 'cover', objectPosition: `${link.display.positionX ?? 50}% ${link.display.positionY ?? 50}%` }} /></div>
+    if (link.display?.kind === 'text') return <p key={link.id} className={`whitespace-pre-wrap break-words text-start ${design.paragraph} leading-relaxed`} style={{ color: paragraphColor }}>{(lang === 'en' && link.display.bodyEn) || link.display.body}</p>;
+    if (link.display?.kind === 'video') return <VideoBlock key={`${link.id}:${link.url}`} url={link.url} title={(lang === 'en' && link.titleEn) || link.title} caption={link.display.caption} textColor={paragraphColor} radiusClass={design.mediaRadius} />;
+    // Note 38: a group's title already sits after the page's 16 px gap, so it
+    // adds only a little; a standalone heading keeps its larger lead.
+    if (link.display?.kind === 'heading') return <h2 key={link.id} className={`break-words ${link.display.sectionId ? 'pt-1' : 'pt-5'} pb-1 text-start ${design.heading} font-bold`} style={{ color: headingColor }}>{(lang === 'en' && link.titleEn) || link.title}</h2>;
+    // Note 35 / 44: a picture card — a fixed video-shaped (16:9) frame on top (cropped where its owner
+    // set it, never stretched) and the button under it. A «pill» button style
+    // would turn the card into an oval, so cards keep rounded corners instead.
+    if (link.display?.layout === 'card' && link.display.image) return <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" download={link.linkType === 'file' ? link.fileName || true : undefined} className={`block w-full overflow-hidden transition-opacity hover:opacity-90 ${buttonStyle.shape === 'pill' ? 'rounded-3xl' : BUTTON_SHAPES[buttonStyle.shape]} ${buttonStyle.shadow ? 'shadow-lg' : ''} ${buttonStyle.border ? 'border-2' : ''}`} style={{ backgroundColor: buttonStyle.border ? 'transparent' : withAlpha(accentColor, buttonStyle.opacity ?? 100), color: buttonTextColor, borderColor: accentColor }}>
+      <div className="aspect-video w-full overflow-hidden bg-black/5"><img src={link.display.image} alt="" loading="lazy" className="h-full w-full" style={cardImageStyle(link.display)} /></div>
       <span className={`block break-words ${BUTTON_SIZES[buttonStyle.size ?? 'medium']} ${link.textPosition === 'right' ? 'text-start' : 'text-center'}`} style={{ ...sizeStyle, minHeight: undefined, fontWeight }}>{(lang === 'en' && link.titleEn) || link.title}</span>
     </a>;
 
     const platform = link.linkType === 'file' && link.fileMimeType?.startsWith('image/') ? 'image' : link.platform || 'website';
+    // Note 24: an official document is a button like any other, with the
+    // documents' own mark unless its owner chose another icon.
+    const itemIcon = link.customIcon ?? (link.display?.kind === 'document' ? OFFICIAL_DOCUMENT_ICON : undefined);
     // Each logo keeps its brand colour unless it would vanish on the
     // button; then it takes the button text colour, which always reads.
     const brand = brandColor(platform);
@@ -178,7 +203,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
         platform={platform}
         iconStyle="color"
         color={customIconColor ?? (useText ? buttonTextColor : brand)}
-        customIcon={link.customIcon}
+        customIcon={itemIcon}
         className="flex-shrink-0"
         size={metrics.icon}
       />
@@ -236,6 +261,7 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
 
   const page = (
     <div
+      ref={rootRef}
       className={
         isPublic
           // Content starts at the top (not vertically centred), so a short page
@@ -303,12 +329,10 @@ export function PageView({ data, variant, lang = 'ar', children }: PageViewProps
             </div>
           )}
 
-          <div className={`w-full space-y-4`}>
-            {groupedBlocks.map(block => block[0].display?.kind === 'document'
-              ? <div key={block[0].id} className="grid grid-cols-2 gap-3">{block.map(renderDocument)}</div>
-              : block[0].display?.kind === 'heading' && block[0].display.sectionId
-              ? <SectionLayout key={`${block[0].id}:${block[0].display.sectionLayout ?? 'list'}`} heading={block[0]} items={block.slice(1)} renderItem={renderLink} lang={lang} />
-              : block.map(renderLink))}
+          <div className={`w-full ${ITEM_SPACING[design.spacing]}`}>
+            {blocks.map(block => block[0].display?.kind === 'heading' && block[0].display.sectionId
+              ? <SectionLayout key={`${block[0].id}:${block[0].display.sectionLayout ?? 'list'}`} heading={block[0]} items={block.slice(1)} renderItem={renderItem} lang={lang} spacing={design.spacing} />
+              : block.map(renderItem))}
           </div>
 
           {children}

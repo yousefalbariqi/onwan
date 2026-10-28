@@ -514,9 +514,9 @@ const handlers: Record<string, Handler> = {
       if (!(await consumeCode(row.email, 'verify_email', String(params.code ?? '')))) throw await codeFailure(row.email, 'verify_email');
       const used = await pool.query('update account_setup_tokens set used_at = now() where token_hash = $1 and used_at is null returning 1', [tokenHash]);
       if (!used.rowCount) throw new HttpError(409, 'استُخدم هذا الرابط للتو. سجّل الدخول.');
-      await pool.query('update users set password_hash = $2, email_verified_at = coalesce(email_verified_at, now()), updated_at = now() where id = $1', [row.user_id, hashPassword(password)]);
+      const updatedUser = await pool.query<{ session_version: number }>('update users set password_hash = $2, email_verified_at = coalesce(email_verified_at, now()), updated_at = now() where id = $1 returning session_version', [row.user_id, hashPassword(password)]);
       return {
-        token: createSessionToken(row.user_id, row.email),
+        token: createSessionToken(row.user_id, row.email, undefined, updatedUser.rows[0].session_version),
         pageData: await getPageDataByUserId(row.user_id),
         account: await getAccountSummary(row.user_id),
       };
@@ -545,13 +545,13 @@ const handlers: Record<string, Handler> = {
         throw new HttpError(404, 'انتهت صلاحية هذا الرابط أو استُخدم من قبل. استخدم «نسيت كلمة المرور» في صفحة الدخول.');
       }
 
-      const user = await pool.query<{ email: string }>(
-        'update users set password_hash = $2, updated_at = now() where id = $1 returning email',
+      const user = await pool.query<{ email: string; session_version: number }>(
+        'update users set password_hash = $2, updated_at = now() where id = $1 returning email, session_version',
         [userId, hashPassword(password)],
       );
 
       return {
-        token: createSessionToken(userId, user.rows[0].email),
+        token: createSessionToken(userId, user.rows[0].email, undefined, user.rows[0].session_version),
         pageData: await getPageDataByUserId(userId),
         account: await getAccountSummary(userId),
       };

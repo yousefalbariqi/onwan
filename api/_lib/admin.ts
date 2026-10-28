@@ -1,4 +1,5 @@
 import { nonprofitAdminHandlers } from './nonprofitAdmin.js';
+import { templateAdminHandlers } from './pageTemplates.js';
 import { getReferralOffer } from './partnerReferral.js';
 import { getEnv } from './runtime.js';
 import crypto from 'node:crypto';
@@ -102,6 +103,7 @@ async function customerTarget(userId: unknown) {
 
 const handlers: Record<string, Handler> = {
   ...nonprofitAdminHandlers,
+  ...templateAdminHandlers,
   ...partnerAdminHandlers,
   ...serviceAdminHandlers,
 

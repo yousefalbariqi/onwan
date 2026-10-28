@@ -16,7 +16,7 @@ const zoomStep = (zoom: number | undefined, by: number) => Math.round(Math.min(3
 export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logoZoomOut?: boolean; logoBanner?: boolean } = {}) {
   const { pageData, updatePageData, updateProfileStyle } = usePageContext();
   const style = pageData.profileStyle;
-  // Zoom and position stay at hand in both «تظهر كاملة» and «تملأ الشكل» (note 10).
+  // Zoom and position stay at hand in both «الصورة كاملة» and «ملء الإطار» (note 10).
   const canAdjust = Boolean(pageData.profileImage);
   const [imageError, setImageError] = useState('');
 
@@ -38,7 +38,7 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
 
     updatePageData({ profileImage: imageUrl });
     // Note (10): a new logo starts whole — no zoom or framing left over from
-    // the previous picture; «تملأ الشكل» and the sliders stay available.
+    // the previous picture; «ملء الإطار» and the sliders stay available.
     updateProfileStyle({ fit: 'contain', zoom: 1, positionX: 50, positionY: 50 });
 
     // استخراج الألوان من الصورة
@@ -73,6 +73,9 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
             zoom on the left, left/right underneath — each where it acts. */}
         <div className="flex w-full items-center justify-center gap-3 rounded-2xl bg-white p-4" aria-label="معاينة الصورة بالشكل المختار">
           {canAdjust && <VerticalSlider label="أعلى / أسفل" min={0} max={100} step={1} value={style.positionY ?? 50} topIsMin onChange={(value) => updateProfileStyle({ positionY: value })} />}
+          {/* Note 20: on a computer this box shows the photo at its real page size
+              (a wide photo is 400 px tall), so it is drawn smaller there; the
+              photo's position and zoom in the page are untouched. */}
           {/* Note 41: the whole photo box opens the file picker (tap, click,
               Enter or Space), with a small camera badge saying so. */}
           <label
@@ -85,7 +88,7 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
               event.preventDefault();
               (document.getElementById(uploadId) as HTMLInputElement | null)?.click();
             }}
-            className="group relative flex min-w-0 flex-1 cursor-pointer justify-center overflow-hidden rounded-xl bg-[#f2f2f7] p-3 outline-none transition-[transform,box-shadow] hover:ring-2 hover:ring-[#0a84ff]/30 focus-visible:ring-2 focus-visible:ring-[#0a84ff] active:scale-[0.98]"
+            className="group relative flex min-w-0 flex-1 cursor-pointer justify-center overflow-hidden rounded-xl bg-[#f2f2f7] p-3 lg:[zoom:0.72] outline-none transition-[transform,box-shadow] hover:ring-2 hover:ring-[#0a84ff]/30 focus-visible:ring-2 focus-visible:ring-[#0a84ff] active:scale-[0.98]"
           >
             <ProfileImageDisplay profileImage={pageData.profileImage} name={pageData.name} profileStyle={pageData.profileStyle} textColor="#1d1d1f" backgroundColor="#f2f2f7" />
             <span className="pointer-events-none absolute bottom-2 left-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#0a84ff] text-white shadow-[0_2px_8px_rgba(10,132,255,0.4)] transition-transform group-hover:scale-110" aria-hidden="true">
@@ -160,7 +163,7 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
         </Group>
       ) : (
         <Group title="شكل الصورة" footer="تظهر النتيجة في المعاينة مباشرة، وتغيير الشكل يحافظ على الصورة المرفوعة.">
-          <div className="p-4"><ProfileImageControls /></div>
+          <div className="p-3"><ProfileImageControls /></div>
         </Group>
       )}
 

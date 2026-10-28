@@ -10,6 +10,7 @@ type SessionPayload = {
   userId: string;
   email: string;
   exp: number;
+  sessionVersion?: number;
   // Staff and partner tokens are marked so they can never be used as a
   // beneficiary session (or the other way round).
   kind?: SessionKind;
@@ -37,12 +38,12 @@ function sign(value: string) {
   return crypto.createHmac('sha256', getSecret()).update(value).digest('base64url');
 }
 
-export function createSessionToken(userId: string, email: string, kind?: SessionKind) {
+export function createSessionToken(userId: string, email: string, kind?: SessionKind, sessionVersion = 0) {
   const payload: SessionPayload = {
     userId,
     email,
     exp: Date.now() + (kind === 'staff' ? STAFF_SESSION_TTL_MS : SESSION_TTL_MS),
-    ...(kind ? { kind } : {}),
+    ...(kind ? { kind } : { sessionVersion }),
   };
 
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));

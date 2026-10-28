@@ -8,7 +8,9 @@ const HEIGHT = 844;
 
 // Render the real page first, then scale the whole scene uniformly into a compact window.
 // The portal shares the live draft without serializing it or loading a saved page.
-export function PhonePreview({ data, interactive = true }: { data?: PageData; interactive?: boolean }) {
+// Notes 22–23: the editor's preview — incomplete items show, and with
+// `onItemClick` tapping an item opens it in the editor (never on the public page).
+export function PhonePreview({ data, interactive = true, onItemClick }: { data?: PageData; interactive?: boolean; onItemClick?: (id: string) => void }) {
   const { pageData } = usePageContext();
   const frame = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -53,7 +55,7 @@ export function PhonePreview({ data, interactive = true }: { data?: PageData; in
     <div className="mx-auto w-full max-w-[280px] rounded-2xl border border-gray-200 bg-white p-1 shadow-lg">
       <div ref={frame} className="relative w-full overflow-hidden rounded-xl bg-white" style={{ aspectRatio: `${WIDTH} / ${HEIGHT}` }}>
         <iframe title="نافذة مصغرة على الصفحة الفعلية" srcDoc={'<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>'} onLoad={event => setDocument(event.currentTarget.contentDocument)} tabIndex={interactive ? 0 : -1} className={`absolute left-0 top-0 origin-top-left border-0 ${interactive ? '' : 'pointer-events-none'}`} style={{ width: WIDTH, height: HEIGHT, transform: `scale(${scale})` }} />
-        {document && createPortal(<div onClickCapture={event => { if ((event.target as Element).closest('a')) event.preventDefault(); }}><PageView data={data ?? pageData} variant="public" /></div>, document.body)}
+        {document && createPortal(<div onClickCapture={event => { if ((event.target as Element).closest('a')) event.preventDefault(); }}><PageView data={data ?? pageData} variant="public" showIncomplete onItemClick={onItemClick} /></div>, document.body)}
       </div>
     </div>
   );

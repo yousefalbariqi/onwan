@@ -1,13 +1,14 @@
+import { serverTiming } from '../_lib/serverTiming.js';
 import { assertHuman } from '../_lib/turnstile.js';
 import { attachReferral } from '../_lib/partnerReferral.js';
-import { getAccountSummary, isValidEmail, isValidPhone, normalizeEmail, normalizePhone } from '../_lib/account.js';
+import { getAccountSummary, normalizeEmail } from '../_lib/account.js';
+import { EMAIL_HINT, PHONE_HINT, isValidEmailAddress, normalizeSaudiMobile } from '../../shared/accountRules.js';
 import { createSessionToken } from '../_lib/auth.js';
 import { pool } from '../_lib/db.js';
 import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http.js';
-import { issueCode } from '../_lib/otp.js';
 import { ensurePageForUser, getPageDataByUserId } from '../_lib/page.js';
 import { hashPassword, validatePassword } from '../_lib/password.js';
-import { getUsernameAvailability, reserveUsername } from '../_lib/username.js';
+import { validateUsername, reserveUsername } from '../_lib/username.js';
 
 // ACCT-01 / ACCT-02 / ACCT-03: name + mandatory phone + email + password.
 // The account and its draft page are created immediately, with no prior
@@ -17,19 +18,21 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
+  const timing = serverTiming(res);
   try {
-    const body = await readJsonBody(req);
-    await assertHuman(req, body); // REQ-020
+    const body = await timing.measure('body', () => readJsonBody(req));
+    await timing.measure('turnstile', () => assertHuman(req, body)); // REQ-020
     const email = normalizeEmail(body.email);
-    const phone = normalizePhone(body.phone);
+    // Note 07: a Saudi mobile, stored as 05XXXXXXXX.
+    const phone = normalizeSaudiMobile(String(body.phone ?? ''));
     const password = String(body.password ?? '');
 
-    if (!isValidPhone(phone)) {
-      throw new HttpError(400, 'رقم الجوال مطلوب ويجب أن يكون صحيحًا.');
+    if (!phone) {
+      throw new HttpError(400, PHONE_HINT);
     }
 
-    if (!isValidEmail(email)) {
-      throw new HttpError(400, 'البريد الإلكتروني غير صالح.');
+    if (!isValidEmailAddress(email)) {
+      throw new HttpError(400, EMAIL_HINT);
     }
 
     const passwordError = validatePassword(password);
@@ -38,39 +41,43 @@ export default async function handler(req: any, res: any) {
       throw new HttpError(400, passwordError);
     }
 
-    const availability = await getUsernameAvailability(String(body.username ?? ''));
-
-    if (!availability.available) {
-      throw new HttpError(409, availability.reason ?? 'الاسم غير متاح.', `username_${availability.status}`);
+    // Availability was previewed in the form. Validate syntax here, then
+    // recheck availability once at reservation instead of doing it twice.
+    const validation = timing.sync('username_validate', () => validateUsername(String(body.username ?? '')));
+    if (!validation.valid) {
+      throw new HttpError(409, validation.reason ?? 'الاسم غير صالح.', 'username_invalid');
     }
 
-    const client = await pool.connect();
+    const client = await timing.measure('db_connect', () => pool.connect());
     let userId: string;
 
     try {
-      await client.query('begin');
+      await timing.measure('tx_begin', () => client.query('begin'));
 
-      const userResult = await client.query<{ id: string }>(
+      const passwordHash = timing.sync('password_hash', () => hashPassword(password));
+      const userResult = await timing.measure('user_insert', () => client.query<{ id: string }>(
         'insert into users (email, phone, password_hash) values ($1, $2, $3) returning id',
-        [email, phone, hashPassword(password)],
-      );
+        [email, phone, passwordHash],
+      ));
 
       userId = userResult.rows[0].id;
-      if (body.nonprofit === true) await client.query("update users set account_kind='nonprofit' where id=$1", [userId]);
+      if (body.nonprofit === true) await timing.measure('nonprofit_kind', () => client.query("update users set account_kind='nonprofit' where id=$1", [userId]));
 
-      // NEW-01 (amended): the name is held, not fixed — it becomes the
-      // beneficiary's for good when the payment is confirmed.
-      await reserveUsername(client, userId, availability.normalized);
-
-      await ensurePageForUser(userId, client);
-      // Note 22: the Arabic name the association typed becomes its page name.
-      if (body.nonprofit === true && typeof body.organizationName === 'string' && body.organizationName.trim()) {
-        await client.query('update pages set display_name = $2 where user_id = $1', [userId, body.organizationName.trim().slice(0, 160)]);
+      // Association signup only stores a suggestion; no availability check
+      // or reservation here. The ordinary customer flow stays unchanged.
+      if (body.nonprofit !== true) {
+        await timing.measure('username_reserve', () => reserveUsername(client, userId, validation.normalized));
       }
-      await attachReferral(client, userId, body.partnerRef);
-      await client.query('commit');
+
+      await timing.measure('page_ensure', () => ensurePageForUser(userId, client));
+      // Note 22: the Arabic name the association typed becomes its page name.
+      if (body.nonprofit === true) {
+        await timing.measure('organization_name', () => client.query('update pages set display_name = $2, suggested_username = $3 where user_id = $1', [userId, String(body.organizationName ?? '').trim().slice(0, 160), validation.normalized]));
+      }
+      await timing.measure('referral', () => attachReferral(client, userId, body.partnerRef));
+      await timing.measure('tx_commit', () => client.query('commit'));
     } catch (error: any) {
-      await client.query('rollback');
+      await timing.measure('tx_rollback', () => client.query('rollback'));
 
       if (error instanceof HttpError) {
         throw error;
@@ -92,20 +99,18 @@ export default async function handler(req: any, res: any) {
       client.release();
     }
 
-    // ACCT-04: the email is confirmed by a code after signup; a failed send
-    // must not undo the signup — the builder shows a reminder with a resend.
-    try {
-      await issueCode(email, 'verify_email', 'رمز تأكيد بريدك الإلكتروني في عنوان:');
-    } catch (error) {
-      console.error('Failed to send email confirmation code:', error);
-    }
+    // Owner decision: signup sends no automatic email. Email verification
+    // stays available on request; creating an account does not verify it.
 
-    sendJson(res, 200, {
+    const response = {
       token: createSessionToken(userId, email),
-      pageData: await getPageDataByUserId(userId),
-      account: await getAccountSummary(userId),
-    });
+      pageData: await timing.measure('page_load', () => getPageDataByUserId(userId)),
+      account: await timing.measure('account_load', () => getAccountSummary(userId)),
+    };
+    timing.flush();
+    sendJson(res, 200, response);
   } catch (error) {
+    timing.flush();
     handleApiError(res, error);
   }
 }

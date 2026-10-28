@@ -1,4 +1,5 @@
 import { nonprofitStatus, submitNonprofit } from './_lib/nonprofit.js';
+import { runTemplateAction } from './_lib/pageTemplates.js';
 import { requireUser } from './_lib/session.js';
 import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from './_lib/http.js';
 export default async function handler(req: any, res: any) {
@@ -7,6 +8,7 @@ export default async function handler(req: any, res: any) {
     const user = await requireUser(req,res); if (!user) return;
     if (req.method === 'GET') return sendJson(res,200,await nonprofitStatus(user.id));
     const body = await readJsonBody(req);
+    if (String(body.action ?? '').startsWith('templates.')) return sendJson(res,200,await runTemplateAction(body.action,body));
     if (body.action !== 'submit') throw new HttpError(400,'إجراء غير معروف.');
     sendJson(res,200,await submitNonprofit(user.id,body));
   } catch(error) { handleApiError(res,error); }

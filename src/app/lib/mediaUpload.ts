@@ -40,9 +40,27 @@ async function prepareImage(blob: Blob): Promise<Blob> {
 // Keep successful uploads across retries: a later file may hit a rate limit.
 // Do not charge another upload for files already stored in the same session.
 const uploadedMedia = new Map<string, Map<string, { url: string; expires: number }>>();
-async function store(dataUrl: string, token: string) {
+// The same file asked for twice at once (a draft save beside a publish, or a
+// logo uploaded early) shares one upload instead of queueing a second one.
+const inFlight = new Map<string, Promise<string>>();
+function store(dataUrl: string, token: string): Promise<string> {
   const cached = uploadedMedia.get(token)?.get(dataUrl);
-  if (cached && cached.expires > Date.now()) return cached.url;
+  if (cached && cached.expires > Date.now()) return Promise.resolve(cached.url);
+  const flightKey = `${token}\n${dataUrl}`;
+  const running = inFlight.get(flightKey);
+  if (running) return running;
+  const upload = storeOnce(dataUrl, token).finally(() => inFlight.delete(flightKey));
+  inFlight.set(flightKey, upload);
+  return upload;
+}
+
+// Starts storing a picked file right away, so the later save finds it ready.
+// Errors are left for that save to report.
+export function preloadMedia(dataUrl: string, token = getSessionToken()) {
+  if (token && isInline(dataUrl)) store(dataUrl, token).catch(() => undefined);
+}
+
+async function storeOnce(dataUrl: string, token: string) {
   const blob = await prepareImage(await (await fetch(dataUrl)).blob());
   const response = await fetch('/api/media-upload', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': blob.type }, body: blob });
   if (!response.ok) {

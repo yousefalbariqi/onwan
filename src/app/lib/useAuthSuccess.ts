@@ -3,6 +3,7 @@ import { usePageContext } from '../context/PageContext';
 import { AuthResponse } from './api';
 import { isNonprofitHost } from './site';
 import { sessionOwner, setSessionToken } from './session';
+import { onboardingPending, startOnboarding } from './nonprofitOnboarding';
 
 // Shared tail of signup / login / password reset: store the session, load the
 // account into the editor state and open the builder.
@@ -23,7 +24,9 @@ export function useAuthSuccess(options: { keepDraft?: boolean } = {}) {
     setAccount(response.account);
     setAuthenticated(true);
     // Note 19: a nonprofit that has just signed up picks its platforms first.
-    if (call.newNonprofit) { navigate(isNonprofitHost() ? '/onboarding' : '/nonprofit/onboarding', { replace: true }); return; }
+    // Note 14: an association that left its setup unfinished comes back to it.
+    if (call.newNonprofit) startOnboarding();
+    if (call.newNonprofit || (response.account?.kind === 'nonprofit' && onboardingPending())) { navigate(isNonprofitHost() ? '/onboarding' : '/nonprofit/onboarding', { replace: true }); return; }
     navigate(isNonprofitHost() ? '/builder' : response.account?.kind === 'nonprofit' ? '/nonprofit/builder' : '/builder', { replace: true });
   };
 }

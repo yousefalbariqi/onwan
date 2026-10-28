@@ -1,33 +1,57 @@
 import { nonprofitPath } from '../lib/nonprofit';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { PageData, SavedVersion, themes, usePageContext } from '../context/PageContext';
 import { PhonePreview } from '../components/PhonePreview';
 import { PageView } from '../components/PageView';
 import { wallpaperFocus } from '../components/WallpaperImage';
 import { HeaderEditor } from '../components/HeaderEditor';
+import { TemplateGallery } from '../components/TemplateGallery';
 import { WallpaperEditor } from '../components/WallpaperEditor';
 import { StyleEditor } from '../components/StyleEditor';
 import { LinkEditor } from '../components/LinkEditor';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { AccountPanel } from '../components/AccountPanel';
+import { NonprofitSettings } from '../components/NonprofitSettings';
 import { accountCall } from '../lib/api';
 import { BRAND_NAME, pageHost, pageUrl } from '../lib/site';
-import { User, Image as ImageIcon, Sparkles, Link2, Eye, ArrowLeft, Save, Settings, X, Check, Undo2, Redo2, History, Loader2, RotateCw } from 'lucide-react';
+import { User, Image as ImageIcon, Sparkles, Link2, Eye, ArrowLeft, Save, Settings, X, Check, Undo2, Redo2, History, Loader2, RotateCw, LogOut, ChevronDown, Palette } from 'lucide-react';
 import { EmailVerifyChip } from '../components/EmailVerifyChip';
 import AuthModal from '../components/AuthModal';
 import { DesignServiceSheet } from '../components/DesignServiceSheet';
 import { TemporaryPasswordGate } from '../components/TemporaryPasswordGate';
 
-export type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account';
+export type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account' | 'history';
 
 // A product built on this editor (e.g. the nonprofit editor) narrows or
 // renames its sections here. Without it the general editor is unchanged.
-export type EditorConfig = { sections?: Tab[]; labels?: Partial<Record<Tab, string>>; logoZoomOut?: boolean; logoBanner?: boolean; officialDocuments?: boolean };
+export type EditorConfig = { sections?: Tab[]; labels?: Partial<Record<Tab, string>>; logoZoomOut?: boolean; logoBanner?: boolean };
+
+// Note 25: the association's editor sits on a calm «عنوان» backdrop — the
+// brand's stacked cards, few and very faint, fixed at the screen's edges so
+// they stay in empty space and never move with the tools. Only the editor's
+// surroundings; buttons, panels and the designed page are untouched.
+const brandCard = (fill: string, angle: number, dot: boolean) =>
+  `<g transform='rotate(${angle} 60 44)'><rect x='4' y='4' width='112' height='80' rx='16' fill='${fill}'/>${dot ? "<circle cx='32' cy='50' r='10' fill='%23FF6B2C' fill-opacity='.55'/><rect x='52' y='45' width='46' height='10' rx='5' fill='%23ffffff' fill-opacity='.8'/>" : ''}</g>`;
+const brandSvg = (inner: string, opacity = 0.5) => `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='110' viewBox='-10 -10 140 110' opacity='${opacity}'>${inner}</svg>")`;
+const DESKTOP_DENSITY = 0.8;
+const brandBackdrop: React.CSSProperties = {
+  backgroundColor: '#F8F8F6',
+  backgroundImage: [
+    brandSvg(brandCard('%23C9C0B4', -12, false) + brandCard('%23111111', -4, true), 0.18),
+    brandSvg(brandCard('%23FFF0E8', 14, false)),
+    brandSvg(brandCard('%23ECEAE5', 8, true)),
+    'radial-gradient(%23E7E3DC 1px, transparent 1.4px)'.replace(/%23/g, '#'),
+  ].join(', '),
+  backgroundPosition: 'left 2% bottom 4%, right 3% top 10%, left 30% top 2%, 0 0',
+  backgroundSize: '150px auto, 120px auto, 90px auto, 22px 22px',
+  backgroundRepeat: 'no-repeat, no-repeat, no-repeat, repeat',
+  backgroundAttachment: 'fixed',
+};
 
 // `staffEdit` is set when an employee edits a customer's page from the
 // administration panel (PERM-01): same editor, without the owner-only parts.
-export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: () => void; title?: string; onContinue?: () => void; continueLabel?: string; exitLabel?: string }; editor?: EditorConfig }) {
+export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: () => void; title?: string; onContinue?: () => void; continueLabel?: string; exitLabel?: string; exitAsLogout?: () => void }; editor?: EditorConfig }) {
   const showSection = (item: { id: Tab }) => !editor?.sections || editor.sections.includes(item.id);
   const withLabel = <T extends { id: Tab; label: string }>(item: T): T => ({ ...item, label: editor?.labels?.[item.id] ?? item.label });
   const navigate = useNavigate();
@@ -45,6 +69,27 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
   const [justSaved, setJustSaved] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [exitPrompt, setExitPrompt] = useState<null | (() => void)>(null);
+  // Note 15: in the association's editor the corner button signs out, after a confirmation.
+  const [logoutPrompt, setLogoutPrompt] = useState(false);
+  // Note 18: the association's editor has one compact toolbar on a computer.
+  const compactBar = Boolean(staffEdit?.exitAsLogout);
+  // Notes 22–23: an item tapped in the preview opens in «المحتوى».
+  const [focusLinkId, setFocusLinkId] = useState<string | null>(null);
+  // Note 31: a small «الثيمات ↓» under the preview until the themes have been seen.
+  const desktopScroll = useRef<HTMLDivElement>(null);
+  const galleriesRef = useRef<HTMLDivElement>(null);
+  const [themesSeen, setThemesSeen] = useState(() => { try { return localStorage.getItem('onwan_themes_seen') === '1'; } catch { return false; } });
+  const markThemesSeen = () => { setThemesSeen(true); try { localStorage.setItem('onwan_themes_seen', '1'); } catch { /* storage blocked */ } };
+  useEffect(() => {
+    const box = desktopScroll.current;
+    if (!box || themesSeen || !compactBar) return;
+    const onScroll = () => { if (box.scrollTop > 160) markThemesSeen(); };
+    box.addEventListener('scroll', onScroll, { passive: true });
+    return () => box.removeEventListener('scroll', onScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themesSeen, compactBar]);
+  const openItem = (id: string) => { setActiveTab('links'); setFocusLinkId(id); };
+  const continueToNext = async () => { if (await handleSave()) staffEdit?.onContinue?.(); };
   // The draft when a panel was opened, so «×» can put it back.
   const [panelStart, setPanelStart] = useState<{ data: PageData } | null>(null);
   // «×» on a window with changes asks once: save them, or leave without them.
@@ -383,7 +428,10 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
   const renderActivePanel = () => {
     // Themes live inside «الخلفية» now; 'theme' just opens it on that segment.
     if (activeTab === 'theme') {
-      return <WallpaperEditor key="themes" initialSegment="themes" onThemeSelected={noteThemeChange} />;
+      // Note 47: in the association's editor, «ثيمات الصفحة» is its own section.
+      const themes = <WallpaperEditor key="themes" initialSegment="themes" onThemeSelected={noteThemeChange} segments={compactBar ? ['themes'] : undefined} />;
+      // Ready-made templates from «صانع القوالب»; the colour themes until any is shown.
+      return compactBar ? <TemplateGallery fallback={themes} /> : themes;
     }
 
     if (activeTab === 'header') {
@@ -391,12 +439,42 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     }
 
     if (activeTab === 'links') {
-      return <LinkEditor onPendingChange={setContentFormPending} officialDocuments={editor?.officialDocuments} />;
+      return <LinkEditor onPendingChange={setContentFormPending} focusId={focusLinkId} onFocused={() => setFocusLinkId(null)} />;
     }
 
     if (activeTab === 'wallpaper') {
       // Note 26: «ثيمات» is what the background opens on.
-      return <WallpaperEditor key="wallpaper" initialSegment="themes" onThemeSelected={noteThemeChange} />;
+      return compactBar
+        ? <WallpaperEditor key="wallpaper" initialSegment="colors" segments={['colors', 'photo', 'video']} />
+        : <WallpaperEditor key="wallpaper" initialSegment="themes" onThemeSelected={noteThemeChange} />;
+    }
+
+    // Note 21: «السجل» — earlier designs, newest first. Their previews are drawn
+    // only once this section is opened, and each off-screen one waits until it
+    // scrolls into view (content-visibility), so dozens cost nothing up front.
+    if (activeTab === 'history') {
+      return (
+        <div className="p-5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          {savedHistory.length > 0 ? (
+            <>
+              <p className="mb-3 text-xs text-[#6e6e73]">اضغط على تصميم لإرجاعه إلى المحرر، ثم احفظ إن أعجبك.</p>
+              <div className="grid grid-cols-3 gap-3">
+                {savedHistory.map((version) => <div key={version.savedAt} style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 240px' }}>{renderVersion(version, true)}</div>)}
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-5 text-sm font-bold text-[#8e8e93]">
+              <History className="h-5 w-5 text-[#aeaeb2]" />
+              لا توجد تصاميم سابقة
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (activeTab === 'account' && staffEdit?.exitAsLogout) {
+      // Note 48: the association's own settings.
+      return <NonprofitSettings onLogout={() => setLogoutPrompt(true)} />;
     }
 
     if (activeTab === 'account') {
@@ -427,9 +505,22 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
 
   return (
     <div className="flex h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col bg-gray-50" dir="rtl">
-      <div className="flex items-center justify-between gap-2 border-b border-black/5 bg-white px-3 py-2 sm:px-4 sm:py-3">
+      {/* Note 18: in the association's editor this bar is for the phone only;
+          on a computer its actions live in the one toolbar above the preview. */}
+      {/* Note 39: the association's editor has no top bar on any screen —
+          sign-out is in «الإعدادات», and «التالي» sits by «الشكل الحالي». */}
+      <div className={`flex items-center justify-between gap-2 border-b border-black/5 bg-white px-3 py-2 sm:px-4 sm:py-3 ${compactBar ? 'hidden' : ''}`}>
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Exit, first in the header (top right in RTL), on every screen size. */}
+          {staffEdit?.exitAsLogout ? (
+            <button
+              onClick={() => setLogoutPrompt(true)}
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-gray-100 px-3.5 text-sm font-bold text-gray-700 transition-transform active:scale-95"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <LogOut className="h-4 w-4" />تسجيل الخروج
+            </button>
+          ) : (
           <button
             onClick={() => leave(() => (staffEdit ? staffEdit.onExit() : navigate('/')))}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform active:scale-95"
@@ -438,6 +529,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
           >
             <X className="h-5 w-5" />
           </button>
+          )}
           {staffEdit && (
             <div className="text-base font-bold text-emerald-600 sm:text-xl" style={{ fontFamily: 'Cairo, sans-serif' }}>
               {staffEdit.title ?? 'تعديل صفحة عميل'}
@@ -449,7 +541,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {staffEdit?.onContinue && <button type="button" onClick={async () => { if (await handleSave()) staffEdit.onContinue?.(); }} disabled={saving || loadingPage} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{staffEdit.continueLabel ?? 'التالي'}</button>}
+          {staffEdit?.onContinue && <button type="button" onClick={continueToNext} disabled={saving || loadingPage} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{staffEdit.continueLabel ?? 'التالي'}</button>}
           {account && !account.emailVerified && !guestPreview && !staffEdit ? (
             // Until the email is confirmed the confirmation takes the header's place.
             <EmailVerifyChip />
@@ -489,7 +581,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
         </div>
       )}
 
-      <div className="lg:hidden flex-1 min-h-0 overflow-y-auto scroll-smooth bg-[#f5f5f7]" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+      <div className="lg:hidden flex-1 min-h-0 overflow-y-auto scroll-smooth bg-[#f5f5f7]" style={{ fontFamily: 'Tajawal, sans-serif', ...(compactBar ? brandBackdrop : {}) }}>
         <main className="mx-auto max-w-md space-y-7 px-4 pb-10 pt-5">
           {/* Apple-style row of round shortcuts, scrolls sideways */}
           <section className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -499,7 +591,10 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
               ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
-            ].filter(showSection).map(withLabel).map((item) => {
+            ].filter(showSection).map(withLabel).concat(
+              // Notes 18–19: the association's own «الإعدادات», on every screen.
+              compactBar ? [{ id: 'theme' as Tab, label: 'القوالب', icon: Palette, tone: 'bg-[#FFF0E8] text-[#F25A18]' }, { id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }, { id: 'history' as Tab, label: 'السجل', icon: History, tone: 'bg-[#e5e5ea] text-[#3a3a3c]' }] : [],
+            ).map((item) => {
               const Icon = item.icon;
               return (
                 <button key={item.id} onClick={() => openPanel(item.id)} className="flex w-[68px] shrink-0 snap-start flex-col items-center gap-2 transition-transform active:scale-95">
@@ -511,9 +606,18 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
           </section>
 
           <section>
-            <h2 className="mb-3 px-1 text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>الشكل الحالي</h2>
+            <div className="mb-3 flex items-center justify-between gap-3 px-1">
+              <h2 className="shrink-0 text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>الشكل الحالي</h2>
+              {/* Note 39: the step to review and publish, beside the design it concerns. */}
+              {compactBar && staffEdit?.onContinue && (
+                <button type="button" onClick={continueToNext} disabled={saving || loadingPage} className="flex h-11 min-w-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-sm font-bold text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] transition-transform active:scale-[0.97] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  <span className="truncate">{staffEdit.continueLabel ?? 'التالي'}</span>
+                  <ArrowLeft className="h-4 w-4 shrink-0" />
+                </button>
+              )}
+            </div>
             <div className="flex items-stretch gap-2.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              <button onClick={() => (staffEdit || guestPreview ? openPanel('header') : navigate('/preview'))} className="w-[40%] shrink-0 text-right transition-transform active:scale-[0.98]">
+              <button onClick={() => ((staffEdit && !compactBar) || guestPreview ? openPanel('header') : navigate('/preview'))} className="w-[40%] shrink-0 text-right transition-transform active:scale-[0.98]">
                 <PhonePreview interactive={false} />
                 <span className="mt-2 block text-center text-xs font-bold text-[#3a3a3c]">{isDirty ? `الحالي · ${draftLabel}` : 'الحالي'}</span>
               </button>
@@ -565,7 +669,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               <div className="sticky top-0 z-10 border-b border-black/5 bg-[#f7f7f8]/95 px-5 py-3 backdrop-blur">
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                   <button onClick={cancelPanel} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[#55555b]" aria-label="إغلاق"><X className="h-5 w-5" /></button>
-                  <h2 className="text-lg font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{mobilePanel === 'theme' ? 'الخلفية' : tabs.find((tab) => tab.id === mobilePanel)?.label}</h2>
+                  <h2 className="text-lg font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{mobilePanel === 'theme' ? (compactBar ? 'القوالب الجاهزة' : 'الخلفية') : mobilePanel === 'account' ? 'الإعدادات' : mobilePanel === 'history' ? 'السجل' : tabs.find((tab) => tab.id === mobilePanel)?.label}</h2>
                   {mobilePanel === 'account' || guestPreview || !isAuthenticated ? <span /> : (
                     <button onClick={finishPanel} className={`justify-self-end rounded-full px-3.5 py-2 text-[13px] font-black transition-colors ${panelChanged ? 'bg-emerald-600 text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)]' : 'bg-emerald-50 text-emerald-700'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                       احفظ تعديلاتي
@@ -622,7 +726,10 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
 
       {/* Desktop: the phone layout's language on a wide screen — a rail of the
           same round sections, the open panel beside it, and the page large. */}
-      <div className="hidden min-h-0 flex-1 overflow-y-auto bg-[#f5f5f7] lg:block" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+      {/* Note 46: the association's editor on a computer is drawn at 80 %, the
+          density the owner liked at the browser's 80 % zoom — the whole area
+          (sections, panel, preview, themes) scaled together, so nothing drifts. */}
+      <div ref={desktopScroll} className="hidden min-h-0 flex-1 overflow-y-auto bg-[#f5f5f7] lg:block" style={{ fontFamily: 'Tajawal, sans-serif', ...(compactBar ? { ...brandBackdrop, zoom: DESKTOP_DENSITY } : {}) }}>
         <div className="mx-auto grid h-full max-w-[1400px] grid-cols-[96px_minmax(380px,440px)_minmax(0,1fr)] gap-6 px-6 py-6">
           <nav className="flex flex-col items-center gap-5 pt-2">
             {[
@@ -631,9 +738,11 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
               ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
-            ].filter(showSection).map(withLabel).map((item) => {
+            ].filter(showSection).map(withLabel).concat(
+              compactBar ? [{ id: 'theme' as Tab, label: 'القوالب', icon: Palette, tone: 'bg-[#FFF0E8] text-[#F25A18]' }, { id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }, { id: 'history' as Tab, label: 'السجل', icon: History, tone: 'bg-[#e5e5ea] text-[#3a3a3c]' }] : [],
+            ).map((item) => {
               const Icon = item.icon;
-              const active = activeTab === item.id || (item.id === 'wallpaper' && activeTab === 'theme');
+              const active = activeTab === item.id || (!compactBar && item.id === 'wallpaper' && activeTab === 'theme');
               return (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} className="group flex flex-col items-center gap-1.5">
                   <span className={`flex h-14 w-14 items-center justify-center rounded-full transition-all ${item.tone} ${active ? 'scale-105 ring-[3px] ring-[#0a84ff] ring-offset-2 ring-offset-[#f5f5f7]' : 'opacity-80 group-hover:opacity-100'}`}>
@@ -648,24 +757,58 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
           <aside className="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#f2f2f7] shadow-[0_2px_12px_rgba(0,0,0,0.05)] ring-1 ring-black/[0.04]">
             <div className="border-b border-black/5 bg-white/80 px-6 py-4 backdrop-blur">
               <h2 className="text-xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                {activeTab === 'theme' ? 'الخلفية' : tabs.find((tab) => tab.id === activeTab)?.label}
+                {activeTab === 'theme' ? (compactBar ? 'القوالب الجاهزة' : 'الخلفية') : activeTab === 'account' ? 'الإعدادات' : activeTab === 'history' ? 'السجل' : tabs.find((tab) => tab.id === activeTab)?.label}
               </h2>
             </div>
+            {/* Note 46: the whole computer view is drawn at 80 % (see above). */}
             <div className="min-h-0 flex-1 overflow-y-auto">{renderActivePanel()}</div>
           </aside>
 
           <section className="flex min-h-0 flex-col items-center gap-4">
             {/* The edit actions come first, on the right where an Arabic reader starts. */}
             <div className="flex w-full items-center justify-between rounded-full bg-white px-3 py-2 shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
-              {renderEditActions(true)}
-              <div className="flex items-center gap-2 px-2 text-sm text-[#6e6e73]">
-                <span className={`h-2 w-2 rounded-full ${isDirty ? 'bg-amber-500' : 'bg-[#34c759]'}`} />
-                {isDirty ? draftLabel : isPublished ? 'هذه النسخة المنشورة' : 'كل التعديلات محفوظة'}
-              </div>
+              {compactBar ? (
+                // Note 18: editing tools together on the right, a short quiet state,
+                // and the step forward alone on the left as the main action.
+                <>
+                  <div className="flex items-center gap-3">
+                    {renderEditActions(true)}
+                    {/* Note 26: the full preview, always in reach. */}
+                    <button type="button" onClick={() => navigate('/preview')} className="flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-[#3a3a3c] transition-colors hover:bg-[#f2f2f7]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      <Eye className="h-4 w-4" />معاينة
+                    </button>
+                    <span className="flex items-center gap-1.5 text-xs text-[#8e8e93]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${saving ? 'bg-[#8e8e93]' : isDirty ? 'bg-amber-500' : 'bg-[#34c759]'}`} />
+                      {saving ? 'يحفظ…' : isDirty ? 'غير محفوظ' : 'تم الحفظ'}
+                    </span>
+                  </div>
+                  {staffEdit?.onContinue && (
+                    <button type="button" onClick={continueToNext} disabled={saving || loadingPage} className="flex h-11 items-center gap-2 rounded-full bg-emerald-600 px-6 text-[15px] font-bold text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] transition-all hover:bg-emerald-700 active:scale-[0.97] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      {staffEdit.continueLabel ?? 'التالي'}
+                      <ArrowLeft className="h-4 w-4" />
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  {renderEditActions(true)}
+                  <div className="flex items-center gap-2 px-2 text-sm text-[#6e6e73]">
+                    <span className={`h-2 w-2 rounded-full ${isDirty ? 'bg-amber-500' : 'bg-[#34c759]'}`} />
+                    {isDirty ? draftLabel : isPublished ? 'هذه النسخة المنشورة' : 'كل التعديلات محفوظة'}
+                  </div>
+                </>
+              )}
             </div>
             <div className="flex min-h-0 w-full flex-1 items-center justify-center">
-              <div className="aspect-[390/862] h-full max-h-[780px] max-w-full"><PhonePreview /></div>
+              <div className="aspect-[390/862] h-full max-h-[780px] max-w-full"><PhonePreview onItemClick={openItem} /></div>
             </div>
+            {compactBar && !themesSeen && (
+              <button type="button" onClick={() => { galleriesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); markThemesSeen(); }} className="flex items-center gap-2 rounded-full bg-[#111111] px-6 py-3 text-base font-bold text-white shadow-[0_6px_18px_rgba(17,17,17,0.22)] transition-transform hover:-translate-y-0.5 active:scale-95" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <Palette className="h-5 w-5 text-[#FF6B2C]" />
+                اكتشف الثيمات
+                <ChevronDown className="h-5 w-5 motion-safe:animate-bounce" />
+              </button>
+            )}
             {!staffEdit && !guestPreview && isAuthenticated && (
               <button onClick={() => navigate('/preview')} className="flex items-center gap-2 text-sm font-bold text-[#0a84ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 <Eye className="h-4 w-4" />
@@ -675,9 +818,10 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
           </section>
         </div>
         {/* Note 3: the themes gallery, a calm extension below the editor. */}
-        <div className="mx-auto max-w-[1400px] space-y-8 px-6 pb-10 pt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-          {/* Note 16: the saved earlier versions, as on the phone. */}
-          <section>
+        <div ref={galleriesRef} className="mx-auto max-w-[1400px] scroll-mt-4 space-y-8 px-6 pb-10 pt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          {/* Note 16: the saved earlier versions, as on the phone. Note 21: in the
+              association's editor they live in «السجل» instead. */}
+          {!compactBar && <section>
             <h2 className="mb-3 text-2xl font-black text-[#1d1d1f]">الأشكال السابقة</h2>
             {savedHistory.length > 0 ? (
               <>
@@ -690,7 +834,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
                 لا توجد تصاميم سابقة
               </div>
             )}
-          </section>
+          </section>}
           {renderGalleries(true)}
         </div>
       </div>
@@ -705,6 +849,24 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
       {guestPreview && !isAuthenticated && <AuthModal mode="signup" username={guestUsername} inEditor />}
       {showLogin && !isAuthenticated && !guestPreview && <AuthModal mode="login" inEditor />}
 
+      {logoutPrompt && staffEdit?.exitAsLogout && (
+        // One short choice: save and sign out, stay, or sign out without saving
+        // (offered only when there is something unsaved).
+        <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={() => setLogoutPrompt(false)}>
+          <div className="w-full max-w-[340px] overflow-hidden rounded-[22px] bg-white text-center shadow-2xl" onClick={(event) => event.stopPropagation()} role="alertdialog" aria-modal="true" aria-label="تسجيل الخروج؟">
+            <p className="px-6 pb-4 pt-5 text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>تسجيل الخروج؟</p>
+            <div className="space-y-2 px-4 pb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <button type="button" disabled={saving} onClick={async () => { if (!isDirty || (await handleSave())) { setLogoutPrompt(false); staffEdit.exitAsLogout!(); } }} className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#FF6B2C] text-[15px] font-bold text-white disabled:opacity-60">
+                {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : isDirty ? 'حفظ وتسجيل الخروج' : 'تسجيل الخروج'}
+              </button>
+              <button type="button" onClick={() => setLogoutPrompt(false)} className="block w-full rounded-xl bg-[#f2f2f7] py-3 text-[15px] font-bold text-[#1d1d1f]">إلغاء</button>
+              {isDirty && !saving && (
+                <button type="button" onClick={() => { setLogoutPrompt(false); staffEdit.exitAsLogout!(); }} className="block w-full py-2.5 text-[15px] font-bold text-[#ff3b30]">خروج بدون حفظ</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {exitPrompt && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" style={{ fontFamily: 'Tajawal, sans-serif' }}>
           <div className="w-full max-w-[320px] overflow-hidden rounded-3xl bg-white text-center shadow-2xl">

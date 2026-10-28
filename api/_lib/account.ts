@@ -236,6 +236,13 @@ export async function activateSubscription(
   const queryable = client;
   const period = plan === 'annual' ? '1 year' : '1 month';
 
+  // Note 19: an association designs, saves and asks for a quote freely, but
+  // its page is published only once its email is confirmed.
+  const owner = await queryable.query<{ account_kind: string; email_verified_at: string | null }>('select account_kind, email_verified_at from users where id = $1', [userId]);
+  if (owner.rows[0]?.account_kind === 'nonprofit' && !owner.rows[0].email_verified_at) {
+    throw new HttpError(409, 'لا يمكن تفعيل صفحة الجمعية قبل تأكيد بريدها الإلكتروني. اطلب من الجمعية تأكيده من «الإعدادات» في المحرر.');
+  }
+
   // NEW-01 (amended): payment is what fixes the held name. An expired hold
   // that nobody else claimed is still honoured.
   await queryable.query(

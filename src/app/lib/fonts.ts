@@ -32,14 +32,25 @@ export function loadFont(id: string | undefined) {
 
 // Note (9): an uploaded font, registered once per file under a safe family
 // name derived from its link (never from user text).
-const customLoaded = new Map<string, string>();
+// Note 26: registered in the document that shows it — the editor's preview is
+// its own frame, with its own font list, so a font added only to the main
+// page never reached it.
+const customLoaded = new WeakMap<Document, Set<string>>();
 export function customFontFamily(url: string) {
   return `onwan-font-${url.replace(/[^a-z0-9]/gi, '').slice(-16)}`;
 }
-export function loadCustomFont(url: string | undefined) {
-  if (!url || customLoaded.has(url) || typeof document === 'undefined') return;
-  const family = customFontFamily(url);
-  customLoaded.set(url, family);
-  const face = new FontFace(family, `url(${JSON.stringify(url)})`);
-  face.load().then((loadedFace) => document.fonts.add(loadedFace)).catch(() => customLoaded.delete(url));
+export function loadCustomFont(url: string | undefined, target?: Document | null) {
+  const doc = target ?? (typeof document === 'undefined' ? null : document);
+  if (!url || !doc) return;
+  const done = customLoaded.get(doc) ?? new Set<string>();
+  customLoaded.set(doc, done);
+  if (done.has(url)) return;
+  done.add(url);
+  const face = new FontFace(customFontFamily(url), `url(${JSON.stringify(new URL(url, window.location.href).href)})`);
+  face.load().then((loadedFace) => doc.fonts.add(loadedFace)).catch(() => done.delete(url));
 }
+
+// Note 26: an uploaded font stays with the page while another font is tried;
+// `useCustomFont: false` only switches it off.
+export const customFontActive = (typography?: { customFont?: { url: string }; useCustomFont?: boolean }) =>
+  Boolean(typography?.customFont && typography.useCustomFont !== false);

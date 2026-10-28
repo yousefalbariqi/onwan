@@ -8,6 +8,8 @@ import { MAX_LINKS } from '../lib/site';
 
 export interface LinkDisplay {
   kind?: 'heading' | 'video' | 'text' | 'document';
+  // Note 37: a video's own title and YouTube link, above or below it (unset = hidden).
+  caption?: 'above' | 'below';
   // Note 27: which official document (lib/officialDocuments.ts).
   docType?: string;
   sectionLayout?: 'list' | 'grid' | 'carousel';
@@ -19,6 +21,8 @@ export interface LinkDisplay {
   imageFit?: 'cover' | 'contain';
   positionX?: number;
   positionY?: number;
+  // Note 44: a picture card's zoom (1–3), as for the profile photo.
+  zoom?: number;
 }
 
 export interface Link {
@@ -122,6 +126,8 @@ export interface PageData {
     iconPx?: number;
     textColor?: string;
     iconCustomColor?: string;
+    mediaRadius?: 'none' | 'small' | 'medium' | 'large'; // الفيديو والصور
+    spacing?: 'compact' | 'normal' | 'relaxed'; // المسافات بين العناصر
   };
   profileStyle: {
     type: 'circle' | 'rounded' | 'square' | 'hero' | 'hero_safe' | 'premium' | 'banner';
@@ -144,6 +150,10 @@ export interface PageData {
     bioPx?: number;
     // Note (9): an uploaded font (stored file + its name); wins over `font`.
     customFont?: { url: string; name: string };
+    // Note 26: false while a ready-made font is chosen; the upload is kept.
+    useCustomFont?: boolean;
+    headingSize?: 'small' | 'medium' | 'large'; // العناوين
+    paragraphSize?: 'small' | 'medium' | 'large'; // النصوص
   };
   customColors?: {
     nameColor?: string;
@@ -181,6 +191,8 @@ interface PageContextType {
   save: () => Promise<void>;
   logout: () => void;
   resetDesign: () => void;
+  // Ready-made templates: the whole design at once; content is never touched.
+  applyDesign: (design: Pick<PageData, 'theme' | 'wallpaper' | 'buttonStyle' | 'profileStyle' | 'typography' | 'customColors'>) => void;
   updatePageData: (updates: Partial<PageData>) => void;
   updateTheme: (theme: Theme) => void;
   updateWallpaper: (wallpaper: PageData['wallpaper']) => void;
@@ -854,6 +866,17 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     edit((prev) => ({ ...prev, ...defaultDesign, customColors: undefined }));
   }, [edit]);
 
+  // An uploaded font and banner stay with the page (unused) so nothing is lost.
+  const applyDesign = useCallback<PageContextType['applyDesign']>((design) => {
+    edit((prev) => mergeWithDefaults({
+      ...prev,
+      ...design,
+      customColors: design.customColors,
+      profileStyle: { ...design.profileStyle, bannerImage: prev.profileStyle.bannerImage },
+      typography: { ...design.typography, ...(prev.typography?.customFont ? { customFont: prev.typography.customFont, useCustomFont: false } : {}) },
+    }));
+  }, [edit]);
+
   const updatePageData = useCallback((updates: Partial<PageData>) => {
     edit((prev) => mergeWithDefaults({ ...prev, ...updates }));
   }, [edit]);
@@ -950,6 +973,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         save,
         logout,
         resetDesign,
+        applyDesign,
         updatePageData,
         updateTheme,
         updateWallpaper,

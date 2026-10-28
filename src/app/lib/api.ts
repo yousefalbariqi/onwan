@@ -22,6 +22,7 @@ type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH';
   body?: unknown;
   authenticated?: boolean;
+  signal?: AbortSignal;
 };
 
 export type Plan = 'monthly' | 'annual';
@@ -85,6 +86,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   try {
     response = await fetch(path, {
       method: options.method ?? 'GET',
+      signal: options.signal,
       headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
@@ -110,13 +112,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return payload as T;
 }
 
-export function checkUsername(username: string) {
+export function checkUsername(username: string, signal?: AbortSignal) {
   return request<{
     available: boolean;
     normalized: string;
     reason: string | null;
     status: 'available' | 'invalid' | 'reserved' | 'taken';
-  }>(`/api/username/check?username=${encodeURIComponent(username)}`);
+  }>(`/api/username/check?username=${encodeURIComponent(username)}`, { signal });
 }
 
 export function signup(input: { username: string; phone: string; email: string; password: string; nonprofit?: boolean; organizationName?: string }) {

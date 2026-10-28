@@ -91,12 +91,17 @@ export async function consumeCode(email: string, purpose: OtpPurpose, code: stri
   const matches = provided.length === expected.length && crypto.timingSafeEqual(provided, expected);
 
   if (!matches) {
-    await pool.query('update verification_codes set attempts = attempts + 1 where id = $1', [row.id]);
+    await pool.query('update verification_codes set attempts = attempts + 1 where id = $1 and used = false and attempts < $2', [row.id, OTP_MAX_ATTEMPTS]);
     return false;
   }
 
-  await pool.query('update verification_codes set used = true where id = $1', [row.id]);
-  return true;
+  // The conditional update claims the code atomically: concurrent requests
+  // may read the same row, but only one can change unused to used.
+  const claimed = await pool.query(
+    'update verification_codes set used = true where id = $1 and used = false and attempts < $2 and expires_at > now() returning id',
+    [row.id, OTP_MAX_ATTEMPTS],
+  );
+  return claimed.rows.length === 1;
 }
 
 // Note 71: why a code was refused, in plain words. A wrong code is a 400 —

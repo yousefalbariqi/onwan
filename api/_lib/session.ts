@@ -9,6 +9,7 @@ export type SessionUser = {
   phone: string;
   status: 'active' | 'banned';
   email_verified_at: string | null;
+  session_version: number;
 };
 
 // MOD-06: a banned account sees a ban message and a contact channel.
@@ -30,13 +31,14 @@ export async function requireUser(req: any, res: any): Promise<SessionUser | nul
   }
 
   const result = await pool.query<SessionUser>(
-    'select id, email, phone, status, email_verified_at from users where id = $1 limit 1',
+    'select id, email, phone, status, email_verified_at, session_version from users where id = $1 limit 1',
     [session.userId],
   );
 
   const user = result.rows[0];
 
-  if (!user) {
+  // Legacy customer tokens have version zero; the first reset revokes them.
+  if (!user || (session.sessionVersion ?? 0) !== (user.session_version ?? 0)) {
     sendJson(res, 401, { error: 'انتهت الجلسة. سجّل الدخول من جديد.' });
     return null;
   }

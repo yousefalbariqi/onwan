@@ -231,7 +231,8 @@ const CHANGE_LABELS: Record<Change, string> = { password: 'كلمة المرور
 // registered email; a new email is also confirmed with a code sent to it.
 // Each change is a short page of its own: the code, the new value, one button.
 export function AccountSecurity({ change, onAccount, onDone }: { change: Change; onAccount: (account: Account) => void; onDone: (message: string) => void }) {
-  const [step, setStep] = useState<'sending' | 'code' | 'newEmailCode'>('sending');
+  // Note 50: opening this page sends nothing; the code goes out only when asked.
+  const [step, setStep] = useState<'intro' | 'sending' | 'code' | 'newEmailCode'>('intro');
   const [code, setCode] = useState('');
   const [value, setValue] = useState('');
   const [notice, setNotice] = useState<{ tone: 'info' | 'bad'; text: string } | null>(null);
@@ -257,8 +258,6 @@ export function AccountSecurity({ change, onAccount, onDone }: { change: Change;
     setNotice({ tone: 'info', text: response.message });
   });
 
-  // The code goes out as soon as the page opens.
-  useEffect(() => { void sendCode(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = () => run(async () => {
     if (change === 'password') {
@@ -278,6 +277,18 @@ export function AccountSecurity({ change, onAccount, onDone }: { change: Change;
       onDone(response.message);
     }
   });
+
+  if (step === 'intro') {
+    return (
+      <>
+        <Group title={`تغيير ${CHANGE_LABELS[change]}`} footer="نرسل رمز تحقق إلى بريدك المسجل لتأكيد أنك صاحب الحساب. لن يُرسل شيء قبل أن تطلبه.">
+          <p className="px-4 py-3 text-[15px] leading-7 text-[#3a3a3c]">{change === 'password' ? 'ستختار كلمة مرور جديدة بعد إدخال الرمز.' : change === 'email' ? 'ستكتب بريدك الجديد بعد إدخال الرمز، ثم نؤكده برمز ثانٍ.' : 'ستكتب رقم جوالك الجديد بعد إدخال الرمز.'}</p>
+        </Group>
+        <PrimaryButton busy={busy} onClick={() => { setStep('sending'); void sendCode(); }}>إرسال رمز التحقق</PrimaryButton>
+        {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
+      </>
+    );
+  }
 
   const ready = code.length === 4 && (step !== 'code' || value.length >= (change === 'password' ? 8 : 5));
 

@@ -113,6 +113,10 @@ export function SocialIcon({ platform, iconStyle, className: baseClass = 'w-5 h-
   if (customIcon?.startsWith('data:image/')) {
     return <img src={customIcon} alt="" className={`${className} rounded-[22%] object-cover`} style={box} />;
   }
+  // A stored icon (/media/...) or one of ours (/nonprofit/official-docs.png).
+  if (customIcon?.startsWith('/')) {
+    return <img src={customIcon} alt="" className={`${className} object-contain`} style={box} />;
+  }
   const libraryIcon = findLinkIcon(customIcon);
   if (libraryIcon) {
     const Icon = libraryIcon.Icon;

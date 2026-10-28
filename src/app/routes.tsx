@@ -18,6 +18,8 @@ import { DemoPayment, DemoPaymentSuccess } from './pages/DemoPayment';
 import Renewal from './pages/Renewal';
 import AdminApp from './admin/AdminApp';
 import StaffPageEditor from './admin/StaffPageEditor';
+import ThemeBuilder from './pages/ThemeBuilder';
+import SiteLegal from './pages/SiteLegal';
 import PartnerPortal from './partner/PartnerPortal';
 import { PartnerApply, PayOrder, Welcome } from './partner/PartnerPublic';
 import { getCustomHost, getSubdomainUsername, isNonprofitHost } from './lib/site';
@@ -91,12 +93,15 @@ export const router = createBrowserRouter(isNonprofitHost() ? [
     { index: true, element: <NonprofitLanding /> },
     { path: 'signup', element: <NonprofitAuth mode="signup" /> },
     { path: 'login', element: <NonprofitAuth mode="login" /> },
-    { path: 'reset-password', element: <ResetPassword /> },
+    { path: 'reset-password', element: <ResetPassword nonprofit /> },
     // Note 23: no account page in the nonprofit journey; old links go home.
     { path: 'account', element: <Navigate to="/" replace /> },
     { path: 'builder', element: <NonprofitBuilder /> },
+    // Note 26: the association's full preview of its draft.
+    { path: 'preview', element: <PublicPage /> },
     { path: 'onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate> },
     { path: 'quote', element: <NonprofitQuote /> },
+    { path: 'theme-builder', element: <ThemeBuilder /> },
     { path: 'privacy', element: <NonprofitLegal page="privacy" /> },
     { path: 'terms', element: <NonprofitLegal page="terms" /> },
     { path: 'reports', element: <NonprofitLegal page="reports" /> },
@@ -127,11 +132,16 @@ export const router = createBrowserRouter(isNonprofitHost() ? [
       }, { path: 'nonprofit/builder', element: <NonprofitBuilder />,
       }, { path: 'nonprofit/onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate>,
       }, { path: 'nonprofit/quote', element: <NonprofitQuote />,
+      }, { path: 'nonprofit/theme-builder', element: <ThemeBuilder />,
       }, { path: 'nonprofit/privacy', element: <NonprofitLegal page="privacy" />,
       }, { path: 'nonprofit/terms', element: <NonprofitLegal page="terms" />,
       }, { path: 'nonprofit/reports', element: <NonprofitLegal page="reports" />,
       }, { path: 'nonprofit/contact', element: <NonprofitLegal page="contact" />,
-      }, { path: 'nonprofit/reset-password', element: <ResetPassword />,
+      }, { path: 'nonprofit/reset-password', element: <ResetPassword nonprofit />,
+      }, { path: 'terms', element: <SiteLegal page="terms" />,
+      }, { path: 'privacy', element: <SiteLegal page="privacy" />,
+      }, { path: 'refund', element: <SiteLegal page="refund" />,
+      }, { path: 'contact', element: <SiteLegal page="contact" />,
       }, {
         path: 'signup',
         element: <Signup />,

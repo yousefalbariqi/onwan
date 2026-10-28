@@ -4,7 +4,7 @@ import { BUTTON_LIMITS, buttonMetrics } from '../lib/buttonSizes';
 import { Segmented, Toggle } from './ios';
 import { pageHost } from '../lib/site';
 import { FONT_OPTIONS, PageData, usePageContext } from '../context/PageContext';
-import { customFontFamily, loadCustomFont, loadFont } from '../lib/fonts';
+import { customFontActive, customFontFamily, loadCustomFont, loadFont } from '../lib/fonts';
 import { uploadFont } from '../lib/fontUpload';
 import { PhonePreview } from './PhonePreview';
 
@@ -16,6 +16,19 @@ const SIZES = [
   { id: 'small', label: 'صغير' },
   { id: 'medium', label: 'متوسط' },
   { id: 'large', label: 'كبير' },
+] as const;
+
+// Page-wide looks shared by every video, picture and item (templates, step 1).
+const MEDIA_RADIUS_OPTIONS = [
+  { id: 'none', label: 'بدون' },
+  { id: 'small', label: 'خفيفة' },
+  { id: 'medium', label: 'متوسطة' },
+  { id: 'large', label: 'كبيرة' },
+] as const;
+const SPACING_OPTIONS = [
+  { id: 'compact', label: 'متقاربة' },
+  { id: 'normal', label: 'عادية' },
+  { id: 'relaxed', label: 'واسعة' },
 ] as const;
 
 const BUTTON_SHAPES = [
@@ -90,6 +103,7 @@ export function StyleEditor() {
   const colors = pageData.customColors ?? {};
   const [fineOpen, setFineOpen] = useState(false);
   const customFont = pageData.typography?.customFont;
+  const customOn = customFontActive(pageData.typography);
   const [fontBusy, setFontBusy] = useState(false);
   const [fontError, setFontError] = useState('');
   useEffect(() => loadCustomFont(customFont?.url), [customFont?.url]);
@@ -148,6 +162,10 @@ export function StyleEditor() {
                 {/* A preset size replaces any exact size set below. */}
                 <div><ToolLabel>الحجم</ToolLabel><Segmented options={SIZES} value={exactSizes ? ('' as never) : buttonStyle.size ?? 'medium'} onChange={(size) => updateButtonStyle({ size: size as (typeof SIZES)[number]['id'], heightPx: undefined, fontPx: undefined, iconPx: undefined })} /></div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><ToolLabel>استدارة الصور والفيديو</ToolLabel><Segmented options={MEDIA_RADIUS_OPTIONS} value={buttonStyle.mediaRadius ?? 'medium'} onChange={(mediaRadius) => updateButtonStyle({ mediaRadius })} /></div>
+                <div><ToolLabel>المسافات بين العناصر</ToolLabel><Segmented options={SPACING_OPTIONS} value={buttonStyle.spacing ?? 'normal'} onChange={(spacing) => updateButtonStyle({ spacing })} /></div>
+              </div>
               <div className="flex items-center gap-4">
                 <label className="flex flex-1 items-center justify-between rounded-xl bg-[#f2f2f7] px-3 py-2 text-sm text-[#1d1d1f]">حواف فقط<Toggle label="حواف فقط" on={!!buttonStyle.border} onChange={() => updateButtonStyle({ border: !buttonStyle.border })} /></label>
                 <label className="flex flex-1 items-center justify-between rounded-xl bg-[#f2f2f7] px-3 py-2 text-sm text-[#1d1d1f]">الظل<Toggle label="الظل" on={!!buttonStyle.shadow} onChange={() => updateButtonStyle({ shadow: !buttonStyle.shadow })} /></label>
@@ -192,7 +210,7 @@ export function StyleEditor() {
                   <Scroller>
                     {/* Note (9): the page's own font, uploaded — first in the row. */}
                     {customFont && (
-                      <button type="button" aria-pressed="true" className="w-[104px] shrink-0 rounded-2xl border-2 border-[#0a84ff] bg-[#0a84ff]/5 px-2 py-2.5 text-center">
+                      <button type="button" aria-pressed={customOn} onClick={() => updateTypography({ useCustomFont: true })} className={`w-[104px] shrink-0 rounded-2xl border-2 px-2 py-2.5 text-center transition-all ${customOn ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
                         <span className="block truncate text-lg font-bold text-[#1d1d1f]" style={{ fontFamily: customFontFamily(customFont.url) }}>{pageData.name.trim() || 'اسم الجهة'}</span>
                         <span className="block truncate text-[10px] text-[#8e8e93]">{customFont.name}</span>
                       </button>
@@ -207,15 +225,15 @@ export function StyleEditor() {
                         setFontBusy(true);
                         setFontError('');
                         uploadFont(file)
-                          .then((font) => { loadCustomFont(font.url); updateTypography({ customFont: font }); })
+                          .then((font) => { loadCustomFont(font.url); updateTypography({ customFont: font, useCustomFont: true }); })
                           .catch((error) => setFontError(error instanceof Error ? error.message : 'تعذّر رفع الخط.'))
                           .finally(() => setFontBusy(false));
                       }} />
                     </label>
                     {FONT_OPTIONS.map((font) => {
-                      const active = !customFont && currentFont === font.id;
+                      const active = !customOn && currentFont === font.id;
                       return (
-                        <button key={font.id} onClick={() => updateTypography({ font: font.id, customFont: undefined })} className={`w-[104px] shrink-0 rounded-2xl border-2 px-2 py-2.5 text-center transition-all ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
+                        <button key={font.id} onClick={() => updateTypography({ font: font.id, useCustomFont: false })} className={`w-[104px] shrink-0 rounded-2xl border-2 px-2 py-2.5 text-center transition-all ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
                           {/* the entity's own name, so they see their name in each font */}
                           <span className="block truncate text-lg font-bold text-[#1d1d1f]" style={{ fontFamily: font.family }}>{pageData.name.trim() || 'اسم الجهة'}</span>
                           <span className="block text-[10px] text-[#8e8e93]" dir="ltr">{font.name}</span>
@@ -225,7 +243,7 @@ export function StyleEditor() {
                   </Scroller>
                 </div>
                 {fontError && <p role="alert" className="mt-2 text-xs text-[#ff3b30]">{fontError}</p>}
-                {customFont && <button type="button" onClick={() => updateTypography({ customFont: undefined })} className="mt-2 text-xs text-[#0a84ff]">الرجوع إلى الخطوط الجاهزة</button>}
+                {customFont && <button type="button" onClick={() => updateTypography({ customFont: undefined, useCustomFont: undefined })} className="mt-2 text-xs text-[#ff3b30]">حذف الخط المخصص</button>}
               </div>
               <div>
                 <ToolLabel>الحجم</ToolLabel>
@@ -257,6 +275,12 @@ export function StyleEditor() {
                       </div>
                     );
                   })}
+                  {([{ key: 'headingSize', label: 'العناوين' }, { key: 'paragraphSize', label: 'النصوص' }] as const).map((text) => (
+                    <div key={text.key} className="flex items-center gap-2">
+                      <span className="w-11 shrink-0 text-sm text-[#1d1d1f]">{text.label}</span>
+                      <div className="min-w-0 flex-1"><Segmented options={SIZES} value={pageData.typography?.[text.key] ?? 'medium'} onChange={(size) => updateTypography({ [text.key]: size as (typeof SIZES)[number]['id'] })} /></div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </>

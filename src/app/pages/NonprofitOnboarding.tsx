@@ -1,21 +1,55 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
-import { Check, ChevronRight, Plus, User } from 'lucide-react';
+import { Check, ChevronRight, FileText, Image as ImageIcon, Play, Plus, User } from 'lucide-react';
 import { ImageProblem, compressImage } from '../lib/compressImage';
 import { extractColorsFromImage } from '../utils/colorExtractor';
 import { usePageContext, type Link } from '../context/PageContext';
 import { SOCIAL_PLATFORMS, SocialIcon, brandColor } from '../components/SocialIcons';
 import { nonprofitPath } from '../lib/nonprofit';
+import { preloadMedia } from '../lib/mediaUpload';
+import { OFFICIAL_DOCUMENTS } from '../lib/officialDocuments';
+import { finishOnboarding, onboardingPending, onboardingProgress, saveOnboarding } from '../lib/nonprofitOnboarding';
 
 // Note 19: right after a nonprofit signs up, «أين تتواجد جمعيتكم؟» — a grid of
 // platform tiles (several may be chosen), then «عرّف بجمعيتك» (note 20): logo,
 // name and a short bio. Note 25: no links are asked for here — each chosen
 // platform lands in «المحتوى» as «يرجى إكمال الرابط», hidden from visitors
 // until its link is added. The platform list and wording are still under study.
-const PLATFORM_IDS = ['whatsapp', 'twitter', 'instagram', 'snapchat', 'tiktok', 'youtube', 'linkedin', 'facebook', 'telegram', 'website', 'email'] as const;
+// Note 13: content tiles (a clip, a picture, a file) sit between the platforms,
+// and the four official documents close the grid. Each chosen one becomes a
+// hidden item waiting in the editor, like a platform without its link.
+type Choice =
+  | { id: string; name: string; kind: 'platform' }
+  | { id: 'video' | 'image' | 'file'; name: string; kind: 'content' }
+  | { id: string; name: string; kind: 'document'; docType: string };
+const social = (id: string): Choice => ({ id, name: SOCIAL_PLATFORMS.find((p) => p.id === id)!.name, kind: 'platform' });
+const doc = (id: string): Choice => {
+  const item = OFFICIAL_DOCUMENTS.find((d) => d.id === id)!;
+  return { id: `doc-${item.id}`, name: item.title, kind: 'document', docType: item.id };
+};
+const CHOICES: Choice[] = [
+  social('whatsapp'),
+  doc('registration'),
+  { id: 'video', name: 'مقطع', kind: 'content' },
+  social('twitter'),
+  social('instagram'),
+  { id: 'image', name: 'صورة مخصصة', kind: 'content' },
+  social('snapchat'),
+  social('tiktok'),
+  { id: 'file', name: 'ملف مخصص', kind: 'content' },
+  social('youtube'),
+  social('linkedin'),
+  social('facebook'),
+  social('telegram'),
+  social('website'),
+  social('email'),
+  // «وثيقة ترخيص الجمعية» is not offered here; it stays in the editor's «الوثائق الرسمية».
+  doc('fundraising'),
+  doc('governance'),
+];
 const BIO_LIMIT = 150;
 const STEPS = 2;
-const PLATFORMS = PLATFORM_IDS.map((id) => SOCIAL_PLATFORMS.find((p) => p.id === id)!);
 
 // Note 19 (update): each logo as its owner shows it. Official Simple Icons
 // paths (SVG, sharp on Retina). Platforms whose mark is an app tile get their
@@ -35,6 +69,18 @@ const TILES: Record<string, { background?: string; glyph: string; filter?: strin
   telegram: { glyph: '#26A5E4' },
 };
 
+// Note 13: tiles for content, and the official documents' own mark.
+const CONTENT_TILES = { video: { Icon: Play, background: '#FF6B2C' }, image: { Icon: ImageIcon, background: '#111111' }, file: { Icon: FileText, background: '#737373' } };
+
+function ChoiceTile({ choice }: { choice: Choice }) {
+  if (choice.kind === 'document') return <span className="flex h-14 w-14 items-center justify-center sm:h-16 sm:w-16"><img src="/nonprofit/official-docs.png" alt="" className="h-12 w-auto sm:h-14" /></span>;
+  if (choice.kind === 'content') {
+    const { Icon, background } = CONTENT_TILES[choice.id];
+    return <span className="flex h-14 w-14 items-center justify-center rounded-[22%] text-white sm:h-16 sm:w-16" style={{ background }}><Icon className="h-7 w-7" fill={choice.id === 'video' ? 'currentColor' : 'none'} /></span>;
+  }
+  return <Tile platform={choice.id} />;
+}
+
 function Tile({ platform }: { platform: string }) {
   const tile = TILES[platform] ?? { background: brandColor(platform), glyph: '#ffffff' };
   // One optical size for every logo: tiles are 56/64 px with a 30 px mark; a
@@ -51,10 +97,14 @@ function Tile({ platform }: { platform: string }) {
 export function NonprofitOnboarding() {
   const navigate = useNavigate();
   const { pageData, updatePageData, updateProfileStyle, addLink, save, saving } = usePageContext();
-  const [step, setStep] = useState<1 | 2>(1);
+  // Note 14: the step and the chosen tiles survive leaving and coming back.
+  const [step, setStep] = useState<1 | 2>(() => onboardingProgress()?.step ?? 1);
   const [imageError, setImageError] = useState('');
   const uploadId = useId();
-  const [chosen, setChosen] = useState<string[]>([]);
+  const [chosen, setChosen] = useState<string[]>(() => onboardingProgress()?.chosen ?? []);
+  // Only an open setup is remembered; opening this page again after it was
+  // finished does not lock the editor.
+  useEffect(() => { if (onboardingPending()) saveOnboarding({ step, chosen }); }, [step, chosen]);
   const [error, setError] = useState('');
   const toEditor = () => navigate(nonprofitPath('builder'), { replace: true });
 
@@ -64,15 +114,28 @@ export function NonprofitOnboarding() {
     setError('');
     // No placeholder links: an empty link, hidden, marked «يرجى إكمال الرابط» in the editor.
     const existing = new Set(pageData.links.map((link) => link.platform));
-    PLATFORMS.filter((p) => chosen.includes(p.id) && !existing.has(p.id as Link['platform'])).forEach((p) => {
-      addLink({ title: p.name, url: '', platform: p.id as Link['platform'], iconStyle: 'color', linkType: 'url', hidden: true });
-    });
-    try {
-      await save();
-      toEditor();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'تعذر حفظ الروابط. حاول مرة أخرى.');
-    }
+    const existingDocs = new Set(pageData.links.map((link) => link.display?.kind === 'document' && link.display.docType));
+    // Note 16: added synchronously, so the save right below already carries
+    // every chosen item (and the name, bio and logo) to the account.
+    flushSync(() => CHOICES.filter((choice) => chosen.includes(choice.id)).forEach((choice) => {
+      const base = { url: '', iconStyle: 'color' as const, textPosition: 'center' as const, hidden: true };
+      if (choice.kind === 'platform') {
+        if (!existing.has(choice.id as Link['platform'])) addLink({ ...base, title: choice.name, platform: choice.id as Link['platform'], linkType: 'url' });
+      } else if (choice.kind === 'document') {
+        if (!existingDocs.has(choice.docType)) addLink({ ...base, title: choice.name, platform: 'file', linkType: 'file', fileCategory: 'other', display: { kind: 'document', docType: choice.docType } });
+      } else if (choice.id === 'video') {
+        // Note 24: a clip is a button like any other link (no embedded player).
+        addLink({ ...base, title: 'مقطع', platform: 'youtube', linkType: 'url' });
+      } else {
+        addLink({ ...base, title: choice.id === 'image' ? 'صورة' : 'ملف', platform: 'file', linkType: 'file', fileCategory: 'other' });
+      }
+    }));
+    // Note 18: the editor opens at once; the save goes on in the background
+    // (the editor shows it). Everything is already in the draft, so a failed
+    // save loses nothing: it stays unsaved and the draft keeps retrying.
+    finishOnboarding();
+    save().catch(() => undefined);
+    toEditor();
   };
 
   // Name, bio and logo go straight into the page draft, so they survive going back and forth.
@@ -81,6 +144,8 @@ export function NonprofitOnboarding() {
     compressImage(file)
       .then(async (image) => {
         updatePageData({ profileImage: image });
+        // Note 18: the logo starts uploading now, while the name and bio are typed.
+        preloadMedia(image);
         updateProfileStyle({ fit: 'contain', zoom: 1, positionX: 50, positionY: 50 });
         const colors = await extractColorsFromImage(image, 8);
         if (colors.length > 0) updatePageData({ extractedColors: colors });
@@ -107,7 +172,7 @@ export function NonprofitOnboarding() {
             <h1 className="text-center text-[28px] font-black leading-tight sm:text-[34px]">محتوى صفحتك</h1>
             <p className="mt-2 text-center text-[15px] text-[#6e6e73] sm:text-base">أضف وعدّل واحذف في أي وقت من محرر الصفحة.</p>
             <div className="mt-8 grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4">
-              {PLATFORMS.map((p) => {
+              {CHOICES.map((p) => {
                 const active = chosen.includes(p.id);
                 return (
                   <button
@@ -119,8 +184,8 @@ export function NonprofitOnboarding() {
                     className={`relative flex aspect-square flex-col items-center justify-center gap-2.5 rounded-[22px] border-2 bg-white transition-colors ${active ? 'border-[#173c36]' : 'border-[#ececec] hover:border-[#d4d4d4]'}`}
                   >
                     {active && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#173c36] text-white"><Check className="h-3 w-3" strokeWidth={3} /></span>}
-                    <Tile platform={p.id} />
-                    <span className="text-[14px] font-bold sm:text-[15px]">{p.name}</span>
+                    <ChoiceTile choice={p} />
+                    <span className="px-1 text-center text-[13px] font-bold leading-tight sm:text-[15px]">{p.name}</span>
                   </button>
                 );
               })}

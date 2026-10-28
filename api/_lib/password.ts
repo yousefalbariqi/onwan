@@ -1,19 +1,15 @@
 import crypto from 'node:crypto';
+import { PASSWORD_MIN, passwordProblem } from '../../shared/accountRules.js';
 
-export const MIN_PASSWORD_LENGTH = 8;
+export const MIN_PASSWORD_LENGTH = PASSWORD_MIN;
 
 const KEY_LENGTH = 64;
 
+// Note 07: every new password (sign-up, reset, change) must be strong:
+// 8+ characters with upper and lower case and a digit.
+// Existing passwords keep working at sign-in.
 export function validatePassword(password: string) {
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return `لزيادة أمان حسابك، اختر كلمة مرور من ${MIN_PASSWORD_LENGTH} أحرف على الأقل.`;
-  }
-
-  if (password.length > 200) {
-    return 'كلمة المرور طويلة جدًا.';
-  }
-
-  return null;
+  return passwordProblem(password);
 }
 
 export function hashPassword(password: string) {

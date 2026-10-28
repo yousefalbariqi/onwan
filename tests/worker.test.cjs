@@ -66,7 +66,10 @@ test('query and JSON request bodies reach real handlers', async () => {
   assert.equal(available.status, 200); assert.equal((await available.json()).status, 'available');
   assert.ok(pools[0].closed);
   assert.equal((await call('/api/auth/signup', { method: 'POST', body: { username: 'df', phone: 'invalid' } })).status, 400);
-  assert.equal((await call('/api/auth/login', { method: 'POST', body: { identifier: 'test@example.org', password: 'wrong' } })).status, 401);
+  const failedLogin = await call('/api/auth/login', { method: 'POST', body: { identifier: 'test@example.org', password: 'wrong' } });
+  assert.equal(failedLogin.status, 401);
+  assert.match(failedLogin.headers.get('Server-Timing'), /record_failure;dur=[0-9.]+/);
+  assert.match(failedLogin.headers.get('Server-Timing'), /total;dur=[0-9.]+/);
 });
 test('protected beneficiary endpoints reject missing tokens and other token kinds', async () => {
   for (const route of ['/api/page/me', '/api/account', '/api/auth/email-code', '/api/video-upload']) {
@@ -118,26 +121,34 @@ test('existing scrypt hashes and HMAC sessions remain compatible', () => {
 
 test('signup commits a held name and draft, login preserves response and public API keeps moved/suspended states', async () => {
   const statements = [];
-  const password = hashPassword('test-password');
+  const password = hashPassword('Strong-Pass2026');
   query = async (sql, values) => {
     statements.push(sql.trim());
     let rows = [];
     if (sql.startsWith('insert into users')) rows = [{ id: 'test-id' }];
-    else if (sql.includes('password_hash')) rows = [{ id: 'test-id', email: 'test@example.org', password_hash: password, status: 'active' }];
+    else if (sql.includes('password_hash')) rows = [{ id: 'test-id', email: 'test@example.org', password_hash: password, status: 'active', session_version: 3 }];
     else if (sql.includes('from pages p')) rows = [{ id: 'page-id', username: 'df', status: 'draft' }];
     else if (sql.includes('from users u')) rows = [{ email: 'test@example.org', phone: '966500000000', name_fixed: false, page_status: 'draft' }];
     return { rows, rowCount: rows.length };
   };
-  const response = await call('/api/auth/signup', { method: 'POST', body: { username: 'df', phone: '966500000000', email: 'test@example.org', password: 'test-password' } });
+  const response = await call('/api/auth/signup', { method: 'POST', body: { username: 'df', phone: '966512345678', email: 'test@example.org', password: 'Strong-Pass2026' } });
   assert.equal(response.status, 200);
+  const signupTiming = response.headers.get('Server-Timing');
+  for (const stage of ['turnstile', 'username_validate', 'db_connect', 'password_hash', 'username_reserve', 'page_load', 'account_load', 'total']) assert.match(signupTiming, new RegExp(stage + ';dur=[0-9.]+'));
+  assert.ok(!signupTiming.includes('test@example.org'));
   const body = await response.json();
   assert.equal(body.pageData.username, 'df'); assert.equal(body.account.nameFixed, false); assert.equal(body.account.pageStatus, 'draft');
   assert.ok(statements.includes('begin')); assert.ok(statements.includes('commit'));
+  assert.equal(statements.filter(sql => sql.includes('from reserved_usernames')).length, 1, 'signup checks availability once at reservation');
   assert.ok(statements.some(sql => sql.startsWith('insert into username_reservations')));
   assert.ok(!statements.some(sql => /insert into usernames\s/.test(sql)));
   assert.ok(pools.every(pool => pool.closed));
-  const loggedIn = await call('/api/auth/login', { method: 'POST', body: { identifier: 'test@example.org', password: 'test-password' } });
-  assert.equal(loggedIn.status, 200); assert.ok((await loggedIn.json()).token);
+  const loggedIn = await call('/api/auth/login', { method: 'POST', body: { identifier: 'test@example.org', password: 'Strong-Pass2026' } });
+  assert.equal(loggedIn.status, 200);
+  const loginTiming = loggedIn.headers.get('Server-Timing');
+  for (const stage of ['turnstile', 'login_guard', 'user_lookup', 'password_verify', 'page_load', 'account_load', 'total']) assert.match(loginTiming, new RegExp(stage + ';dur=[0-9.]+'));
+  const loginBody = await loggedIn.clone().json();
+  withRuntime({ env }, () => assert.equal(verifySessionToken(loginBody.token).sessionVersion, 3)); assert.ok((await loggedIn.json()).token);
   query = async sql => ({ rows: sql.includes('from usernames u') ? [{ id: 'page-id', username: 'df', status: 'suspended', suspension_message: 'paused' }] : [], rowCount: 1 });
   const suspended = await call('/api/public-page?username=df');
   assert.deepEqual(await suspended.json(), { suspended: true, message: 'paused' });
@@ -323,9 +334,8 @@ test('active partners upload videos under their own folder with their own token'
   query = async sql => ({ rows:
     sql.includes('from partners') ? [{ id: 'partner-owner' }] :
     sql.includes('as minute') ? [{ minute: 0, day: 0, bytes: '0' }] :
-    sql.includes('as count from media_upload_events') ? [{ count: 0 }] :
     sql.includes('returning id::text') ? [{ id: 'upload-event' }] :
-    sql.includes('select reserved_bytes') ? [{ reserved_bytes: String(20 * 1024 * 1024) }] : [], rowCount: 1 });
+    sql.includes('reserved_bytes::text') ? [{ reserved_bytes: String(20 * 1024 * 1024), deleting: null }] : [], rowCount: 1 });
   const files = [];
   const settings = { ...env, MEDIA: { head: async () => null, list: async () => ({ objects: [], truncated: false }), put: async (key, body) => files.push({ key, size: body.byteLength }) } };
   const response = await worker.fetch(new Request('https://onwan.link/api/video-upload', {
@@ -396,4 +406,36 @@ test('nonprofit endpoints require the owner session and a nonprofit account; adm
   query=async sql=>({rows:sql.includes('select id, email, phone, status')?[{id:'normal-user',email:'normal@example.invalid',phone:'0500000000',status:'active'}]:[],rowCount:0});
   assert.equal((await call('/api/nonprofit',{bearer:token()})).status,403);
   assert.equal((await call('/api/admin',{method:'POST',body:{action:'nonprofits.list'},bearer:token()})).status,401);
+});
+
+test('signup still rejects a name taken after the form preview and rolls back', async () => {
+  const statements = [];
+  query = async sql => {
+    statements.push(sql.trim());
+    const rows = sql.startsWith('insert into users') ? [{ id: 'test-id' }] : sql.includes('from reserved_usernames') ? [{ exists: 1 }] : [];
+    return { rows, rowCount: rows.length };
+  };
+  const response = await call('/api/auth/signup', { method: 'POST', body: { username: 'taken-name', phone: '0512345678', email: 'test@example.org', password: 'Strong-Pass2026' } });
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, 'username_reserved');
+  assert.ok(statements.includes('rollback'));
+  assert.ok(!statements.includes('commit'));
+});
+
+test('association signup stores a nonexclusive suggestion without any availability query or reservation', async () => {
+  const statements = [];
+  query = async (sql, values) => {
+    statements.push({ sql: sql.trim(), values });
+    if (sql.startsWith('insert into users')) return { rows: [{ id: 'test-id' }], rowCount: 1 };
+    if (sql.includes('from pages p')) return { rows: [{ id: 'page-id', username: 'suggested-name', status: 'draft' }], rowCount: 1 };
+    if (sql.includes('from users u')) return { rows: [{ email: 'test@example.org', phone: '0512345678', page_status: 'draft', account_kind: 'nonprofit' }], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+  };
+  const response = await call('/api/auth/signup', { method: 'POST', body: { nonprofit: true, organizationName: 'جمعية اختبار', username: 'suggested-name', phone: '0512345678', email: 'test@example.org', password: 'Strong-Pass2026' } });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).pageData.username, 'suggested-name');
+  assert.ok(statements.some(({ sql, values }) => sql.includes('suggested_username = $3') && values[2] === 'suggested-name'));
+  assert.ok(!statements.some(({ sql }) => /reserved_usernames|username_reservations|username_redirects|from usernames|partner_orders/.test(sql)));
+  assert.ok(statements.some(({ sql }) => sql === 'commit'));
+  assert.ok(!response.headers.get('Server-Timing').includes('username_reserve'));
 });

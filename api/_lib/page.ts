@@ -186,7 +186,7 @@ async function loadLinks(pageId: string, includeHidden: boolean) {
 export async function getPageDataByUserId(userId: string) {
   const pageResult = await pool.query<PageRecord>(
     `
-      select ${PAGE_COLUMNS}
+      select ${PAGE_COLUMNS.replace('u.username', "coalesce(u.username, case when owner.account_kind = 'nonprofit' then p.suggested_username end) as username")}
       from pages p
       join users owner on owner.id = p.user_id
       left join customer_names u on u.user_id = p.user_id
@@ -283,10 +283,23 @@ function normalizeTypography(value: any) {
     if (!MEDIA_FONT_PATH.test(url)) throw new HttpError(400, 'ملف الخط غير صالح. ارفعه من جديد.');
     const name = String(typography.customFont.name ?? '').replace(/[^\p{L}\p{N} ._-]/gu, '').trim().slice(0, 60) || 'خط مخصص';
     typography.customFont = { url, name };
+    // Note 26: the upload is kept while a ready-made font is tried.
+    if (typography.useCustomFont === false) typography.useCustomFont = false;
+    else delete typography.useCustomFont;
   } else {
     delete typography.customFont;
+    delete typography.useCustomFont;
   }
+  for (const key of ['headingSize', 'paragraphSize']) if (!['small', 'medium', 'large'].includes(typography[key])) delete typography[key];
   return typography;
+}
+
+// Templates, step 1: the page-wide media corners and item spacing are fixed words only.
+function normalizeButtonStyle(value: any) {
+  const style = value && typeof value === 'object' ? { ...value } : { ...DEFAULT_PAGE_DATA.buttonStyle };
+  if (!['none', 'small', 'medium', 'large'].includes(style.mediaRadius)) delete style.mediaRadius;
+  if (!['compact', 'normal', 'relaxed'].includes(style.spacing)) delete style.spacing;
+  return style;
 }
 const MEDIA_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf' };
 const mediaMime = (value: string) => (MEDIA_FILE_PATH.test(value) ? MEDIA_MIME[value.split('.').pop()!] : '');
@@ -334,7 +347,7 @@ function normalizeCustomIcon(value: unknown, title: string) {
 
 const DOCUMENT_TYPES = ['registration', 'license', 'fundraising', 'governance'];
 
-function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | 'video' | 'text' | 'document'; docType?: string; body?: string; bodyEn?: string; sectionLayout?: 'list' | 'grid' | 'carousel'; sectionId?: string; layout?: 'card'; image?: string; imageFit?: 'cover' | 'contain'; positionX?: number; positionY?: number } {
+function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | 'video' | 'text' | 'document'; docType?: string; caption?: 'above' | 'below'; body?: string; bodyEn?: string; sectionLayout?: 'list' | 'grid' | 'carousel'; sectionId?: string; layout?: 'card'; image?: string; imageFit?: 'cover' | 'contain'; positionX?: number; positionY?: number; zoom?: number } {
   const sectionId = typeof value?.sectionId === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(value.sectionId) ? value.sectionId : undefined;
   if (value?.kind === 'text') {
     const body = String(value.body ?? '').trim();
@@ -342,7 +355,8 @@ function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | '
     if (!body || body.length > 2000 || bodyEn.length > 2000) throw new HttpError(400, 'اكتب نص الفقرة بما لا يتجاوز 2000 حرف لكل لغة.');
     return { kind: 'text', body, ...(bodyEn ? { bodyEn } : {}), ...(sectionId ? { sectionId } : {}) };
   }
-  if (value?.kind === 'video') return { kind: 'video', ...(sectionId ? { sectionId } : {}) };
+  // Note 37: a video may show its title and YouTube link above or below it.
+  if (value?.kind === 'video') return { kind: 'video', ...(value.caption === 'above' || value.caption === 'below' ? { caption: value.caption } : {}), ...(sectionId ? { sectionId } : {}) };
   // Note 27: an official nonprofit document (a PDF file item).
   if (value?.kind === 'document') {
     if (!DOCUMENT_TYPES.includes(value.docType)) throw new HttpError(400, `نوع الوثيقة «${title}» غير معروف.`);
@@ -357,7 +371,7 @@ function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | '
   return {
     ...(sectionId ? { sectionId } : {}),
     ...(value.layout === 'card' ? { layout: 'card' } : {}),
-    ...(image ? { image, imageFit: value.imageFit === 'contain' ? 'contain' : 'cover', positionX: position(value.positionX), positionY: position(value.positionY) } : {}),
+    ...(image ? { image, imageFit: value.imageFit === 'contain' ? 'contain' : 'cover', positionX: position(value.positionX), positionY: position(value.positionY), ...(typeof value.zoom === 'number' && value.zoom > 1 ? { zoom: Math.min(3, value.zoom) } : {}) } : {}),
   };
 }
 
@@ -396,6 +410,12 @@ function normalizeLinks(rawLinks: unknown) {
       if (!isFile && link.platform && !['custom', 'file'].includes(link.platform) && common.display.kind !== 'video') return {
         ...common, title, url: '', linkType: 'url', fileCategory: null, fileName: null, fileMimeType: null, fileSize: null,
         platform: link.platform, iconStyle: link.iconStyle ?? 'color', textPosition: link.textPosition ?? 'center', hidden: true,
+      };
+      // Note 13: a clip, picture, file or official document chosen at nonprofit
+      // signup waits the same way until it is attached in the editor.
+      if (link.hidden && (isFile || common.display.kind === 'video' || common.display.kind === 'document')) return {
+        ...common, title, url: '', linkType: isFile ? 'file' : 'url', fileCategory: isFile ? 'other' : null, fileName: null, fileMimeType: null, fileSize: null,
+        platform: isFile ? 'file' : link.platform ?? 'custom', iconStyle: 'color', textPosition: 'center', hidden: true,
       };
       throw new HttpError(400, 'كل زر يحتاج عنوانًا ورابطًا أو ملفًا.');
     }
@@ -646,7 +666,7 @@ export async function savePageData(userId: string, sentPageData: any, options: {
         profileImage,
         JSON.stringify(pageData.theme ?? DEFAULT_PAGE_DATA.theme),
         JSON.stringify(wallpaper),
-        JSON.stringify(pageData.buttonStyle ?? DEFAULT_PAGE_DATA.buttonStyle),
+        JSON.stringify(normalizeButtonStyle(pageData.buttonStyle)),
         JSON.stringify(normalizeProfileStyle(pageData.profileStyle)),
         JSON.stringify(pageData.customColors ?? {}),
         JSON.stringify(pageData.extractedColors ?? []),

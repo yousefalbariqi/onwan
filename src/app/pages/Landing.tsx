@@ -4,6 +4,9 @@ import { checkUsername } from '../lib/api';
 import { BRAND_NAME, ROOT_DOMAIN, USERNAME_PATTERN, pageHost } from '../lib/site';
 import AuthModal from '../components/AuthModal';
 import { usePageContext } from '../context/PageContext';
+import { OnwanLogo } from '../components/OnwanLogo';
+import { SiteFooter } from '../components/SiteFooter';
+import { PUBLIC_PLAN_PRICES } from '../../../shared/planPrices';
 
 // During UI testing the landing page can proceed using local name validation
 // only, without asking the API (and therefore the database) for availability.
@@ -150,84 +153,46 @@ export default function Landing() {
     }
   };
 
+  const monthly = PUBLIC_PLAN_PRICES.monthly.toLocaleString('ar-u-nu-latn');
+  const annual = PUBLIC_PLAN_PRICES.annual.toLocaleString('ar-u-nu-latn');
+  const goStart = () => document.getElementById('start')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Reviewers and visitors alike should see, without signing in, what is sold,
+  // its price, how to pay and our policies — the page is ordered that way.
   return (
-    <div className="min-h-screen bg-gradient-to-br from-lime-400 via-emerald-400 to-teal-500 flex items-center justify-center p-4" dir="rtl">
-      <div className="w-full max-w-2xl">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-16 px-4">
-          <div className="text-white text-3xl font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            {BRAND_NAME}
-          </div>
-          <div className="flex gap-3">
-            {isAuthenticated ? (
-              <button
-                onClick={() => navigate('/builder')}
-                className="px-6 py-2 bg-white text-emerald-700 font-bold rounded-full shadow transition-all hover:bg-white/90"
-              >
-                افتح صفحتي
-              </button>
-            ) : (
-              <button
-                onClick={() => navigate('/?auth=login')}
-                className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition-all"
-              >
-                تسجيل الدخول
-              </button>
-            )}
-          </div>
+    <div dir="rtl" className="min-h-screen bg-[#F8F8F6] text-[#111111]" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+      <header className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+        <a href="/" aria-label={`${BRAND_NAME} — الرئيسية`}><OnwanLogo /></a>
+        <nav className="flex items-center gap-2 text-sm">
+          <a href="#pricing" className="hidden rounded-full px-3 py-2 font-bold hover:bg-white sm:inline-flex">الأسعار</a>
+          <a href="#how" className="hidden rounded-full px-3 py-2 font-bold hover:bg-white sm:inline-flex">كيف يعمل</a>
+          {isAuthenticated
+            ? <button onClick={() => navigate('/builder')} className="rounded-full bg-[#111111] px-4 py-2 font-bold text-white">افتح صفحتي</button>
+            : <button onClick={() => navigate('/?auth=login')} className="rounded-full border border-[#E7E7E7] bg-white px-4 py-2 font-bold">تسجيل الدخول</button>}
+        </nav>
+      </header>
+
+      {isAuthenticated && (
+        <div className="mx-auto mb-4 flex max-w-5xl flex-wrap items-center justify-center gap-3 px-4 text-sm">
+          <span>أنت مسجّل الدخول{pageData.username ? <> — <span dir="ltr" className="font-bold">{pageHost(pageData.username)}</span></> : ''}</span>
+          <button onClick={() => navigate('/builder')} className="font-bold text-[#F25A18] underline underline-offset-4">متابعة التعديل</button>
+          <button onClick={() => { logout(); }} className="text-[#737373] underline underline-offset-4">تسجيل الخروج</button>
         </div>
+      )}
 
-        {isAuthenticated && (
-          <div className="mb-8 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-white/20 px-4 py-3 text-white backdrop-blur-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            <span>أنت مسجّل الدخول{pageData.username ? <> — <span dir="ltr" className="font-bold">{pageHost(pageData.username)}</span></> : ''}</span>
-            <button onClick={() => navigate('/builder')} className="rounded-full bg-white px-4 py-1.5 text-sm font-bold text-emerald-700">متابعة التعديل</button>
-            <button onClick={() => { logout(); }} className="text-sm underline opacity-90">تسجيل الخروج</button>
-          </div>
-        )}
-        {/* Hero Section */}
-        <div className="text-center space-y-8">
+      <main>
+        {/* What it is and what it costs, in the first screen. */}
+        <section className="mx-auto grid max-w-5xl items-center gap-10 px-4 pb-14 pt-6 sm:px-6 md:grid-cols-2">
+          <div className="space-y-5 text-center md:text-right">
+            <p className="inline-flex rounded-full bg-[#FFF0E8] px-3 py-1 text-sm font-bold text-[#F25A18]">اشتراك يبدأ من {monthly} ريال شهريًا</p>
+            <h1 className="text-4xl font-black leading-tight sm:text-5xl" style={{ fontFamily: 'Cairo, sans-serif' }}>صفحة رابط واحدة لكل ما يخصك أو يخص جهتك</h1>
+            <p className="text-lg leading-8 text-[#737373]">احجز اسمك، وضع تعريفك وشعارك وروابطك وملفاتك وبيانات التواصل في صفحة على <span dir="ltr" className="font-bold text-[#111111]">name.{ROOT_DOMAIN}</span>، وشاركها برابط ورمز QR.</p>
 
-          <h1 
-            className="text-5xl md:text-7xl font-black text-white leading-tight"
-            style={{ fontFamily: 'Cairo, sans-serif' }}
-          >
-            عنوان واحد لكل ما يخص جهتك
-          </h1>
-
-          <p 
-            className="text-xl md:text-2xl text-white/90 max-w-xl mx-auto leading-relaxed"
-            style={{ fontFamily: 'Tajawal, sans-serif' }}
-          >
-            تعريف الجهة وشعارها وروابطها وملفاتها
-            <br />
-            في صفحة واحدة سهلة المشاركة والرجوع إليها
-          </p>
-
-          {/* Input Section */}
-          <div className="max-w-md mx-auto mt-12 space-y-4">
-            <div
-              className="flex items-center rounded-2xl bg-white shadow-xl focus-within:ring-4 focus-within:ring-white/50 transition-all"
-              dir="ltr"
-            >
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.replace(/\s+/g, '').toLowerCase())}
-                onKeyPress={handleKeyPress}
-                placeholder="name"
-                aria-label="اسم رابط الصفحة"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                maxLength={30}
-                className="min-w-0 flex-1 rounded-l-2xl bg-transparent py-5 pl-5 pr-1 text-lg text-right text-black focus:outline-none"
-                style={{ fontFamily: 'Cairo, sans-serif' }}
-              />
-              <span className="py-5 pr-5 text-lg text-gray-500" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                .{ROOT_DOMAIN}
-              </span>
-            </div>
-
+            <div id="start" className="mx-auto max-w-md space-y-3 md:mx-0">
+              <div className="flex items-center rounded-2xl border border-[#E7E7E7] bg-white shadow-sm focus-within:border-[#FF6B2C]" dir="ltr">
+                <input type="text" value={username} onChange={(e) => setUsername(e.target.value.replace(/\s+/g, '').toLowerCase())} onKeyPress={handleKeyPress} placeholder="name" aria-label="اسم رابط الصفحة" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={30} className="min-w-0 flex-1 rounded-l-2xl bg-transparent py-4 pl-4 pr-1 text-right text-lg focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} />
+                <span className="py-4 pr-4 text-lg text-[#737373]" style={{ fontFamily: 'Cairo, sans-serif' }}>.{ROOT_DOMAIN}</span>
+              </div>
             <div
               className={`rounded-2xl border px-4 py-3 text-right ${
                 feedback.tone === 'success'
@@ -237,8 +202,8 @@ export default function Landing() {
                   : feedback.tone === 'error'
                     ? 'border-red-200 bg-red-50 text-red-900'
                     : feedback.tone === 'neutral'
-                      ? 'border-white/20 bg-white/10 text-white'
-                      : 'border-white/20 bg-white/10 text-white'
+                      ? 'border-[#E7E7E7] bg-white text-[#3a3a3c]'
+                      : 'border-[#E7E7E7] bg-white text-[#3a3a3c]'
               }`}
               style={{ fontFamily: 'Tajawal, sans-serif' }}
             >
@@ -248,7 +213,7 @@ export default function Landing() {
               {feedback.details.length > 0 && (
                 <div className={`mt-2 space-y-1 text-xs ${
                   feedback.tone === 'neutral' || feedback.tone === 'hint'
-                    ? 'text-white/85'
+                    ? 'text-[#737373]'
                     : feedback.tone === 'success'
                       ? 'text-emerald-800'
                       : feedback.tone === 'warning'
@@ -262,37 +227,86 @@ export default function Landing() {
               )}
             </div>
 
-            <button
-              onClick={handleStart}
-              disabled={!canProceed}
-              className="w-full bg-gray-900 text-white py-5 rounded-2xl text-xl font-bold hover:bg-gray-800 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
-              style={{ fontFamily: 'Cairo, sans-serif' }}
-            >
-              احجز الاسم وابدأ
-            </button>
-          </div>
-
-          <button onClick={() => navigate('/partners')} className="text-sm text-white/80 underline hover:text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-            مطبعة أو محل طباعة؟ كن شريكًا
-          </button>
-
-          {/* Features */}
-          <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto mt-16 text-white/80">
-            <div className="text-center">
-              <div className="text-3xl mb-2">🔗</div>
-              <div className="text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>روابط وملفات PDF</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-2">📇</div>
-              <div className="text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>حفظ جهة الاتصال</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-2">🎨</div>
-              <div className="text-sm" style={{ fontFamily: 'Tajawal, sans-serif' }}>تصميم قابل للتخصيص</div>
+              <button onClick={handleStart} disabled={!canProceed} className="w-full rounded-2xl bg-[#FF6B2C] py-4 text-lg font-bold text-white transition hover:bg-[#F25A18] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>احجز الاسم وابدأ</button>
+              <p className="text-xs text-[#737373]">التصميم والمعاينة مجانًا، والدفع عند نشر الصفحة.</p>
             </div>
           </div>
-        </div>
-      </div>
+          <div className="mx-auto w-full max-w-[300px] rounded-[40px] border-8 border-[#111111] bg-white p-5 shadow-xl" aria-hidden="true">
+            <div className="mx-auto h-16 w-16 rounded-full bg-[#C9C0B4]" />
+            <p className="mt-3 text-center font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>اسم الجهة</p>
+            <p className="text-center text-xs text-[#737373]">وصف مختصر</p>
+            <div className="mt-4 space-y-2">
+              {['الموقع الإلكتروني', 'تواصل عبر واتساب', 'الملف التعريفي PDF', 'حفظ جهة الاتصال'].map((label) => <div key={label} className="rounded-xl bg-[#111111] py-2.5 text-center text-sm font-bold text-white">{label}</div>)}
+            </div>
+          </div>
+        </section>
+
+        {/* The product: what a subscription includes. */}
+        <section className="border-y border-[#E7E7E7] bg-white">
+          <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
+            <h2 className="text-center text-3xl font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>ماذا تحصل عليه</h2>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ['رابط باسمك', `صفحتك على name.${ROOT_DOMAIN} باسم تختاره.`],
+                ['روابط وملفات', 'روابط المواقع والتواصل، وملفات PDF، وفيديو وصور.'],
+                ['حفظ جهة الاتصال', 'زر يحفظ رقمك وبريدك في جوال الزائر مباشرة.'],
+                ['رمز QR', 'رمز جاهز للطباعة والمشاركة.'],
+                ['تصميم بهويتك', 'ألوانك وشعارك وخطك وقوالب جاهزة.'],
+                ['إحصاءات الزيارات', 'عدد زيارات صفحتك.'],
+              ].map(([title, body]) => (
+                <div key={title} className="rounded-2xl border border-[#E7E7E7] p-5">
+                  <h3 className="font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</h3>
+                  <p className="mt-1 text-sm leading-7 text-[#737373]">{body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Prices, public and fixed. */}
+        <section id="pricing" className="mx-auto max-w-5xl scroll-mt-6 px-4 py-14 sm:px-6">
+          <h2 className="text-center text-3xl font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>الأسعار</h2>
+          <p className="mt-2 text-center text-[#737373]">خطة واحدة بكل المزايا، تختار مدة الدفع.</p>
+          <div className="mx-auto mt-8 grid max-w-3xl gap-4 sm:grid-cols-2">
+            {[
+              { name: 'الاشتراك الشهري', price: monthly, period: 'ريال / شهر', note: 'يتجدد كل شهر، ويمكن إلغاؤه في أي وقت.', best: false },
+              { name: 'الاشتراك السنوي', price: annual, period: 'ريال / سنة', note: 'يُدفع مرة كل سنة.', best: true },
+            ].map((plan) => (
+              <div key={plan.name} className={`relative rounded-3xl bg-white p-6 ${plan.best ? 'border-2 border-[#FF6B2C]' : 'border border-[#E7E7E7]'}`}>
+                {plan.best && <span className="absolute -top-3 right-6 rounded-full bg-[#FF6B2C] px-3 py-1 text-xs font-bold text-white">الأفضل للعميل</span>}
+                <h3 className="font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>{plan.name}</h3>
+                <p className="mt-3"><span className="text-4xl font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>{plan.price}</span> <span className="text-[#737373]">{plan.period}</span></p>
+                <p className="mt-2 text-sm text-[#737373]">{plan.note}</p>
+                <ul className="mt-4 space-y-1.5 text-sm">
+                  {['صفحة برابط باسمك', 'روابط وملفات PDF وفيديو', 'حفظ جهة الاتصال ورمز QR', 'تخصيص التصميم والقوالب', 'إحصاءات الزيارات'].map((item) => <li key={item} className="flex gap-2"><span className="text-[#FF6B2C]">✓</span>{item}</li>)}
+                </ul>
+                <button onClick={goStart} className={`mt-5 w-full rounded-2xl py-3 font-bold ${plan.best ? 'bg-[#FF6B2C] text-white hover:bg-[#F25A18]' : 'bg-[#111111] text-white'}`}>اشترك الآن</button>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-center text-sm text-[#737373]">الأسعار بالريال السعودي. الدفع إلكترونيًا عبر بوابة دفع آمنة، ويظهر المبلغ النهائي قبل التأكيد. <a href="/refund" className="font-bold text-[#111111] underline underline-offset-4">سياسة الإلغاء والاسترجاع</a></p>
+        </section>
+
+        {/* How buying works, end to end. */}
+        <section id="how" className="scroll-mt-6 border-t border-[#E7E7E7] bg-white">
+          <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
+            <h2 className="text-center text-3xl font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>كيف يعمل</h2>
+            <ol className="mt-8 grid gap-4 sm:grid-cols-4">
+              {['احجز اسم الرابط وأنشئ حسابك.', 'صمّم صفحتك وعاينها مجانًا.', 'اختر الاشتراك الشهري أو السنوي وادفع إلكترونيًا.', 'تُنشر صفحتك فورًا وتشاركها برابطها ورمز QR.'].map((step, index) => (
+                <li key={step} className="rounded-2xl bg-[#F8F8F6] p-5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#111111] text-sm font-bold text-white">{index + 1}</span>
+                  <p className="mt-3 text-sm leading-7">{step}</p>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-8 text-center text-sm text-[#737373]">
+              <button onClick={() => navigate('/partners')} className="underline underline-offset-4 hover:text-[#111111]">مطبعة أو محل طباعة؟ كن شريكًا</button>
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <SiteFooter />
       {showSignup && <AuthModal mode="signup" username={normalizedUsername} />}
       {showLogin && <AuthModal mode="login" />}
       {confirmNew && (

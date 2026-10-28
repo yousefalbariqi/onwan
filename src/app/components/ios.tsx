@@ -176,15 +176,17 @@ export function PrimaryButton({ children, onClick, disabled, busy, tone = 'blue'
 }
 
 // A Settings row: coloured icon tile, label, value, and a chevron when it leads on.
-export function SettingsRow({ icon: Icon, tone, label, value, badge, onClick, danger = false }: { icon: LucideIcon; tone: string; label: string; value?: ReactNode; badge?: string; onClick: () => void; danger?: boolean }) {
+// Without onClick it is a plain information row (no chevron, not a button).
+export function SettingsRow({ icon: Icon, tone, label, value, badge, onClick, danger = false }: { icon: LucideIcon; tone: string; label: string; value?: ReactNode; badge?: string; onClick?: () => void; danger?: boolean }) {
+  const Row = onClick ? 'button' : 'div';
   return (
-    <button type="button" onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-right active:bg-[#f2f2f7]">
+    <Row {...(onClick ? { type: 'button' as const, onClick } : {})} className={`flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-right ${onClick ? 'active:bg-[#f2f2f7]' : ''}`}>
       <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-white ${tone}`}><Icon className="h-[18px] w-[18px]" /></span>
       <span className={`min-w-0 flex-1 truncate text-[15px] ${danger ? 'text-[#ff3b30]' : 'text-[#1d1d1f]'}`}>{label}</span>
       {badge && <span className="shrink-0 rounded-full bg-[#ff3b30] px-2 py-0.5 text-[11px] font-bold text-white">{badge}</span>}
       {value !== undefined && <span className="max-w-[45%] shrink-0 truncate text-[15px] text-[#8e8e93]">{value}</span>}
-      {!danger && <ChevronLeft className="h-4 w-4 shrink-0 text-[#c7c7cc]" />}
-    </button>
+      {onClick && !danger && <ChevronLeft className="h-4 w-4 shrink-0 text-[#c7c7cc]" />}
+    </Row>
   );
 }
 

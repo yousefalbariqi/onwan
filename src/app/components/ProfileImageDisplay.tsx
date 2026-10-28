@@ -161,7 +161,8 @@ export function ProfileImageDisplay({
     // page's real background — a colour, a gradient, a photo or a video —
     // shows through. No fixed colour is painted over it and the box has no
     // background of its own, hence no seam under the photo.
-    const fade = isHeroFillStyle && fit === 'cover' && !transparent
+    // Note 27 (update): «الصورة كاملة» fades into the page the same way.
+    const fade = isHeroFillStyle && !transparent
       ? { maskImage: 'linear-gradient(to bottom, #000 0%, #000 60%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0.6) 78%, rgba(0,0,0,0.4) 84%, rgba(0,0,0,0.2) 90%, rgba(0,0,0,0.05) 96%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 60%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0.6) 78%, rgba(0,0,0,0.4) 84%, rgba(0,0,0,0.2) 90%, rgba(0,0,0,0.05) 96%, transparent 100%)' }
       : undefined;
 
@@ -179,7 +180,8 @@ export function ProfileImageDisplay({
                 }}
               />
             )}
-            {isHeroFillStyle && !transparent && <div className="absolute inset-0 bg-black/10" />}
+            {/* A whole photo leaves page background beside it; no tint there. */}
+            {isHeroFillStyle && fit === 'cover' && !transparent && <div className="absolute inset-0 bg-black/10" />}
             {isHeroFillStyle ? (
               <img
                 src={profileImage}

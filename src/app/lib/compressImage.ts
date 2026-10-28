@@ -29,6 +29,16 @@ export async function compressImage(file: File, maxEdge = 1600, { allowSvg = fal
     } catch {
       throw new ImageProblem('تعذّر فتح الصورة؛ قد تكون تالفة. جرّب صورة أخرى.');
     }
+    // Note 30: a picture already small enough is kept exactly as uploaded —
+    // re-encoding it would only lose quality.
+    if (file.size <= TARGET_BYTES && Math.max(image.width, image.height) <= maxEdge) {
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new ImageProblem('تعذّر قراءة الصورة. جرّب صورة أخرى.'));
+        reader.readAsDataURL(file);
+      });
+    }
     const keepAlpha = file.type !== 'image/jpeg';
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');

@@ -34,9 +34,9 @@ export async function assertStorageRoom(media: Listable, ownerId: string, incomi
   const files = await listOwnerFiles(media, ownerId);
   const used = files.reduce((sum, file) => sum + file.size, 0);
   if (used + incoming > STORAGE_QUOTA_BYTES) throw new HttpError(413, 'امتلأت مساحة حسابك (200 MB)، وتشمل الملفات القديمة حتى حذفها.', 'storage_quota');
-  const referenced = await db.query<{ key: string }>(REFERENCED_SQL);
-  const saved = await db.query<{ key: string }>(SAVED_SQL);
-  const permanent = new Set([...referenced.rows, ...saved.rows].map(row => row.key));
+  // One round trip for both lists (in use now, or in a saved version).
+  const kept = await db.query<{ key: string }>(`${REFERENCED_SQL} union ${SAVED_SQL}`);
+  const permanent = new Set(kept.rows.map(row => row.key));
   const temporary = files.filter(file => !permanent.has(file.key)).reduce((sum, file) => sum + file.size, 0);
   if (temporary + incoming > TEMP_QUOTA_BYTES) throw new HttpError(413, 'امتلأت مساحة الرفع المؤقت (30 MB). احفظ الملفات الحالية أو انتظر تنظيف الرفع المهجور.', 'temporary_quota');
 }
