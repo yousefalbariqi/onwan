@@ -34,7 +34,16 @@ export default async function handler(req: any, res: any) {
       if (!username) throw new HttpError(409, 'عيّن رابط الصفحة أولًا قبل إنشاء البطاقة.');
     }
 
-    const pkpass = buildPkpass({ username, name });
+    let pkpass: Uint8Array;
+    try {
+      pkpass = buildPkpass({ username, name });
+    } catch (signError) {
+      // TEMP diagnostic: pass signing runs in the Workers runtime; surface the
+      // real cause (node-forge / cert) instead of the generic 500. Revert once
+      // Apple Wallet works on production.
+      const detail = signError instanceof Error ? `${signError.name}: ${signError.message}` : String(signError);
+      throw new HttpError(500, `تشخيص توقيع البطاقة: ${detail}`);
+    }
     res.status(200);
     res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
     res.setHeader('Content-Disposition', `attachment; filename="onwan-${username}.pkpass"`);
