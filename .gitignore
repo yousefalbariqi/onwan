@@ -21,3 +21,9 @@ dist/
 !.dev.vars.example
 .wrangler/
 .worker-build/
+
+# Apple Wallet signing material (never commit)
+*.pem
+*.key
+*.p12
+*.pkpass

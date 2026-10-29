@@ -134,6 +134,18 @@ export function login(identifier: string, password: string) {
   return request<AuthResponse>('/api/auth/login', { method: 'POST', body: { identifier, password, turnstileToken: takeTurnstileToken() } });
 }
 
+// A signed Apple Wallet pass for the signed-in owner's own page (any status),
+// returned as a Blob so the browser can download it and iOS opens it in Wallet.
+export async function fetchOwnWalletPass(): Promise<Blob> {
+  const token = getSessionToken();
+  const response = await fetch('/api/wallet-pass', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) {
+    const message = await response.json().then((body) => body?.error).catch(() => undefined);
+    throw new Error(message || 'تعذّر إنشاء البطاقة الآن.');
+  }
+  return response.blob();
+}
+
 export function requestPasswordReset(email: string) {
   return request<{ message: string }>('/api/auth/reset-password', {
     method: 'POST',
