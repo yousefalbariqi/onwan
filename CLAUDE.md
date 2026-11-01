@@ -10,6 +10,8 @@ Validation: `npm run check:worker`, `npm run build:worker`, `npm run test:conten
 
 ## Product and source of truth
 
+**Owner decision, 1 Nov 2026 — nonprofit only:** `docs/nonprofit-direct-publication.md` is the latest approved specification for association publication. It supersedes the old private-preview/manual-publication rules for nonprofit accounts, not standard customers or partners. Target: a real unique public link and published page at signup; explicit saves update it; «طلب التفعيل» requests follow-up and never gates publication; email confirmation is optional; administration suspends/reactivates with data preserved. No automatic trial expiry is approved by this decision. Only the specification has been updated so far; runtime and database changes remain to be implemented. Follow the conflict map and acceptance criteria in that document.
+
 This is **«عنوان» (onwan)** — an Arabic platform where an entity (association, then company) gets one public page on `name.onwan.link` with its identity, links, images and PDF files. The repo folder is still called `bio.sa` (the earlier name).
 
 The requirements live next to the repo, in the parent folder: `../onwan_requirements_reference.docx` (v1.0) and `../onwan_miro_cards.xlsx` (same items as cards, plus later decisions `NEW-01..03`). Code comments cite requirement codes (`ACCT-01`, `PAGE-07`, `SUB-02`, …). Reading rule from the document: **«معتمد»** is binding, **«مقترح/مشروط»** is not, and **«معلّق»** (`P-01..P-16`) must never be given an invented value or behaviour — e.g. prices, storage limits and the payment gateway are still pending.

@@ -113,7 +113,7 @@ const LINK_HELP_VIDEO = '';
 const ICON_PLATFORMS = ['website', 'custom', 'file'];
 
 const KINDS: { id: ContentKind; label: string; hint: string; Icon: typeof Link2; tone: string }[] = [
-  { id: 'link', label: 'رابط', hint: 'المواقع الخارجية ووسائل التواصل', Icon: Link2, tone: 'bg-[#0a84ff]/10 text-[#0a84ff]' },
+  { id: 'link', label: 'رابط', hint: 'المواقع الخارجية، ووسائل التواصل، ومقاطع الفيديو', Icon: Link2, tone: 'bg-[#0a84ff]/10 text-[#0a84ff]' },
   { id: 'file', label: 'ملف', hint: 'الصور وملفات PDF', Icon: FileText, tone: 'bg-[#ff9500]/12 text-[#c76a00]' },
   { id: 'text', label: 'نص', hint: 'عنوان أو نبذة داخل الصفحة', Icon: Type, tone: 'bg-[#34c759]/12 text-[#1f8a3b]' },
   { id: 'group', label: 'مجموعة', hint: 'تنظيم عدة عناصر تحت عنوان', Icon: FolderOpen, tone: 'bg-[#af52de]/12 text-[#8e3bb8]' },
@@ -988,7 +988,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
           <h3 className="px-1 text-xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>ماذا تريد أن تضيف؟</h3>
           <div className="grid grid-cols-2 gap-3">
             {KINDS.map(({ id, label, hint, Icon, tone }) => (
-              <button key={id} type="button" onClick={() => openForm(emptyForm(id))} className="flex min-h-[132px] flex-col items-start gap-3 rounded-2xl bg-white p-4 text-right shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-transform active:scale-[0.97]">
+              <button key={id} type="button" onClick={() => openForm(emptyForm(id))} className="flex min-h-[132px] flex-col items-center justify-start gap-3 rounded-2xl bg-white p-4 text-center shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-transform active:scale-[0.97]">
                 {/* Note 45: a tiny drawing of what gets added, in the same box size. */}
                 <span className={`flex h-11 w-14 items-center justify-center overflow-hidden rounded-xl ${tone}`}><KindArt id={id} Icon={Icon} /></span>
                 <span>

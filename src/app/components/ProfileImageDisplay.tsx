@@ -118,7 +118,7 @@ export function ProfileImageDisplay({
         </div>
         <div
           className={`absolute bottom-0 flex items-center justify-center overflow-hidden rounded-full border-4 border-white shadow-xl ${transparent ? '' : 'bg-white'}`}
-          style={{ width: logo, height: logo, left: `clamp(8px, calc(${100 - x}% - ${logo / 2}px), calc(100% - ${logo + 8}px))` }}
+          style={{ width: logo, height: logo, left: `clamp(8px, calc(${100 - x}% - ${logo / 2}px), calc(100% - ${logo + 8}px))`, clipPath: 'circle(50%)' }}
         >
           {profileImage
             ? <img src={profileImage} alt={name} className="h-full w-full" style={{ objectFit: 'contain', transform: imageStyle.transform }} />
@@ -128,10 +128,11 @@ export function ProfileImageDisplay({
     );
   }
 
-  // دائرة أساسية
+  // دائرة أساسية — clip-path يضمن دائرة كاملة حتى لو كان الشعار مكبَّرًا
+  // (transform)، لأن iOS Safari لا يقص الطفل المحوَّل بـ overflow-hidden وحده.
   if (profileStyle.type === 'circle') {
     return (
-      <div className={`${sizeClasses[size]} rounded-full overflow-hidden ${frameFill} border-4 border-white/20 shadow-xl flex items-center justify-center`}>
+      <div className={`${sizeClasses[size]} rounded-full overflow-hidden ${frameFill} border-4 border-white/20 shadow-xl flex items-center justify-center`} style={{ clipPath: 'circle(50%)' }}>
         {renderImage()}
       </div>
     );
@@ -140,7 +141,7 @@ export function ProfileImageDisplay({
   // مربع ناعم
   if (profileStyle.type === 'rounded') {
     return (
-      <div className={`${sizeClasses[size]} rounded-3xl overflow-hidden ${frameFill} border-4 border-white/20 shadow-xl flex items-center justify-center`}>
+      <div className={`${sizeClasses[size]} rounded-3xl overflow-hidden ${frameFill} border-4 border-white/20 shadow-xl flex items-center justify-center`} style={{ transform: 'translateZ(0)' }}>
         {renderImage()}
       </div>
     );
@@ -216,7 +217,7 @@ export function ProfileImageDisplay({
       <div className="relative inline-block">
         {/* الإطار الخارجي المتحرك */}
         <div className={`absolute inset-0 ${sizeClasses[size]} rounded-full bg-gradient-to-tr from-purple-400 via-pink-400 to-yellow-400 animate-spin-slow blur-sm`} style={{ padding: '6px' }}></div>
-        <div className={`${sizeClasses[size]} rounded-full overflow-hidden ${frameFill} border-4 border-white shadow-2xl flex items-center justify-center relative z-10`}>
+        <div className={`${sizeClasses[size]} rounded-full overflow-hidden ${frameFill} border-4 border-white shadow-2xl flex items-center justify-center relative z-10`} style={{ clipPath: 'circle(50%)' }}>
           {renderImage()}
         </div>
       </div>

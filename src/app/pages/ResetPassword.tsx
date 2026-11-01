@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { digitsOnly } from '../lib/digits';
 import { useNavigate } from 'react-router';
 import { ArrowRight, KeyRound, Loader2 } from 'lucide-react';
 import { TurnstileBox, useHumanOk } from '../lib/turnstile';
@@ -92,7 +93,7 @@ function GeneralReset() {
           {flow.notice && (
             <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" style={{ fontFamily: 'Tajawal, sans-serif' }}>{flow.notice}</div>
           )}
-          <AuthField label="رمز الاستعادة" hint="4 أرقام، صالح لمدة 10 دقائق ولمرة واحدة." type="text" inputMode="numeric" autoComplete="one-time-code" value={flow.code} onChange={(e) => flow.setCode(e.target.value.replace(/[^0-9]/g, ''))} maxLength={4} required autoFocus />
+          <AuthField label="رمز الاستعادة" hint="4 أرقام، صالح لمدة 10 دقائق ولمرة واحدة." type="text" inputMode="numeric" autoComplete="one-time-code" value={flow.code} onChange={(e) => flow.setCode(digitsOnly(e.target.value))} maxLength={4} required autoFocus />
           <AuthField label="كلمة المرور الجديدة" hint={PASSWORD_HINT} type="password" autoComplete="new-password" value={flow.password} onChange={(e) => flow.setPassword(e.target.value)} required />
           <AuthError message={flow.error} />
           <AuthSubmit loading={flow.loading} disabled={flow.code.length !== 4 || Boolean(passwordProblem(flow.password))}>حفظ كلمة المرور والدخول</AuthSubmit>
@@ -117,7 +118,8 @@ function NonprofitReset() {
   return (
     <NonprofitAuthBackdrop>
       <section className={`relative w-full max-w-[400px] rounded-[28px] ${surface} px-5 pb-7 pt-6 shadow-2xl`} role="dialog" aria-modal="true" aria-labelledby="reset-title" dir="rtl" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-        <button type="button" onClick={() => navigate(nonprofitPath('login'))} className={`absolute right-4 top-4 flex h-9 items-center gap-1 rounded-full px-2 text-[15px] ${accentText}`}>
+        {/* Note: its own row above the title, so it never overlaps on small screens. */}
+        <button type="button" onClick={() => navigate(nonprofitPath('login'))} className={`mb-3 flex h-9 w-fit items-center gap-1 rounded-full px-2 text-[15px] ${accentText}`}>
           <ArrowRight className="h-4 w-4" />رجوع
         </button>
         <div className="mb-5 text-center">
@@ -140,12 +142,13 @@ function NonprofitReset() {
             {flow.notice && <p className="mb-3 rounded-xl bg-[#FFF0E8] px-3 py-2.5 text-[13px] text-[#111111]">{flow.notice}</p>}
             <div className="overflow-hidden rounded-2xl bg-white">
               <Row label="رمز الاستعادة">
-                <input type="text" inputMode="numeric" autoComplete="one-time-code" value={flow.code} onChange={(e) => flow.setCode(e.target.value.replace(/[^0-9]/g, ''))} maxLength={4} placeholder="4 أرقام" autoFocus className={inputClass} dir="ltr" />
+                <input type="text" inputMode="numeric" autoComplete="one-time-code" value={flow.code} onChange={(e) => flow.setCode(digitsOnly(e.target.value))} maxLength={4} placeholder="4 أرقام" autoFocus className={inputClass} dir="ltr" />
               </Row>
-              <Row label="كلمة المرور" last>
+              <Row label="كلمة المرور الجديدة" last>
                 <PasswordInput autoComplete="new-password" value={flow.password} onChange={(e) => flow.setPassword(e.target.value)} placeholder="••••••••" aria-describedby="password-rules" className={inputClass} dir="ltr" />
               </Row>
             </div>
+            <p className="mt-2 px-1 text-[13px] text-[#737373]">اكتب كلمة المرور الجديدة التي تريد استخدامها.</p>
             <PasswordRules password={flow.password} />
             {flow.error && <p role="alert" className="mt-3 px-1 text-[13px] text-[#DC2626]">{flow.error}</p>}
             {button('حفظ كلمة المرور والدخول', flow.code.length !== 4 || Boolean(passwordProblem(flow.password)))}

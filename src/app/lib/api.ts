@@ -134,16 +134,12 @@ export function login(identifier: string, password: string) {
   return request<AuthResponse>('/api/auth/login', { method: 'POST', body: { identifier, password, turnstileToken: takeTurnstileToken() } });
 }
 
-// A signed Apple Wallet pass for the signed-in owner's own page (any status),
-// returned as a Blob so the browser can download it and iOS opens it in Wallet.
-export async function fetchOwnWalletPass(): Promise<Blob> {
-  const token = getSessionToken();
-  const response = await fetch('/api/wallet-pass', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  if (!response.ok) {
-    const message = await response.json().then((body) => body?.error).catch(() => undefined);
-    throw new Error(message || 'تعذّر إنشاء البطاقة الآن.');
-  }
-  return response.blob();
+// A short-lived, openable URL for the signed-in owner's Apple Wallet card.
+// iOS Safari adds a pass only from a real URL it navigates to (not a blob
+// download), so the UI opens this URL directly.
+export async function requestWalletPassLink(): Promise<string> {
+  const { url } = await request<{ url: string }>('/api/wallet-pass?link=1', { authenticated: true });
+  return url;
 }
 
 export function requestPasswordReset(email: string) {

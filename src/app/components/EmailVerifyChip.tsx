@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { digitsOnly } from '../lib/digits';
 import { createPortal } from 'react-dom';
 import { Check, Mail } from 'lucide-react';
 import { resendWait, sendEmailCode, verifyEmailCode } from '../lib/api';
@@ -66,7 +67,7 @@ export function EmailVerifyChip() {
   };
 
   const type = (index: number, value: string) => {
-    const clean = value.replace(/\D/g, '');
+    const clean = digitsOnly(value);
     setError('');
     const next = [...digits];
     // Pasting the whole code fills every box.

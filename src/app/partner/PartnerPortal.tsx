@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { digitsOnly } from '../lib/digits';
 import { TurnstileBox, useHumanOk } from '../lib/turnstile';
 import { Link } from 'react-router';
 import { Copy, LogOut, Plus, ArrowLeft, Pencil } from 'lucide-react';
@@ -65,7 +66,7 @@ function PartnerLogin({ onLogin }: { onLogin: (partner: PartnerAccount) => void 
         <div className="divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-white">
           <input type="email" value={email} onChange={(e) => { setEmail(e.target.value.trim()); setSent(''); }} placeholder="البريد الإلكتروني" aria-label="البريد الإلكتروني" className={field} dir="ltr" style={{ textAlign: 'right' }} autoComplete="username" autoFocus />
           {method === 'password' && <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="كلمة المرور" aria-label="كلمة المرور" className={field} dir="ltr" autoComplete="current-password" />}
-          {method === 'code' && sent && <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="• • • •" aria-label="رمز الدخول" inputMode="numeric" autoComplete="one-time-code" className={`${field} text-center text-2xl tracking-[0.6em]`} dir="ltr" />}
+          {method === 'code' && sent && <input value={code} onChange={(e) => setCode(digitsOnly(e.target.value).slice(0, 4))} placeholder="• • • •" aria-label="رمز الدخول" inputMode="numeric" autoComplete="one-time-code" className={`${field} text-center text-2xl tracking-[0.6em]`} dir="ltr" />}
         </div>
         {sent && method === 'code' && <p className="px-1 text-[13px] text-[#1f7a35]">{sent}</p>}
         <TurnstileBox />

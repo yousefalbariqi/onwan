@@ -1,8 +1,9 @@
 import { nonprofitPath } from '../lib/nonprofit';
 import { arabicSlug } from '../lib/arabicSlug';
+import { toAsciiDigits } from '../lib/digits';
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, Link2, Loader2 } from 'lucide-react';
 import { ApiError, checkUsername, login, signup } from '../lib/api';
 import { pageHost } from '../lib/site';
 import { useAuthSuccess } from '../lib/useAuthSuccess';
@@ -177,22 +178,50 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
                   <Row><input aria-label="اسم الجمعية" value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="اسم الجمعية" maxLength={80} disabled={loading} autoFocus className={inputClass} /></Row>
                 </>}
                 <Row label="الجوال" error={errors.phone ?? phoneHint}>
-                  <input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => { setPhone(e.target.value.replace(/[^0-9+]/g, '')); clear('phone'); }} onBlur={blur('phone')} placeholder="05XXXXXXXX" maxLength={16} autoFocus={!nonprofit} aria-invalid={Boolean(errors.phone ?? phoneHint)} className={inputClass} dir="ltr" />
+                  <input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => { setPhone(toAsciiDigits(e.target.value).replace(/[^0-9+]/g, '')); clear('phone'); }} onBlur={blur('phone')} placeholder="05XXXXXXXX" maxLength={16} autoFocus={!nonprofit} aria-invalid={Boolean(errors.phone ?? phoneHint)} className={inputClass} dir="ltr" />
                 </Row>
-                <Row label="البريد" error={errors.email ?? emailHint}>
-                  <input type="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value.trim()); clear('email'); }} onBlur={blur('email')} placeholder="name@example.com" aria-invalid={Boolean(errors.email ?? emailHint)} className={inputClass} dir="ltr" />
+                <Row label="البريد الإلكتروني" error={errors.email ?? emailHint} stacked>
+                  <input type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value.trim()); clear('email'); }} onBlur={blur('email')} placeholder="name@example.com" aria-invalid={Boolean(errors.email ?? emailHint)} className={inputClassStacked} dir="ltr" />
                 </Row>
-                <Row label="كلمة المرور" error={errors.password ?? passwordHint} last>
+                <Row label="كلمة المرور" error={errors.password ?? passwordHint} last={!nonprofit}>
                   <PasswordInput autoComplete="new-password" value={password} onChange={(e) => { setPassword(e.target.value); clear('password'); }} onBlur={blur('password')} placeholder="••••••••" aria-invalid={Boolean(errors.password ?? passwordHint)} aria-describedby="password-rules" className={inputClass} dir="ltr" />
                 </Row>
+                {/* The suggested link is the last, full-width row — an important result of the data above. */}
+                {nonprofit && (organizationName.trim() || editingLink) && (
+                  <div className="px-4 py-3">
+                    <span className="mb-1.5 block text-[12px] font-medium text-[#8e8e93]">رابط جمعيتكم</span>
+                    {!editingLink ? (
+                      <div className="flex items-center gap-2">
+                        <Link2 className="h-5 w-5 shrink-0 text-[#FF6B2C]" />
+                        <span dir="ltr" className={`min-w-0 flex-1 truncate text-[20px] font-black ${linkTone}`}>{nonprofitUsername || '…'}.onwan.link</span>
+                        {checkingLink && nonprofitUsername && <Loader2 aria-label="جارٍ التحقق من توفر الرابط" className="h-4 w-4 shrink-0 animate-spin text-[#737373]" />}
+                        <button type="button" disabled={loading} onClick={() => { setCustomLink(nonprofitUsername); setEditingLink(true); }} className="shrink-0 rounded-full bg-[#FFF0E8] px-3 py-1.5 text-[13px] font-bold text-[#F25A18]">تعديل الرابط</button>
+                      </div>
+                    ) : (
+                      <div className={`flex items-center overflow-hidden rounded-xl bg-[#f7f7f7] ring-1 ${linkTaken ? 'ring-[#DC2626]' : 'ring-[#e5e5ea] focus-within:ring-[#FF6B2C]'}`} dir="ltr">
+                        <input autoFocus aria-label="رابط الصفحة" aria-invalid={linkTaken} value={customLink} disabled={loading} onChange={e => setCustomLink(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} maxLength={30} className="min-w-0 flex-1 bg-transparent px-3 py-3 text-[17px] font-bold focus:outline-none" />
+                        <span className="pr-3 text-[15px] text-[#8e8e93]">.onwan.link</span>
+                      </div>
+                    )}
+                    <div role="status" aria-live="polite">
+                      {!nonprofitUsername ? <p className="mt-1.5 text-[13px] text-[#737373]">أدخل الرابط للتحقق من توفره.</p>
+                        : !checkingLink && linkTaken ? (
+                          <p className="mt-1.5 text-[13px] text-[#DC2626]">{linkState?.reason || 'هذا الرابط غير متاح. اختر اسمًا آخر.'}
+                            {linkState?.status === 'error' && <button type="button" onClick={() => setLinkRetry(value => value + 1)} className="mr-2 font-bold underline">إعادة المحاولة</button>}
+                          </p>
+                        ) : null}
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <>
-                {/* Note 08: sign-in is by email only. */}
-                <Row label="البريد الإلكتروني" error={errors.identifier ?? loginEmailHint}>
-                  <input type="email" autoComplete="email" value={identifier} onChange={(e) => { setIdentifier(e.target.value.trim()); clear('identifier'); }} onBlur={blur('identifier')} placeholder="name@example.com" autoFocus className={inputClass} dir="ltr" />
+                {/* Note 08: sign-in is by email only. A failed sign-in concerns both
+                    fields, so its error is shown under the box, not between them. */}
+                <Row label="البريد الإلكتروني" stacked>
+                  <input type="email" inputMode="email" autoComplete="email" value={identifier} onChange={(e) => { setIdentifier(e.target.value.trim()); clear('identifier'); }} onBlur={blur('identifier')} placeholder="name@example.com" autoFocus aria-invalid={Boolean(errors.identifier || loginEmailHint)} className={inputClassStacked} dir="ltr" />
                 </Row>
-                <Row label="كلمة المرور" error={errors.password} last>
+                <Row label="كلمة المرور" last>
                   <PasswordInput autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); clear('password'); }} placeholder="••••••••" className={inputClass} dir="ltr" />
                 </Row>
               </>
@@ -200,34 +229,16 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
           </div>
 
           {isSignup && <PasswordRules password={password} />}
-          <div className="mt-3"><TurnstileBox /></div>
-          {/* Note 17: the link sits quietly under the form. Its colour says whether
-              it is free (green) or taken (red, and the field opens to change it). */}
+          {/* The link's helper note stays below the table, as a help note. */}
           {isSignup && nonprofit && (organizationName.trim() || editingLink) && (
-            <div className="mt-3 px-1 text-[13px]">
-              <div className="flex items-center gap-2">
-                <span dir="ltr" className={`min-w-0 truncate font-bold ${linkTone}`}>{nonprofitUsername || '…'}.onwan.link</span>
-                {checkingLink && nonprofitUsername && <Loader2 aria-label="جارٍ التحقق من توفر الرابط" className="h-3.5 w-3.5 shrink-0 animate-spin text-[#737373]" />}
-                {!editingLink && <button type="button" disabled={loading} onClick={() => { setCustomLink(nonprofitUsername); setEditingLink(true); }} className="shrink-0 font-bold text-[#FF6B2C]">تعديل</button>}
-              </div>
-              {editingLink && (
-                <div className={`mt-2 flex items-center overflow-hidden rounded-xl bg-white ring-1 ${linkTaken ? 'ring-[#DC2626]' : 'ring-[#e5e5ea] focus-within:ring-[#FF6B2C]'}`} dir="ltr">
-                  <input autoFocus aria-label="رابط الصفحة" aria-invalid={linkTaken} value={customLink} disabled={loading} onChange={e => setCustomLink(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} maxLength={30} className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-[15px] focus:outline-none" />
-                  <span className="pr-3 text-[#8e8e93]">.onwan.link</span>
-                </div>
-              )}
-              <div role="status" aria-live="polite">
-                {!nonprofitUsername ? <p className="mt-1 text-[#737373]">أدخل الرابط للتحقق من توفره.</p>
-                  : !checkingLink && linkTaken ? (
-                    <p className="mt-1 text-[#DC2626]">{linkState?.reason || 'هذا الرابط غير متاح. اختر اسمًا آخر.'}
-                      {linkState?.status === 'error' && <button type="button" onClick={() => setLinkRetry(value => value + 1)} className="mr-2 font-bold underline">إعادة المحاولة</button>}
-                    </p>
-                  ) : null}
-              </div>
-              <p className="mt-0.5 text-[#737373]">يُعتمد الرابط عند تفعيل الحساب، ويمكنكم لاحقًا استخدام نطاقكم الخاص (الدومين).</p>
-            </div>
+            <p className="mt-2 px-1 text-[13px] text-[#737373]">يُعتمد الرابط عند تفعيل الحساب، ويمكنكم لاحقًا استخدام نطاقكم الخاص (الدومين).</p>
           )}
-          {errors.form && <p role="alert" className="mt-3 px-1 text-[13px] text-[#ff3b30]">{errors.form}</p>}
+          {/* A login failure concerns both fields: shown here, below them and before Turnstile. */}
+          {!isSignup && (errors.identifier || errors.password || loginEmailHint || errors.form) && (
+            <p role="alert" className="mt-3 px-1 text-[13px] text-[#ff3b30]">{errors.identifier || errors.password || loginEmailHint || errors.form}</p>
+          )}
+          <div className="mt-3"><TurnstileBox /></div>
+          {isSignup && errors.form && <p role="alert" className="mt-3 px-1 text-[13px] text-[#ff3b30]">{errors.form}</p>}
 
           <button
             type="submit"
@@ -280,15 +291,19 @@ export function PasswordRules({ password }: { password: string }) {
 }
 
 export const inputClass = 'w-full bg-transparent py-3.5 text-[17px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none';
+// Stacked layout: label above, so the input keeps the full width and a long
+// email stays reviewable to its end without shrinking the font.
+export const inputClassStacked = 'w-full bg-transparent pb-2.5 text-[17px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none';
 
-// A grouped-list row: label on the right, the field beside it, and its own
-// short error underneath.
-export function Row({ label, error, last = false, children }: { label?: string; error?: string; last?: boolean; children: React.ReactNode }) {
+// A grouped-list row. Default: label on the right, the field beside it. With
+// `stacked`, the label sits above and the field takes the whole width below —
+// used for the email, where seeing the full address matters more than the row.
+export function Row({ label, error, last = false, stacked = false, children }: { label?: string; error?: string; last?: boolean; stacked?: boolean; children: React.ReactNode }) {
   return (
     <div className={last ? '' : 'border-b border-[#e5e5ea]'}>
-      <label className="flex items-center gap-3 px-4">
-        {label && <span className="min-w-[86px] shrink-0 whitespace-nowrap text-[15px] text-[#1d1d1f]">{label}</span>}
-        <span className="min-w-0 flex-1">{children}</span>
+      <label className={stacked ? 'block px-4 pt-2' : 'flex items-center gap-3 px-4'}>
+        {label && <span className={stacked ? 'mb-0.5 block text-[12px] font-medium text-[#8e8e93]' : 'min-w-[86px] shrink-0 whitespace-nowrap text-[15px] text-[#1d1d1f]'}>{label}</span>}
+        <span className={stacked ? 'block min-w-0' : 'min-w-0 flex-1'}>{children}</span>
       </label>
       {error && <p role="alert" className="px-4 pb-2.5 text-[13px] text-[#ff3b30]">{error}</p>}
     </div>

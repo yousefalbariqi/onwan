@@ -41,7 +41,10 @@ function known(w: string): string | undefined {
 }
 
 // Words that say what the entity is rather than which one it is.
-const GENERIC = new Set(['جمعية', 'جمعيه', 'الجمعية', 'مؤسسة', 'مؤسسه', 'منظمة']);
+const GENERIC = new Set([
+  'جمعية', 'جمعيه', 'الجمعية', 'جمعيات', 'مؤسسة', 'مؤسسه', 'المؤسسة', 'منظمة', 'المنظمة',
+  'الخيرية', 'خيرية', 'التعاونية', 'تعاونية', 'الأهلية', 'اهلية', 'الاهلية', 'التطوعية', 'تطوعية',
+]);
 
 function word(text: string) {
   const spelled = known(text);

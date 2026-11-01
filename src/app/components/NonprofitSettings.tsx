@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BarChart3, ChevronRight, KeyRound, Link2, LogOut, Mail, MessageCircle, Palette, Smartphone, WalletCards } from 'lucide-react';
 import { usePageContext } from '../context/PageContext';
-import { accountCall, fetchOwnWalletPass, nonprofitCall, sendSupportRequest } from '../lib/api';
+import { accountCall, nonprofitCall, requestWalletPassLink, sendSupportRequest } from '../lib/api';
 import { pageHost } from '../lib/site';
 import { quoteStatus } from '../lib/nonprofit';
 import { AccountSecurity, CHANGE_LABELS, VisitsPage, useOverview, type Change } from './AccountServices';
@@ -31,9 +31,39 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [walletBusy, setWalletBusy] = useState(false);
+  // The Apple Wallet pass link is fetched ahead of time so the button is a real
+  // anchor: on iOS the add must happen inside the tap, not after an await.
+  const [walletUrl, setWalletUrl] = useState('');
+  // Visible on-device diagnostic: Safari's «can't download» is not a JS error,
+  // so this shows what the pass request actually returns on the phone.
+  const [walletDiag, setWalletDiag] = useState('');
 
   useEffect(() => { nonprofitCall().then((r) => setQuote(r.request ?? null)).catch(() => undefined); }, []);
+  // Prepare the Apple Wallet link up front so the button taps straight through.
+  useEffect(() => {
+    if (!pageData.username) return;
+    let alive = true;
+    requestWalletPassLink()
+      .then((url) => { if (alive) setWalletUrl(url); })
+      .catch((e) => { if (alive) setWalletDiag('تعذّر تجهيز الرابط: ' + (e instanceof Error ? e.message : String(e))); });
+    return () => { alive = false; };
+  }, [pageData.username]);
+
+  // Fetch the pass with JS (bypasses Safari's download handling) and report what
+  // came back, so a failure that shows no console error is still visible.
+  const checkWallet = async () => {
+    setWalletDiag('جارٍ الفحص…');
+    try {
+      const url = walletUrl || (await requestWalletPassLink());
+      const started = Date.now();
+      const res = await fetch(url, { cache: 'no-store' });
+      const type = res.headers.get('content-type') || '—';
+      const bytes = (await res.arrayBuffer()).byteLength;
+      setWalletDiag(`الحالة ${res.status} · النوع ${type} · ${bytes} بايت · ${Date.now() - started}ms`);
+    } catch (e) {
+      setWalletDiag('خطأ: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
   useEffect(() => { if (!toast) return; const t = window.setTimeout(() => setToast(''), 2200); return () => window.clearTimeout(t); }, [toast]);
   if (!account) return null;
   const published = account.pageStatus === 'published';
@@ -67,25 +97,6 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
 
   // The owner's own Apple Wallet card, built and signed on the server even
   // before activation, so it can be added and tested now (iPhone opens it).
-  const addToWallet = async () => {
-    setWalletBusy(true);
-    try {
-      const blob = await fetchOwnWalletPass();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `onwan-${pageData.username || 'card'}.pkpass`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch (e) {
-      setToast(e instanceof Error ? e.message : 'تعذّر إنشاء البطاقة.');
-    } finally {
-      setWalletBusy(false);
-    }
-  };
-
   const changeLink = async () => {
     setLinkBusy(true); setLinkMsg('');
     try { const r = await accountCall('name.change', { username: linkName }); setAccount(r.account); updatePageData({ username: r.username }); setLinkName(''); setLinkMsg('تم تغيير الرابط.'); }
@@ -117,10 +128,12 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
       <Group title="المشاركة" footer={published ? undefined : 'رمز QR للصفحة يعمل بعد تفعيلها.'}>
         {published && <div className="flex items-center justify-between gap-3 px-4 py-3 text-[15px]"><span>رمز QR للصفحة</span><QRCodeDisplay username={pageData.username} /></div>}
         <div className="space-y-2 px-4 py-3">
-          <button type="button" disabled={!pageData.username || walletBusy} onClick={addToWallet} className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#111111] text-[15px] font-bold text-white transition active:scale-[0.98] disabled:opacity-50">
-            <WalletCards className="h-5 w-5" />{walletBusy ? 'جارٍ التجهيز…' : 'إضافة إلى Apple Wallet'}
-          </button>
+          <a href={walletUrl || undefined} aria-disabled={!walletUrl} onClick={(e) => { if (!walletUrl) e.preventDefault(); }} className={`flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#111111] text-[15px] font-bold text-white transition active:scale-[0.98] ${walletUrl ? '' : 'pointer-events-none opacity-50'}`}>
+            <WalletCards className="h-5 w-5" />{walletUrl ? 'إضافة إلى Apple Wallet' : 'جارٍ التجهيز…'}
+          </a>
           <p className="text-xs text-[#6e6e73]">بطاقة تعريف فيها اسم الجهة وشعار «عنوان» ورمز QR لصفحتها. افتحها من آيفون لإضافتها إلى المحفظة.</p>
+          <button type="button" onClick={checkWallet} className="text-[11px] text-[#0a84ff] underline underline-offset-2">فحص الاتصال (تشخيص)</button>
+          {walletDiag && <p dir="ltr" className="break-all rounded-lg bg-[#f2f2f7] px-2 py-1 text-[11px] text-[#3a3a3c]">{walletDiag}</p>}
         </div>
       </Group>
 

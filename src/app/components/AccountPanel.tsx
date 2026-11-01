@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { digitsOnly } from '../lib/digits';
 import { useNavigate } from 'react-router';
 import {
   AlertTriangle,
@@ -238,7 +239,7 @@ export function AccountPanel() {
               <>
                 <Group title="تأكيد البريد" footer="أدخل الرمز الذي وصلك على بريدك.">
                   <div className="px-4" dir="ltr">
-                    <input value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))} maxLength={4} inputMode="numeric" autoComplete="one-time-code" placeholder="• • • •" aria-label="رمز التأكيد" className="w-full bg-transparent py-3 text-center text-2xl tracking-[0.6em] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
+                    <input value={code} onChange={(e) => setCode(digitsOnly(e.target.value))} maxLength={4} inputMode="numeric" autoComplete="one-time-code" placeholder="• • • •" aria-label="رمز التأكيد" className="w-full bg-transparent py-3 text-center text-2xl tracking-[0.6em] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
                   </div>
                 </Group>
                 <PrimaryButton busy={emailBusy} disabled={code.length !== 4} onClick={() => runEmailAction(async () => {

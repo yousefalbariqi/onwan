@@ -166,11 +166,10 @@ export function NonprofitOnboarding() {
         <span className="w-12" />
       </header>
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-44 pt-8">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-52 pt-8">
         {step === 1 ? (
           <>
-            <h1 className="text-center text-[28px] font-black leading-tight sm:text-[34px]">محتوى صفحتك</h1>
-            <p className="mt-2 text-center text-[15px] text-[#6e6e73] sm:text-base">أضف وعدّل واحذف في أي وقت من محرر الصفحة.</p>
+            <h1 className="text-center text-[28px] font-black leading-tight sm:text-[34px]">أضف روابط وملفات لصفحتك</h1>
             <div className="mt-8 grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4">
               {CHOICES.map((p) => {
                 const active = chosen.includes(p.id);
@@ -190,6 +189,7 @@ export function NonprofitOnboarding() {
                 );
               })}
             </div>
+            <p className="mt-5 text-center text-[15px] text-[#6e6e73] sm:text-base">يمكنك لاحقًا إضافة المحتوى وتعديله أو حذفه من محرر الصفحة.</p>
           </>
         ) : (
           <>
@@ -224,13 +224,18 @@ export function NonprofitOnboarding() {
       {/* Fixed actions, faded over the grid as in the reference. */}
       <footer className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-white via-white to-white/0 pt-8">
         <div className="mx-auto w-full max-w-2xl px-5 pb-6">
+          {step === 2 && (
+            <p className="mb-3 text-center text-[13px] leading-6 text-[#6e6e73]">
+              بالمتابعة توافق على <a href={nonprofitPath('terms')} className="font-bold text-[#173c36] underline underline-offset-2">الشروط والأحكام</a>. «عنوان» مخصّص للجمعيات والمنظمات.
+            </p>
+          )}
           <button
             type="button"
             disabled={!canContinue}
             onClick={next}
             className="flex min-h-[56px] w-full items-center justify-center rounded-full bg-[#173c36] text-[17px] font-bold text-white transition-colors disabled:bg-[#e8e8e3] disabled:text-[#a3a39e]"
           >
-            {saving ? 'جارٍ الحفظ…' : 'متابعة'}
+            {saving ? 'جارٍ الحفظ…' : step === 2 ? 'أنشئ صفحتك' : 'متابعة'}
           </button>
           {step === 1 && <button type="button" onClick={() => setStep(2)} className="mt-3 block w-full py-2 text-center text-[15px] font-bold text-[#6e6e73]">تخطي</button>}
         </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { digitsOnly } from '../lib/digits';
 import { Account, accountCall, resendWait } from '../lib/api';
 import { Group, Notice, PrimaryButton } from './ios';
 import { PasswordInput } from './PasswordInput';
@@ -296,7 +297,7 @@ export function AccountSecurity({ change, onAccount, onDone }: { change: Change;
     <>
       <Group title={step === 'newEmailCode' ? 'الرمز المرسل إلى بريدك الجديد' : 'الرمز المرسل إلى بريدك المسجل'}>
         <div className="px-4" dir="ltr">
-          <input value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))} maxLength={4} inputMode="numeric" autoComplete="one-time-code" placeholder="• • • •" aria-label="الرمز" className={`${inputClass} text-center text-2xl tracking-[0.6em]`} />
+          <input value={code} onChange={(e) => setCode(digitsOnly(e.target.value))} maxLength={4} inputMode="numeric" autoComplete="one-time-code" placeholder="• • • •" aria-label="الرمز" className={`${inputClass} text-center text-2xl tracking-[0.6em]`} />
         </div>
       </Group>
       {step === 'code' && (

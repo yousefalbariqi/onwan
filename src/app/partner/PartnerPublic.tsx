@@ -1,4 +1,5 @@
 import { PageView } from '../components/PageView';
+import { digitsOnly } from '../lib/digits';
 import { mergeWithDefaults } from '../context/PageContext';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -284,7 +285,7 @@ function FinishAccount({ setupLink, username }: { setupLink: string; username: s
       <div className="divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-white">
         <label className="block px-4 py-2">
           <span className="text-[13px] text-[#6e6e73]">{sent ? <>الرمز المرسل إلى <span dir="ltr">{sent.email}</span></> : 'رمز التأكيد'}</span>
-          <input value={code} onChange={(e) => { setCode(e.target.value.replace(/\D/g, '').slice(0, 4)); setError(''); }} inputMode="numeric" autoComplete="one-time-code" placeholder="• • • •" aria-label="رمز التأكيد" className="w-full bg-transparent py-2 text-center text-2xl tracking-[0.6em] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" dir="ltr" />
+          <input value={code} onChange={(e) => { setCode(digitsOnly(e.target.value).slice(0, 4)); setError(''); }} inputMode="numeric" autoComplete="one-time-code" placeholder="• • • •" aria-label="رمز التأكيد" className="w-full bg-transparent py-2 text-center text-2xl tracking-[0.6em] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" dir="ltr" />
         </label>
         <label className="block px-4 py-2">
           <span className="text-[13px] text-[#6e6e73]">كلمة المرور (8 أحرف على الأقل)</span>
