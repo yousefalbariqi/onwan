@@ -12,7 +12,7 @@ const clock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(
 // Email confirmation from the editor header (replaces the big banner): a small
 // «أكّد بريدك» button takes the header's place; the code is typed in a popup,
 // and once confirmed a short «تم» shows before the usual buttons come back.
-export function EmailVerifyChip() {
+export function EmailVerifyChip({ autoOpen = false, label = 'أكّد بريدك لإتمام النشر' }: { autoOpen?: boolean; label?: string } = {}) {
   const { account, setAccount } = usePageContext();
   const [open, setOpen] = useState(false);
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''));
@@ -23,6 +23,14 @@ export function EmailVerifyChip() {
   const [info, setInfo] = useState('');
   const [done, setDone] = useState(false);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!autoOpen || started.current || !account || account.emailVerified) return;
+    started.current = true;
+    setOpen(true);
+    void send();
+  }, [autoOpen, account?.emailVerified]);
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -92,7 +100,7 @@ export function EmailVerifyChip() {
         style={{ fontFamily: 'Cairo, sans-serif' }}
       >
         <Mail className="h-4 w-4" />
-        أكّد بريدك لإتمام النشر
+        {label}
       </button>
 
       {/* Rendered on <body>: the header uses backdrop-blur, which would make a

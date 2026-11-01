@@ -29,7 +29,7 @@ export function NonprofitBuilderPage({ gate: Gate }: { gate: React.ComponentType
     <Gate>
       <Builder
         editor={nonprofitEditorConfig}
-        staffEdit={{ title: 'تصميم الجمعية — معاينة خاصة', onExit: () => navigate(nonprofitPath()), onContinue: () => navigate(nonprofitPath('quote')), continueLabel: 'التالي · مراجعة طلب العرض', exitLabel: 'العودة إلى صفحة الجمعيات', exitAsLogout: signOut }}
+        staffEdit={{ title: 'تصميم الجمعية — محفوظ داخليًا', onExit: () => navigate(nonprofitPath()), onContinue: () => navigate(nonprofitPath('quote')), continueLabel: 'النشر والتالي', exitLabel: 'العودة إلى صفحة الجمعيات', exitAsLogout: signOut }}
       />
     </Gate>
   );

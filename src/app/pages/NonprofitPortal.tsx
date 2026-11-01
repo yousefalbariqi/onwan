@@ -9,7 +9,8 @@ import { nonprofitCall } from '../lib/api';
 import { nonprofitPath, quoteStatus } from '../lib/nonprofit';
 import { clearLocalAccountData, clearSessionToken, getSessionToken } from '../lib/session';
 import { PhonePreview } from '../components/PhonePreview';
-import { ArrowRight, Check, ChevronDown, Loader2, LogOut, Pencil, Plus } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, Loader2, LogOut, LockKeyhole, Pencil, Plus } from 'lucide-react';
+import { NonprofitSummaryAssets } from '../components/NonprofitSummaryAssets';
 import { OnwanLogo } from '../components/OnwanLogo';
 
 function Shell({ children, branded = false }: {children: React.ReactNode; branded?: boolean}) {
@@ -60,15 +61,6 @@ export function NonprofitGate({ children }: {children: React.ReactNode}) {
   if (account.kind !== 'nonprofit') return <Shell><p>هذا الحساب مسجل كحساب عميل عادي. لن نغيّر حسابك أو اشتراكك.</p><a href="https://onwan.link/builder" className="mt-4 inline-block underline">متابعة حسابك في عنوان</a><p className="mt-4">لجمعية جديدة، سجّل الخروج ثم أنشئ حساب جمعية مستقلًا.</p></Shell>;
   return <>{children}</>;
 }
-// Note 19: designing, saving and the quote request are open from the start;
-// publishing waits for a confirmed email and the activation.
-function ActivationNotice() {
-  return <section className="mt-6 rounded-2xl border border-[#FFD9C4] bg-[#FFF0E8] p-6">
-    <h2 className="font-bold">صفحتك جاهزة للتفعيل</h2>
-    <p className="mt-2 text-sm leading-7 text-[#3a3a3a]">يمكنك متابعة تصميم صفحتك وحفظ تعديلاتك. لنشر الصفحة، يرجى تأكيد البريد الإلكتروني وإكمال إجراءات التفعيل.</p>
-    <div className="mt-4 flex flex-wrap items-center gap-3"><EmailVerifyChip /><Link to={nonprofitPath('builder')} className="text-sm font-bold underline">العودة إلى المحرر</Link></div>
-  </section>;
-}
 export function NonprofitBuilder() {
   return <NonprofitBuilderPage gate={NonprofitGate} />;
 }
@@ -95,7 +87,7 @@ export function NonprofitQuote() {
   }, []);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (sending.current || saving || checking || !loaded || request) return;
+    if (sending.current || saving || checking || !loaded || request || !account?.emailVerified) return;
     sending.current = true; setBusy(true); setError('');
     try {
       await save();
@@ -105,16 +97,25 @@ export function NonprofitQuote() {
     finally { sending.current = false; setBusy(false); }
   };
   const update = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [key]: e.target.value }));
+  if (!account?.emailVerified) return <NonprofitGate><Shell branded>
+    <section className="quote-confirmation">
+      <span className="quote-confirmation-check"><LockKeyhole size={23} aria-hidden="true" /></span>
+      <h1>تأكيد البريد الإلكتروني</h1>
+      <p>تصميمكم محفوظ داخليًا. أكّدوا بريد الحساب للمتابعة إلى ملخص الصفحة وطلب عرض السعر لتفعيل الحساب.</p>
+      <div className="mt-5 flex justify-center"><EmailVerifyChip autoOpen label="تأكيد البريد والمتابعة" /></div>
+      <Link to={nonprofitPath('builder')} className="quote-text-link">العودة إلى المحرر</Link>
+    </section>
+  </Shell></NonprofitGate>;
   return <NonprofitGate><Shell branded>
     <div className="quote-heading">
       <span className="quote-eyebrow">{request ? 'تم الاستلام' : 'الخطوة الأخيرة'}</span>
-      <h1>{request ? 'طلبكم وصل.' : 'طلب عرض السعر'}</h1>
+      <h1>{request ? 'طلبكم وصل.' : 'ملخص صفحة الجمعية'}</h1>
     </div>
     {checking ? <p role="status" className="quote-loading"><Loader2 size={18} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />جارٍ تحميل الطلب…</p> : request ?
       <section className="quote-confirmation" role="status">
         <span className="quote-confirmation-check"><Check size={23} aria-hidden="true" /></span>
         <h2>طلب #{request.request_number} · {quoteStatus[request.status]}</h2>
-        <p>سنتواصل معكم بعرض السعر.</p>
+        <p>وصل طلبكم، وسنتواصل معكم لاستكمال التفعيل.</p>
         <dl className="quote-receipt">
           <div><dt>الجمعية</dt><dd>{request.organization_name}</dd></div>
           <div><dt>مسؤول التواصل</dt><dd>{request.contact_name}</dd></div>
@@ -122,9 +123,10 @@ export function NonprofitQuote() {
           <div><dt>البريد</dt><dd dir="ltr">{request.email}</dd></div>
         </dl>
         {request.notes && <details className="quote-disclosure"><summary>تفاصيل الطلب<ChevronDown size={14} aria-hidden="true" /></summary><p className="whitespace-pre-wrap">{request.notes}</p></details>}
-        <p className="quote-caption">التصميم المرفق محفوظ. تعديلاتكم التالية تبقى مسودة. لم يتم النشر أو الدفع.</p>
+        <p className="quote-caption">نسخة التصميم المرفقة بالطلب محفوظة، وتعديلاتكم التالية تحفظ داخليًا. طلب العرض لا يفعّل الحساب ولا يؤكد الدفع.</p>
         {request.email_status === 'failed' && <p className="text-sm text-amber-800">طلبكم محفوظ، وسنعيد محاولة إرسال إشعار البريد.</p>}
         <Link to={nonprofitPath('builder')} className="quote-text-link">العودة إلى المحرر<ArrowRight size={14} aria-hidden="true" /></Link>
+        <NonprofitSummaryAssets username={pageData.username} published={account.pageStatus === 'published'} />
       </section> : loaded &&
       <form onSubmit={submit} aria-busy={busy}>
         <fieldset disabled={busy || saving} className="quote-layout">
@@ -135,6 +137,7 @@ export function NonprofitQuote() {
                 <span className="quote-caption">صفحة جمعيتكم</span>
                 <h2>{pageData.name || 'صفحة الجمعية'}</h2>
                 <p dir="ltr" className="quote-page-link">{pageData.username}.onwan.link</p>
+                {account.pageStatus !== 'published' && <p className="quote-caption">يُعتمد الرابط عند استكمال التفعيل.</p>}
                 <Link to={nonprofitPath('builder')} className="quote-text-link"><Pencil size={12} aria-hidden="true" />تعديل التصميم</Link>
               </div>
             </div>
@@ -143,13 +146,14 @@ export function NonprofitQuote() {
                 <p className="quote-price"><strong>٤٣٠</strong><span>ريال<small>قيمة الشراء</small></span></p>
                 <span className="quote-gift">٣ سنوات استضافة<em>هدية من عنوان</em></span>
               </div>
-              <p className="quote-ownership">الرابط لكم. والتجديد للاستضافة فقط.</p>
+              <p className="quote-ownership">يشمل العرض رابط الصفحة، والتجديد للاستضافة فقط.</p>
               <p className="quote-renewal">تجديد سنوي من السنة الرابعة؛ الرسوم في العرض.</p>
             </div>
-            <details className="quote-disclosure quote-includes">
+            <details open className="quote-disclosure quote-includes">
               <summary><span>ومعها خدمات مجانية</span><ChevronDown size={14} aria-hidden="true" /></summary>
               <ul className="quote-perks">{['محرر الصفحة', 'رمز QR', 'Apple Wallet', 'التواصل والدعم'].map(service => <li key={service}><Check size={13} aria-hidden="true" />{service}</li>)}</ul>
             </details>
+            <NonprofitSummaryAssets username={pageData.username} published={account.pageStatus === 'published'} />
           </section>
           <section className="quote-details" aria-labelledby="quote-details-title">
             <div className="quote-section-heading"><h2 id="quote-details-title">بيانات الطلب</h2><span>جاهزة للمراجعة والتعديل</span></div>
@@ -165,11 +169,10 @@ export function NonprofitQuote() {
               <details className="quote-disclosure quote-notes"><summary><span><Plus size={14} aria-hidden="true" />إضافة ملاحظة</span><span className="quote-optional">اختياري</span></summary><label htmlFor="quote-notes" className="sr-only">ملاحظات للعرض</label><textarea id="quote-notes" maxLength={4000} value={form.notes} onChange={update('notes')} rows={2} placeholder="ما الذي تودّون إضافته؟" /></details>
             </div>
             {error && <p role="alert" className="quote-error">{error}</p>}
-            <div className="quote-action"><button disabled={busy || saving} type="submit" className="quote-submit">{busy ? <><Loader2 size={17} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />جارٍ إرسال الطلب…</> : <>إرسال طلب عرض السعر<ArrowRight size={17} aria-hidden="true" /></>}</button><p>لا دفع الآن، ولا نشر للصفحة.</p></div>
+            <div className="quote-action"><button disabled={busy || saving} type="submit" className="quote-submit">{busy ? <><Loader2 size={17} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />جارٍ إرسال الطلب…</> : <>طلب عرض سعر لتفعيل الحساب<LockKeyhole size={17} aria-hidden="true" /></>}</button><p>سنتواصل معكم بالسعر وتفاصيل التفعيل. لا دفع أو تفعيل تلقائي عند إرسال الطلب.</p></div>
           </section>
         </fieldset>
       </form>}
     {error && (!loaded || request) && <p role="alert" className="quote-error">{error}{!loaded && !checking && <button type="button" onClick={() => window.location.reload()} className="mr-3 underline">إعادة المحاولة</button>}</p>}
-    {!checking && request && account && !account.emailVerified && <ActivationNotice />}
   </Shell></NonprofitGate>;
 }

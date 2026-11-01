@@ -179,7 +179,12 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
     if (link.display?.kind === 'video') return <VideoBlock key={`${link.id}:${link.url}`} url={link.url} title={(lang === 'en' && link.titleEn) || link.title} caption={link.display.caption} textColor={paragraphColor} radiusClass={design.mediaRadius} />;
     // Note 38: a group's title already sits after the page's 16 px gap, so it
     // adds only a little; a standalone heading keeps its larger lead.
-    if (link.display?.kind === 'heading') return <h2 key={link.id} className={`break-words ${link.display.sectionId ? 'pt-1' : 'pt-5'} pb-1 text-start ${design.heading} font-bold`} style={{ color: headingColor }}>{(lang === 'en' && link.titleEn) || link.title}</h2>;
+    if (link.display?.kind === 'heading') {
+      const text = (lang === 'en' && link.titleEn) || link.title;
+      // P: a «بدون اسم» group has no title bar — its items show directly.
+      if (!text && link.display.sectionId) return null;
+      return <h2 key={link.id} className={`break-words ${link.display.sectionId ? 'pt-1' : 'pt-5'} pb-1 text-start ${design.heading} font-bold`} style={{ color: headingColor }}>{text}</h2>;
+    }
     // Note 35 / 44: a picture card — a fixed video-shaped (16:9) frame on top (cropped where its owner
     // set it, never stretched) and the button under it. A «pill» button style
     // would turn the card into an oval, so cards keep rounded corners instead.

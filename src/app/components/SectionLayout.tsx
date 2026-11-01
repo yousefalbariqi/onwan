@@ -9,6 +9,8 @@ export function SectionLayout({ heading, items, renderItem, lang, spacing = 'nor
   const current = Math.min(active, Math.max(0, items.length - 1));
   const layout = heading.display?.sectionLayout ?? 'list';
   const title = (lang === 'en' && heading.titleEn) || heading.title;
+  // P: a «بدون اسم» group still needs a non-empty accessible label.
+  const label = title || (lang === 'en' ? 'Group' : 'مجموعة');
   // Note 36: the carousel is as tall as the slide in view (not the tallest
   // one), easing between heights; it follows a slide that grows as it loads.
   const [railHeight, setRailHeight] = useState<number>();
@@ -33,10 +35,10 @@ export function SectionLayout({ heading, items, renderItem, lang, spacing = 'nor
   };
   // Note 38: tighter steps inside a group (title, items, arrows), so groups sit
   // closer together while the page's own gap still separates them.
-  return <section aria-label={title} className="min-w-0 space-y-3">
+  return <section aria-label={label} className="min-w-0 space-y-3">
     {renderItem(heading)}
     {layout === 'carousel' ? <>
-      <div ref={rail} role="region" aria-label={`${title} — ${lang === 'en' ? 'carousel' : 'شرائح أفقية'}`} tabIndex={0} onKeyDown={event => {
+      <div ref={rail} role="region" aria-label={`${label} — ${lang === 'en' ? 'carousel' : 'شرائح أفقية'}`} tabIndex={0} onKeyDown={event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) || event.target !== event.currentTarget) return;
         event.preventDefault();
         const delta = event.key === (lang === 'ar' ? 'ArrowLeft' : 'ArrowRight') ? 1 : -1;

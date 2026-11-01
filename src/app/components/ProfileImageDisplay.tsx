@@ -2,33 +2,76 @@ import { useEffect, useState } from 'react';
 import { User } from 'lucide-react';
 import { PageData } from '../context/PageContext';
 
-// Note 17: a logo with see-through pixels is shown as it is — no frosted
-// frame fill, blurred copy or dark layer behind it. Checked once per image;
-// an image that cannot be read (cross-origin) counts as opaque, as before.
-function useTransparent(src: string) {
-  const [transparent, setTransparent] = useState(false);
+// Note 17 / قصّ الشعار: a logo with see-through pixels is shown as it is — no
+// frosted frame, blurred copy or dark layer behind it. We also trim the empty
+// transparent margin around it so it fills its frame instead of floating small:
+// the visible pixels' bounding box is cropped onto a canvas with a small margin,
+// and that trimmed copy is shown (the stored image is never changed). Trimming
+// is for transparent logos only — opaque photos are never cropped. Checked once
+// per image; an image that cannot be read (cross-origin) is treated as opaque
+// and untrimmed, as before.
+function useLogoDisplay(src: string) {
+  const [state, setState] = useState<{ transparent: boolean; trimmed: string }>({ transparent: false, trimmed: '' });
   useEffect(() => {
-    setTransparent(false);
+    setState({ transparent: false, trimmed: '' });
     if (!src) return;
     let cancelled = false;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
-        const w = Math.min(64, img.naturalWidth), h = Math.min(64, img.naturalHeight);
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx || !w || !h) return;
-        ctx.drawImage(img, 0, 0, w, h);
-        const pixels = ctx.getImageData(0, 0, w, h).data;
-        for (let i = 3; i < pixels.length; i += 4) if (pixels[i] < 250) { if (!cancelled) setTransparent(true); return; }
-      } catch { /* unreadable: keep the default */ }
+        const sw = img.naturalWidth, sh = img.naturalHeight;
+        if (!sw || !sh) return;
+        // Sample at a modest size to read transparency and the content bounds.
+        const scale = Math.min(1, 256 / Math.max(sw, sh));
+        const w = Math.max(1, Math.round(sw * scale)), h = Math.max(1, Math.round(sh * scale));
+        const probe = document.createElement('canvas');
+        probe.width = w; probe.height = h;
+        const pctx = probe.getContext('2d');
+        if (!pctx) return;
+        pctx.drawImage(img, 0, 0, w, h);
+        const data = pctx.getImageData(0, 0, w, h).data;
+        let transparent = false;
+        let minX = w, minY = h, maxX = -1, maxY = -1;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const a = data[(y * w + x) * 4 + 3];
+            if (a < 250) transparent = true;
+            if (a > 16) { // a visible pixel: it counts toward the content box
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (cancelled) return;
+        // Opaque image, or nothing visible: leave it whole (no crop).
+        if (!transparent || maxX < minX || maxY < minY) { setState({ transparent, trimmed: '' }); return; }
+        // Only trim when there is real empty margin to remove (>6% on a side).
+        const padX = (minX + (w - 1 - maxX)) / w;
+        const padY = (minY + (h - 1 - maxY)) / h;
+        if (padX < 0.06 && padY < 0.06) { setState({ transparent, trimmed: '' }); return; }
+        // Map the content box back to natural pixels and add a small margin so
+        // the logo breathes inside its frame rather than touching the edges.
+        const inv = 1 / scale;
+        let bx = minX * inv, by = minY * inv;
+        let bw = (maxX - minX + 1) * inv, bh = (maxY - minY + 1) * inv;
+        const margin = 0.06 * Math.max(bw, bh);
+        bx = Math.max(0, bx - margin); by = Math.max(0, by - margin);
+        bw = Math.min(sw - bx, bw + margin * 2); bh = Math.min(sh - by, bh + margin * 2);
+        const out = document.createElement('canvas');
+        out.width = Math.max(1, Math.round(bw)); out.height = Math.max(1, Math.round(bh));
+        const octx = out.getContext('2d');
+        if (!octx) { setState({ transparent, trimmed: '' }); return; }
+        octx.drawImage(img, bx, by, bw, bh, 0, 0, out.width, out.height);
+        setState({ transparent, trimmed: out.toDataURL('image/png') });
+      } catch { /* unreadable: keep the whole image */ }
     };
     img.src = src;
     return () => { cancelled = true; };
   }, [src]);
-  return transparent;
+  return state;
 }
 
 interface ProfileImageDisplayProps {
@@ -57,7 +100,8 @@ export function ProfileImageDisplay({
     transform: (profileStyle.zoom ?? 1) !== 1 ? `scale(${Math.min(3, Math.max(0.3, profileStyle.zoom ?? 1))})` : undefined,
     transformOrigin: `${profileStyle.positionX ?? 50}% ${profileStyle.positionY ?? 50}%`,
   };
-  const transparent = useTransparent(profileImage);
+  const { transparent, trimmed } = useLogoDisplay(profileImage);
+  const displaySrc = trimmed || profileImage;
   const frameFill = transparent ? '' : 'bg-white/10 backdrop-blur-sm';
   const isHeroFillStyle = profileStyle.type === 'hero';
   const isHeroSafeStyle = profileStyle.type === 'hero_safe';
@@ -95,8 +139,8 @@ export function ProfileImageDisplay({
   const renderImage = () => {
     if (profileImage) {
       return (
-        <img 
-          src={profileImage} 
+        <img
+          src={displaySrc}
           alt={name}
           className="w-full h-full"
           style={imageStyle}
@@ -121,7 +165,7 @@ export function ProfileImageDisplay({
           style={{ width: logo, height: logo, left: `clamp(8px, calc(${100 - x}% - ${logo / 2}px), calc(100% - ${logo + 8}px))`, clipPath: 'circle(50%)' }}
         >
           {profileImage
-            ? <img src={profileImage} alt={name} className="h-full w-full" style={{ objectFit: 'contain', transform: imageStyle.transform }} />
+            ? <img src={displaySrc} alt={name} className="h-full w-full" style={{ objectFit: 'contain', transform: imageStyle.transform }} />
             : <User className="h-1/2 w-1/2 opacity-50" style={{ color: textColor }} />}
         </div>
       </div>
@@ -185,7 +229,7 @@ export function ProfileImageDisplay({
             {isHeroFillStyle && fit === 'cover' && !transparent && <div className="absolute inset-0 bg-black/10" />}
             {isHeroFillStyle ? (
               <img
-                src={profileImage}
+                src={displaySrc}
                 alt={name}
                 className="absolute inset-0 h-full w-full object-cover"
                 style={{ ...imageStyle, objectPosition: profileStyle.positionX === undefined && profileStyle.positionY === undefined ? heroImagePosition : imageStyle.objectPosition }}
@@ -194,7 +238,7 @@ export function ProfileImageDisplay({
             ) : (
               <div className="absolute inset-0 p-4 sm:p-6 lg:p-8">
                 <img
-                  src={profileImage}
+                  src={displaySrc}
                   alt={name}
                   className="h-full w-full object-contain"
                   style={imageStyle}

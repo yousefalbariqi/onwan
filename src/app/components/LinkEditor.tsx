@@ -60,6 +60,8 @@ type FormState = {
   customIcon: string;
   display: LinkDisplay;
   sectionMembers: string[];
+  // «بدون اسم» group: saved with an empty title; items show directly.
+  noName: boolean;
 };
 
 type Screen = { name: 'list' } | { name: 'choose' } | { name: 'form'; id?: string };
@@ -106,9 +108,6 @@ function parseLinkInput(raw: string): ParsedLink {
 // What the field shows for a stored link.
 const rawFromUrl = (url: string) => (url.startsWith('mailto:') ? url.slice(7) : /^https:\/\/wa\.me\/\d+$/.test(url) ? `+${url.slice(WHATSAPP_BASE.length)}` : url);
 
-// Note 34: a short video on finding an account's link; the help link shows
-// once its address is set here.
-const LINK_HELP_VIDEO = '';
 // General buttons can carry their own icon (D-11); brand platforms keep their logo.
 const ICON_PLATFORMS = ['website', 'custom', 'file'];
 
@@ -180,6 +179,7 @@ function emptyForm(kind: ContentKind): FormState {
     customIcon: '',
     display: kind === 'text' ? { kind: 'text', body: '' } : kind === 'group' ? { kind: 'heading', sectionId: crypto.randomUUID() } : {},
     sectionMembers: [],
+    noName: false,
   };
 }
 
@@ -210,12 +210,13 @@ function formFromLink(link: Link, links: Link[]): FormState {
     customIcon: link.customIcon || '',
     display: link.display || {},
     sectionMembers: kind === 'group' && sectionId ? links.filter((item) => item.display?.kind !== 'heading' && item.display?.sectionId === sectionId).map((item) => item.id) : [],
+    noName: kind === 'group' && !link.title.trim(),
   };
 }
 
 function isReady(form: FormState) {
   if (form.kind === 'text') return form.textStyle === 'heading' ? Boolean(form.title.trim()) : Boolean(form.display.body?.trim() && form.display.body.length <= 2000);
-  if (form.kind === 'group') return Boolean(form.title.trim());
+  if (form.kind === 'group') return form.noName || Boolean(form.title.trim());
   if (!form.title.trim() || !form.url.trim()) return false;
   if (form.display.kind === 'video') return Boolean(parseYouTubeVideoSource(form.url));
   if (form.mode === 'email') return /^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.url);
@@ -435,7 +436,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
     const isFile = form.kind === 'file';
     const values: Omit<Link, 'id'> = {
       display,
-      title: form.kind === 'text' && !isHeading ? form.display.body!.trim().slice(0, 80) : form.title.trim(),
+      title: form.kind === 'group' && form.noName ? '' : form.kind === 'text' && !isHeading ? form.display.body!.trim().slice(0, 80) : form.title.trim(),
       titleEn: form.titleEn.trim() || undefined,
       url: isHeading || form.kind === 'text' ? '' : form.url.trim(),
       platform: (isHeading || form.kind === 'text' ? 'custom' : isFile ? 'file' : form.platform) as Link['platform'],
@@ -608,7 +609,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
         <span className="shrink-0 text-[15px] text-[#1d1d1f]">ضمن</span>
         <select aria-label="مجموعة العنصر" value={form.display.sectionId ?? ''} onChange={(event) => update({ display: { ...form.display, sectionId: event.target.value || undefined } })} className="min-w-0 flex-1 rounded-lg bg-[#f2f2f7] px-2 py-2 text-[15px]">
           <option value="">بدون مجموعة</option>
-          {groups.map((item) => <option key={item.id} value={item.display!.sectionId}>{item.title}{item.hidden ? ' (مخفية)' : ''}</option>)}
+          {groups.map((item) => <option key={item.id} value={item.display!.sectionId}>{item.title || 'مجموعة بلا اسم'}{item.hidden ? ' (مخفية)' : ''}</option>)}
         </select>
       </label>
     </Group>
@@ -625,6 +626,12 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
     const parsed = parseLinkInput(rawLink);
     const linkError = parsed && 'error' in parsed ? parsed.error : '';
     const youtube = form.mode !== 'email' && form.mode !== 'whatsapp' && parseYouTubeVideoSource(form.url);
+    // N: a per-type helper line, so «قناة» vs «مقطع» is clear and nothing switches silently.
+    const typeHint = !form.url || form.mode === 'email' || form.mode === 'whatsapp' ? ''
+      : form.platform === 'youtube' && youtube ? 'مقطع يوتيوب — فعّل «تشغيل الفيديو داخل الصفحة» لعرضه هنا، أو اتركه زرًا يفتح المقطع.'
+      : form.platform === 'youtube' ? 'رابط قناة يوتيوب — سيظهر كزر يفتح قناتك.'
+      : SOCIAL_IDS.includes(form.platform) ? `رابط ${platformName(form.platform)} — سيظهر كزر يفتح حسابك.`
+      : '';
     const query = platformQuery.trim().toLowerCase();
     const platforms = SOCIAL_IDS.map((id) => SOCIAL_PLATFORMS.find((platform) => platform.id === id)!).filter((platform) => !query || `${platform.name} ${platform.id}`.toLowerCase().includes(query));
     return (
@@ -652,6 +659,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
               {form.mode !== 'email' && form.mode !== 'whatsapp' && <button type="button" onClick={() => setChoosingPlatform(!choosingPlatform)} className="font-bold text-[#0a84ff]">{choosingPlatform ? 'إغلاق' : 'تغيير الشعار'}</button>}
             </div>
           )}
+          {typeHint && <p className="-mt-1 px-4 pb-2.5 text-xs leading-5 text-[#8e8e93]">{typeHint}</p>}
           {youtube && (
             <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#1d1d1f]">
               <span>تشغيل الفيديو داخل الصفحة</span>
@@ -671,11 +679,23 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
             </>
           )}
         </Group>
-        {LINK_HELP_VIDEO && (
-          <button type="button" onClick={() => setHelpOpen(true)} className="-mt-3 flex items-center gap-1.5 px-4 text-xs font-bold text-[#0a84ff]">
-            <span className="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px]">؟</span>كيف أحصل على رابط حسابي؟
+        {/* N: a plain-text, always-available how-to — no video. */}
+        <div className="-mt-3">
+          <button type="button" aria-expanded={helpOpen} onClick={() => setHelpOpen(!helpOpen)} className="flex items-center gap-1.5 px-4 text-xs font-bold text-[#0a84ff]">
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${helpOpen ? 'rotate-180' : ''}`} />كيف أحصل على الرابط؟
           </button>
-        )}
+          {helpOpen && (
+            <div className="mt-2 space-y-1.5 rounded-2xl bg-white px-4 py-3 text-xs leading-6 text-[#6e6e73]">
+              <p className="font-bold text-[#1d1d1f]">من أي حساب أو قناة تواصل اجتماعي:</p>
+              <ol className="list-decimal space-y-1 pr-4">
+                <li>افتح حسابك أو قناتك في التطبيق أو المتصفح.</li>
+                <li>اضغط زر المشاركة (Share) أو «نسخ الرابط».</li>
+                <li>ألصق الرابط في الحقل بالأعلى.</li>
+              </ol>
+              <p>تنفع الطريقة نفسها لإنستقرام وسناب وتيك توك ويوتيوب وإكس وغيرها.</p>
+            </div>
+          )}
+        </div>
 
         {choosingPlatform && !!form.url && (
           <Group title="الشعار" footer="يتغيّر الشعار فقط؛ الرابط والعنوان يبقيان كما هما.">
@@ -714,15 +734,6 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
           </Group>
         )}
 
-        {helpOpen && (
-          // The video plays inside the app; closing removes the player, which stops it.
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" onClick={() => setHelpOpen(false)} role="dialog" aria-modal="true" aria-label="كيف أحصل على رابط حسابي؟">
-            <div className="w-full max-w-[560px] overflow-hidden rounded-2xl bg-black" onClick={(event) => event.stopPropagation()}>
-              <div className="relative aspect-video w-full"><iframe src={LINK_HELP_VIDEO} title="كيف أحصل على رابط حسابي؟" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen className="absolute inset-0 h-full w-full border-0" /></div>
-              <button type="button" onClick={() => setHelpOpen(false)} className="block w-full bg-white py-3 text-[15px] font-bold text-[#1d1d1f]">إغلاق</button>
-            </div>
-          </div>
-        )}
 
         {/* Note 42: how it shows, and its group, in view; the rest stays folded. */}
         {!!form.url && form.display.kind !== 'video' && <LinkAppearanceEditor display={form.display} onChange={(display) => update({ display })} />}
@@ -809,7 +820,29 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
     return (
       <>
         <Group title="اسم المجموعة">
-          <div className="px-4 py-1"><input aria-label="اسم المجموعة" autoFocus={!form.title} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+          {!form.noName && (
+            <div className="px-4 py-1"><input aria-label="اسم المجموعة" autoFocus={!form.title} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+          )}
+          {/* P: «بدون اسم» — the group is saved with no title, and its items show
+              directly on the page with no empty title bar above them. */}
+          <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#1d1d1f]">
+            <span>بدون اسم <span className="text-xs text-[#8e8e93]">— تظهر العناصر مباشرة</span></span>
+            <input type="checkbox" checked={form.noName} onChange={(event) => update({ noName: event.target.checked })} className="h-5 w-5 accent-[#0a84ff]" />
+          </label>
+        </Group>
+        {/* P: «طريقة العرض» shown directly, not behind «خيارات إضافية». */}
+        <Group title="طريقة العرض">
+          <div className="grid grid-cols-3 gap-2 p-3" role="radiogroup" aria-label="طريقة عرض المجموعة">
+            {([['list', 'قائمة'], ['grid', 'شبكة'], ['carousel', 'شرائح أفقية']] as const).map(([id, label]) => {
+              const active = (form.display.sectionLayout ?? 'list') === id;
+              return (
+                <button key={id} type="button" role="radio" aria-checked={active} onClick={() => update({ display: { ...form.display, sectionLayout: id } })} className={`flex flex-col items-center gap-1.5 rounded-xl px-1 py-2.5 transition-colors ${active ? 'bg-[#0a84ff]/10 text-[#0a84ff] ring-2 ring-[#0a84ff]' : 'bg-[#f2f2f7] text-[#8e8e93]'}`}>
+                  <span className="flex h-9 items-center"><LayoutArt id={id} /></span>
+                  <span className={`text-[12px] ${active ? 'font-bold' : 'text-[#3a3a3c]'}`}>{label}</span>
+                </button>
+              );
+            })}
+          </div>
         </Group>
         {/* Note 40: the chosen items, in their order — moved here with ↑↓ — kept
             apart from the items that can still be added. */}
@@ -843,29 +876,13 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
                 <button key={item.id} type="button" onClick={() => update({ sectionMembers: [...form.sectionMembers, item.id] })} className="flex min-h-[48px] w-full items-center gap-3 px-4 py-2 text-right text-[15px] text-[#1d1d1f]">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0a84ff] text-white"><Plus className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                  {elsewhere && <span className="shrink-0 text-[11px] text-[#8e8e93]">في «{elsewhere.title}»</span>}
+                  {elsewhere && <span className="shrink-0 text-[11px] text-[#8e8e93]">في «{elsewhere.title || 'بلا اسم'}»</span>}
                 </button>
               );
             })}
           </Group>
         )}
-        <Advanced>
-          {englishTitle}
-          <Group title="طريقة عرض المجموعة">
-            {/* Note 45: each layout drawn, its name under it. */}
-            <div className="grid grid-cols-3 gap-2 p-3" role="radiogroup" aria-label="طريقة عرض المجموعة">
-              {([['list', 'قائمة'], ['grid', 'شبكة'], ['carousel', 'شرائح أفقية']] as const).map(([id, label]) => {
-                const active = (form.display.sectionLayout ?? 'list') === id;
-                return (
-                  <button key={id} type="button" role="radio" aria-checked={active} onClick={() => update({ display: { ...form.display, sectionLayout: id } })} className={`flex flex-col items-center gap-1.5 rounded-xl px-1 py-2.5 transition-colors ${active ? 'bg-[#0a84ff]/10 text-[#0a84ff] ring-2 ring-[#0a84ff]' : 'bg-[#f2f2f7] text-[#8e8e93]'}`}>
-                    <span className="flex h-9 items-center"><LayoutArt id={id} /></span>
-                    <span className={`text-[12px] ${active ? 'font-bold' : 'text-[#3a3a3c]'}`}>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </Group>
-        </Advanced>
+        {!form.noName && englishTitle && <Advanced>{englishTitle}</Advanced>}
       </>
     );
   };
@@ -945,7 +962,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
                         <button type="button" onClick={() => openForm(formFromLink(link, links), link.id)} className={`flex min-w-0 flex-1 items-center gap-3 py-2 text-right ${link.hidden && !isIncomplete(link) ? 'opacity-45' : ''}`}>
                           <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-[#f2f2f7]"><ItemIcon link={link} /></span>
                           <span className="min-w-0 flex-1">
-                            <span className={`block truncate text-[15px] text-[#1d1d1f] ${link.display?.kind === 'heading' ? 'font-bold' : ''}`}>{link.title}</span>
+                            <span className={`block truncate text-[15px] text-[#1d1d1f] ${link.display?.kind === 'heading' ? 'font-bold' : ''}`}>{link.title || (link.display?.kind === 'heading' && link.display.sectionId ? 'مجموعة بلا اسم' : '')}</span>
                             {/* Note 43: a row shows its logo and title only; details wait in its
                                 form. Only what still needs doing is said under the title. */}
                             {isIncomplete(link) && <span className="flex items-center gap-1 truncate text-xs font-bold text-amber-700"><span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />{itemSubtitle(link, links)}</span>}
@@ -1039,7 +1056,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
       )}
       {confirm?.kind === 'deleteGroup' && (
         <ConfirmSheet
-          title={`حذف مجموعة «${confirm.link.title}»؟`}
+          title={`حذف مجموعة «${confirm.link.title || 'بلا اسم'}»؟`}
           message={`العناصر التي فيها (${confirm.count}) لن تُحذف؛ ستبقى في صفحتك خارج أي مجموعة.`}
           confirmLabel="حذف المجموعة فقط"
           cancelLabel="إلغاء"

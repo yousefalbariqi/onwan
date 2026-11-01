@@ -30,6 +30,7 @@ export const PARTNER_ORDER_WINDOW_DAYS = 3;
 export async function getUsernameAvailability(
   username: string,
   options: { ignoreOrderId?: string; ignoreUserId?: string } = {},
+  queryable: { query: (text: string, values?: any[]) => Promise<any> } = pool,
 ) {
   const validation = validateUsername(username);
 
@@ -42,7 +43,7 @@ export async function getUsernameAvailability(
     };
   }
 
-  const reservedResult = await pool.query(
+  const reservedResult = await queryable.query(
     'select 1 from reserved_usernames where username = $1 limit 1',
     [validation.normalized],
   );
@@ -56,18 +57,18 @@ export async function getUsernameAvailability(
     };
   }
 
-  const existingResult = await pool.query(
+  const existingResult = await queryable.query(
     'select 1 from usernames where username = $1 limit 1',
     [validation.normalized],
   );
 
   // DOMAIN-02: a renamed page's old name stays held while it redirects.
-  const redirectResult = await pool.query(
+  const redirectResult = await queryable.query(
     'select 1 from username_redirects where old_username = $1 and expires_at > now() limit 1',
     [validation.normalized],
   );
 
-  const heldResult = await pool.query(
+  const heldResult = await queryable.query(
     `select 1 from partner_orders
      where username = $1 and status in ('awaiting_payment', 'draft')
        and coalesce(sent_at, created_at) > now() - make_interval(days => $2)
@@ -78,7 +79,7 @@ export async function getUsernameAvailability(
 
   // NEW-01 / AC-01.02: a name another beneficiary holds cannot be taken
   // during the hold. (A hold without an expiry lasts until payment or change.)
-  const nameHoldResult = await pool.query(
+  const nameHoldResult = await queryable.query(
     `select 1 from username_reservations
      where username = $1 and (expires_at is null or expires_at > now())
        and ($2::uuid is null or user_id <> $2)

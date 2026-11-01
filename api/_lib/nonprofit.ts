@@ -24,16 +24,19 @@ export async function submitNonprofit(userId: string, input: any) {
   let row: any;
   try {
     await client.query('begin');
-    await client.query('select id from users where id=$1 for update', [userId]);
+    // Confirmation gates this request, never saving or designing. Lock the
+    // account so an email change cannot race the verified-email check.
+    const owner = await client.query('select id, email, phone, email_verified_at from users where id=$1 for update', [userId]);
+    if (!owner.rows[0]?.email_verified_at) {
+      throw new HttpError(403, 'أكّد بريدك الإلكتروني قبل طلب عرض السعر لتفعيل الحساب.', 'email_verification_required');
+    }
     const existing = await client.query('select * from nonprofit_quote_requests where user_id=$1', [userId]);
     row = existing.rows[0];
     if (!row) {
       const organization = field(input.organizationName, 'اسم الجمعية', 160);
       const contact = field(input.contactName, 'اسم مسؤول التواصل', 160);
       // Contact details belong to this request; notifications go only to administration.
-      // Note 19: the quote request no longer waits for a confirmed email; only
-      // publishing does (activateSubscription).
-      const account = await client.query('select email, phone from users where id=$1', [userId]);
+      const account = owner;
       const phone = field(input.phone ?? account.rows[0].phone, 'هاتف التواصل', 30);
       const email = field(input.email ?? account.rows[0].email, 'بريد التواصل', 254);
       if (!/^[+\d\s()-]{7,30}$/.test(phone) || phone.replace(/\D/g, '').length < 7) throw new HttpError(400, 'تحقق من هاتف التواصل.');
@@ -70,7 +73,7 @@ export async function notifyNonprofit(id: string) {
   const sent = Boolean(to) && await sendNoticeEmail(to!, `طلب عرض سعر جمعية #${row.request_number}`, [
     `الجمعية: ${row.organization_name}`, `مسؤول التواصل: ${row.contact_name}`, `الهاتف: ${row.phone}`, `البريد: ${row.email}`,
     `الملاحظات: ${row.notes || 'لا توجد'}`, `الطلب محفوظ للمراجعة في تبويب الجمعيات: https://admin.${getEnv('ROOT_DOMAIN') || 'onwan.link'}/?section=nonprofits`,
-    'إرسال عرض السعر وتأكيد التحويل والتفعيل يتم يدويًا؛ لم يتم نشر الصفحة.',
+    'طلب عرض سعر محفوظ. راجع حالة الصفحة والتحصيل والتفعيل من ملف الجمعية في الإدارة.',
   ]);
   await pool.query('update nonprofit_quote_requests set email_status=$2 where id=$1', [id,sent?'sent':'failed']);
 }

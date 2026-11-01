@@ -1,3 +1,3 @@
 import { isNonprofitHost } from './site';
 export const nonprofitPath = (path = '') => `${isNonprofitHost() ? '/' : '/nonprofit/'}${path}`;
-export const quoteStatus: Record<string,string> = { pending:'بانتظار المراجعة', contacted:'تم التواصل بشأن العرض', agreed:'تم الاتفاق — بانتظار التفعيل', cancelled:'الطلب ملغى' };
+export const quoteStatus: Record<string,string> = { pending:'بانتظار المراجعة', contacted:'تم التواصل بشأن العرض', agreed:'تم الاتفاق — بانتظار التفعيل', quoted:'بانتظار التحويل', paid:'تم تأكيد التحويل', active:'مفعّل', cancelled:'الطلب ملغى' };

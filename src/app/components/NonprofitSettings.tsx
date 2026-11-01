@@ -139,7 +139,7 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
 
       <Group title="الحساب" footer="أي تغيير يحتاج رمزًا نرسله إلى بريدك المسجل.">
         <SettingsRow icon={Mail} tone="bg-[#0a84ff]" label="البريد الإلكتروني" value={<span dir="ltr">{account.email || '—'}</span>} onClick={() => setPage('change-email')} />
-        {!account.emailVerified && <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-[#b45309]"><span>غير مؤكَّد — مطلوب لنشر الصفحة</span><EmailVerifyChip /></div>}
+        {!account.emailVerified && <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-[#b45309]"><span>غير مؤكَّد — مطلوب للمتابعة وطلب عرض السعر</span><EmailVerifyChip label="تأكيد البريد" /></div>}
         <SettingsRow icon={Smartphone} tone="bg-[#34c759]" label="رقم الجوال" value={<span dir="ltr">{account.phone}</span>} onClick={() => setPage('change-phone')} />
         <SettingsRow icon={KeyRound} tone="bg-[#8e8e93]" label="كلمة المرور" value="••••••••" onClick={() => setPage('change-password')} />
       </Group>
