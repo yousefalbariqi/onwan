@@ -406,7 +406,7 @@ test('nonprofit endpoints require the owner session and a nonprofit account; adm
   query=async sql=>({rows:sql.includes('select id, email, phone, status')?[{id:'normal-user',email:'normal@example.invalid',phone:'0500000000',status:'active'}]:[],rowCount:0});
   assert.equal((await call('/api/nonprofit',{bearer:token()})).status,403);
   assert.equal((await call('/api/admin',{method:'POST',body:{action:'nonprofits.list'},bearer:token()})).status,401);
-  for (const action of ['get', 'assign', 'quote', 'sent', 'payment', 'activate', 'suspend', 'reactivate', 'wallet']) {
+  for (const action of ['get', 'assign', 'quote', 'sent', 'sendQuote', 'payment', 'activate', 'suspend', 'reactivate', 'wallet']) {
     assert.equal((await call('/api/admin', { method: 'POST', body: { action: `nonprofits.${action}`, id: 'another-account' }, bearer: token() })).status, 401, `${action} must reject beneficiary credentials`);
   }
 });

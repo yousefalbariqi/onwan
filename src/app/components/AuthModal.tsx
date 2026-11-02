@@ -69,6 +69,8 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
   const linkReady = !nonprofit || (linkState?.name === nonprofitUsername && linkState.status === 'available');
   const checkingLink = Boolean(nonprofitUsername && (linkState?.name !== nonprofitUsername || linkState.status === 'checking'));
   const linkTaken = !checkingLink && (linkState?.status === 'unavailable' || linkState?.status === 'error');
+  const linkSize = nonprofitUsername.length > 20 ? 'text-[15px]' : nonprofitUsername.length > 13 ? 'text-[17px]' : 'text-[20px]';
+  const startLinkEdit = () => { setCustomLink(nonprofitUsername); setEditingLink(true); };
   const linkTone = checkingLink ? 'text-[#737373]' : linkState?.status === 'available' ? 'text-[#15803D]' : linkTaken ? 'text-[#DC2626]' : 'text-[#111111]';
   // A taken link opens its field at once, so another name can be typed.
   useEffect(() => {
@@ -189,14 +191,17 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
                 {/* The suggested link is the last, full-width row — an important result of the data above. */}
                 {nonprofit && (organizationName.trim() || editingLink) && (
                   <div className="px-4 py-3">
-                    <span className="mb-1.5 block text-[12px] font-medium text-[#8e8e93]">رابط جمعيتكم</span>
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[12px] font-medium text-[#8e8e93]">رابط جمعيتكم</span>
+                      {!editingLink && <button type="button" disabled={loading} onClick={startLinkEdit} className="text-[13px] font-bold text-[#F25A18]">تعديل</button>}
+                    </div>
                     {!editingLink ? (
-                      <div className="flex items-center gap-2">
+                      // The whole link stays visible: smaller type for long names, wrapping only as a last resort.
+                      <button type="button" disabled={loading} onClick={startLinkEdit} aria-label="تعديل الرابط" className="flex w-full items-center gap-2 text-start">
                         <Link2 className="h-5 w-5 shrink-0 text-[#FF6B2C]" />
-                        <span dir="ltr" className={`min-w-0 flex-1 truncate text-[20px] font-black ${linkTone}`}>{nonprofitUsername || '…'}.onwan.link</span>
+                        <span dir="ltr" className={`min-w-0 flex-1 break-all font-black ${linkSize} ${linkTone}`}>{nonprofitUsername || '…'}.onwan.link</span>
                         {checkingLink && nonprofitUsername && <Loader2 aria-label="جارٍ التحقق من توفر الرابط" className="h-4 w-4 shrink-0 animate-spin text-[#737373]" />}
-                        <button type="button" disabled={loading} onClick={() => { setCustomLink(nonprofitUsername); setEditingLink(true); }} className="shrink-0 rounded-full bg-[#FFF0E8] px-3 py-1.5 text-[13px] font-bold text-[#F25A18]">تعديل الرابط</button>
-                      </div>
+                      </button>
                     ) : (
                       <div className={`flex items-center overflow-hidden rounded-xl bg-[#f7f7f7] ring-1 ${linkTaken ? 'ring-[#DC2626]' : 'ring-[#e5e5ea] focus-within:ring-[#FF6B2C]'}`} dir="ltr">
                         <input autoFocus aria-label="رابط الصفحة" aria-invalid={linkTaken} value={customLink} disabled={loading} onChange={e => setCustomLink(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} maxLength={30} className="min-w-0 flex-1 bg-transparent px-3 py-3 text-[17px] font-bold focus:outline-none" />

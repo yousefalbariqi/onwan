@@ -112,12 +112,16 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
         <SettingsRow icon={Link2} tone="bg-[#0a84ff]" label="الرابط" value={<span dir="ltr">{pageData.username ? pageHost(pageData.username) : '—'}</span>} />
         <SettingsRow icon={Link2} tone="bg-[#34c759]" label="الحالة" value={PAGE_STATUS[account.pageStatus] ?? account.pageStatus} />
         {quote && <SettingsRow icon={MessageCircle} tone="bg-[#ff9500]" label={`طلب عرض السعر #${quote.request_number}`} value={quoteStatus[quote.status] ?? quote.status} />}
+        {/* Temporarily disabled until the link-change feature is approved: the
+            field and «تغيير» stay visible but inert, and the current link above
+            stays clear. Re-enable by restoring onChange/onClick and the enabled
+            `disabled` conditions. */}
         {!account.nameFixed && (
           <div className="space-y-2 px-4 py-3">
-            <p className="text-xs text-[#6e6e73]">يمكن تغيير الرابط قبل اعتماده عند التفعيل.</p>
-            <div className="flex items-center gap-2" dir="ltr">
-              <input value={linkName} onChange={(e) => setLinkName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} maxLength={30} placeholder="new-link" aria-label="الرابط الجديد" className="min-w-0 flex-1 rounded-xl bg-[#f2f2f7] px-3 py-2.5 text-[15px] focus:outline-none" />
-              <button type="button" disabled={!linkName || linkBusy} onClick={changeLink} className="shrink-0 rounded-xl bg-[#0a84ff] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{linkBusy ? '…' : 'تغيير'}</button>
+            <p className="text-xs text-[#6e6e73]">تغيير الرابط غير متاح حاليًا.</p>
+            <div className="flex items-center gap-2 opacity-50" dir="ltr">
+              <input value={linkName} disabled maxLength={30} placeholder="new-link" aria-label="الرابط الجديد" className="min-w-0 flex-1 rounded-xl bg-[#f2f2f7] px-3 py-2.5 text-[15px] focus:outline-none" />
+              <button type="button" disabled onClick={changeLink} className="shrink-0 rounded-xl bg-[#0a84ff] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{linkBusy ? '…' : 'تغيير'}</button>
             </div>
             {linkMsg && <p role="status" className="text-xs text-[#3a3a3c]">{linkMsg}</p>}
           </div>

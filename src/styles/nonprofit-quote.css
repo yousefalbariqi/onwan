@@ -51,7 +51,7 @@
 .quote-page-link { color: var(--onwan-muted); font-size: 11px; overflow-wrap: anywhere; text-align: right; margin-top: 4px; }
 .quote-text-link { font-size: 12px; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; text-decoration: underline; text-decoration-color: #D1D1CB; text-underline-offset: 4px; }
 .quote-text-link:hover { text-decoration-color: var(--onwan-ink); }
-.quote-offer { padding: 20px 0; border-top: 1px solid var(--onwan-border); }
+.quote-offer { padding: 20px 0; }
 .quote-price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .quote-price { display: flex; align-items: center; gap: 9px; }
 .quote-price strong { font-size: 54px; font-weight: 600; line-height: 1; letter-spacing: -0.04em; }

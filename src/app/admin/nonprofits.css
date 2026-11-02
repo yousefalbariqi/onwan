@@ -81,3 +81,9 @@
 @media(max-width:900px) { .np-detail-grid { grid-template-columns:minmax(0,1fr); } .np-preview-column { max-width:430px; width:100%; margin:auto; } .np-progress { gap:18px; } }
 @media(max-width:640px) { .np-admin h1 { font-size:24px; } .np-heading { align-items:flex-start; flex-wrap:wrap; } .np-stats { grid-template-columns:1fr 1fr; gap:9px; } .np-stats>div { padding:14px; } .np-filters { flex-wrap:wrap; } .np-search { flex-basis:100%; } .np-filters select { flex:1; max-width:none; } .np-card { padding:16px; } .np-two,.np-contact { grid-template-columns:1fr; gap:4px; } .np-contact { gap:16px; } .np-table-wrap { display:none; } .np-mobile-list { display:grid; } .np-mobile-list>button { display:flex; justify-content:space-between; text-align:right; gap:10px; padding:16px 0; border-bottom:1px solid #edf1ee; } .np-mobile-list small { display:block; font-size:11px; margin-top:6px; color:#7d8e83; } .np-alert { flex-wrap:wrap; } }
 @media(prefers-reduced-motion:reduce) { .np-admin .animate-spin { animation:none; } }
+.np-step { border-color:#bfdccd; box-shadow:0 1px 0 #e3f2e9; }
+.np-step h2 { font-size:20px; margin-bottom:10px; }
+.np-step>.np-button { margin-top:6px; }
+.np-more>summary { cursor:pointer; font-weight:750; font-size:15px; }
+.np-more[open]>summary { margin-bottom:12px; }
+.np-more-title { display:flex; align-items:center; gap:7px; font-size:14px; font-weight:750; margin:22px 0 14px; }

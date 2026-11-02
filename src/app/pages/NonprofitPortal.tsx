@@ -131,23 +131,13 @@ export function NonprofitQuote() {
       <form onSubmit={submit} aria-busy={busy}>
         <fieldset disabled={busy || saving} className="quote-layout">
           <section className="quote-overview" aria-label="ملخص الطلب">
-            <div className="quote-design">
-              <div className="quote-thumbnail" aria-hidden="true"><PhonePreview interactive={false} /></div>
-              <div className="quote-design-info">
-                <span className="quote-caption">صفحة جمعيتكم</span>
-                <h2>{pageData.name || 'صفحة الجمعية'}</h2>
-                <p dir="ltr" className="quote-page-link">{pageData.username}.onwan.link</p>
-                {account.pageStatus !== 'published' && <p className="quote-caption">يُعتمد الرابط عند استكمال التفعيل.</p>}
-                <Link to={nonprofitPath('builder')} className="quote-text-link"><Pencil size={12} aria-hidden="true" />تعديل التصميم</Link>
-              </div>
-            </div>
+         
             <div className="quote-offer">
               <div className="quote-price-row">
-                <p className="quote-price"><strong>٤٣٠</strong><span>ريال<small>قيمة الشراء</small></span></p>
-                <span className="quote-gift">٣ سنوات استضافة<em>هدية من عنوان</em></span>
+                <p className="quote-price"><strong>290</strong><span>ريال<small>قيمة الشراء لمدة سنة كاملة </small></span></p>
+              
               </div>
-              <p className="quote-ownership">يشمل العرض رابط الصفحة، والتجديد للاستضافة فقط.</p>
-              <p className="quote-renewal">تجديد سنوي من السنة الرابعة؛ الرسوم في العرض.</p>
+           
             </div>
             <details open className="quote-disclosure quote-includes">
               <summary><span>ومعها خدمات مجانية</span><ChevronDown size={14} aria-hidden="true" /></summary>

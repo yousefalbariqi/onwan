@@ -100,6 +100,12 @@ export async function nonprofitMutation(params: any, staff: Staff, action: strin
       const quote = nonprofitQuote(params.quote);
       await client.query('update nonprofit_quote_requests set quote_json=$2::jsonb where id=$1', [row.id, JSON.stringify(quote)]);
       details = { quote };
+    } else if (action === 'sendQuote') {
+      // Save and record as sent in one step; same rules as quote + sent.
+      if (!['pending', 'contacted', 'agreed', 'quoted'].includes(row.status)) throw new HttpError(409, 'لا يمكن تعديل عرض طلب مدفوع أو مفعّل أو ملغى.');
+      const quote = nonprofitQuote(params.quote);
+      await client.query("update nonprofit_quote_requests set quote_json=$2::jsonb,sent_quote_json=$2::jsonb,quote_sent_at=now(),status='quoted' where id=$1", [row.id, JSON.stringify(quote)]);
+      details = { quote, manualDelivery: true };
     } else if (action === 'sent') {
       if (!row.quote_json || !['pending', 'contacted', 'agreed', 'quoted'].includes(row.status)) throw new HttpError(409, 'احفظ عرض السعر أولًا.');
       await client.query("update nonprofit_quote_requests set sent_quote_json=quote_json,quote_sent_at=now(),status='quoted' where id=$1", [row.id]);
@@ -170,7 +176,7 @@ export async function nonprofitMutation(params: any, staff: Staff, action: strin
   return { saved: true };
 }
 
-const mutations = Object.fromEntries(['update','assign','quote','sent','payment','activate','suspend','reactivate'].map(action => [
+const mutations = Object.fromEntries(['update','assign','quote','sent','sendQuote','payment','activate','suspend','reactivate'].map(action => [
   `nonprofits.${action}`, { access: 'staff', run: (params: any, staff: Staff) => nonprofitMutation(params, staff, action) } as Handler,
 ]));
 export const nonprofitAdminHandlers: Record<string, Handler> = {

@@ -48,6 +48,8 @@ type FormState = {
   title: string;
   // Until the title is typed by hand it follows the link (platform / site name).
   titleTouched: boolean;
+  // Note B: the platform badge was chosen by hand, so editing the URL keeps it.
+  platformTouched: boolean;
   titleEn: string;
   url: string;
   platform: string;
@@ -108,8 +110,6 @@ function parseLinkInput(raw: string): ParsedLink {
 // What the field shows for a stored link.
 const rawFromUrl = (url: string) => (url.startsWith('mailto:') ? url.slice(7) : /^https:\/\/wa\.me\/\d+$/.test(url) ? `+${url.slice(WHATSAPP_BASE.length)}` : url);
 
-// General buttons can carry their own icon (D-11); brand platforms keep their logo.
-const ICON_PLATFORMS = ['website', 'custom', 'file'];
 
 const KINDS: { id: ContentKind; label: string; hint: string; Icon: typeof Link2; tone: string }[] = [
   { id: 'link', label: 'رابط', hint: 'المواقع الخارجية، ووسائل التواصل، ومقاطع الفيديو', Icon: Link2, tone: 'bg-[#0a84ff]/10 text-[#0a84ff]' },
@@ -168,6 +168,7 @@ function emptyForm(kind: ContentKind): FormState {
     textStyle: 'body',
     title: '',
     titleTouched: false,
+    platformTouched: false,
     titleEn: '',
     url: '',
     platform: kind === 'file' ? 'file' : kind === 'link' ? 'website' : 'custom',
@@ -198,6 +199,7 @@ function formFromLink(link: Link, links: Link[]): FormState {
     textStyle: link.display?.kind === 'heading' ? 'heading' : 'body',
     title: link.title,
     titleTouched: true,
+    platformTouched: false,
     titleEn: link.titleEn || '',
     url: link.url,
     platform: link.platform || (kind === 'file' ? 'file' : 'custom'),
@@ -368,7 +370,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
     setForm(next);
     setRawLink(rawFromUrl(next.url));
     setEditingTitle(false);
-    setChoosingPlatform(false);
+    setIconsExpanded(false);
     formStart.current = JSON.stringify(next);
     setFileError('');
     setIconError('');
@@ -408,18 +410,23 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
     return next.titleTouched || next.kind !== 'link' ? next : { ...next, title: suggestedTitle(next) };
   });
 
-  const [platformQuery, setPlatformQuery] = useState('');
+  // Note B: choosing a platform badge changes only the icon — not the URL, and
+  // not a title the owner set; marking it «touched» keeps the badge when the URL
+  // is edited later.
+  const pickPlatform = (id: string) => setForm((prev) => ({ ...prev, platform: id, mode: id === 'website' ? 'url' : 'social', customIcon: '', platformTouched: true }));
+
   // Note 34: what was typed in «الرابط», read on every change.
   const [rawLink, setRawLink] = useState('');
-  const [choosingPlatform, setChoosingPlatform] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Note B: «عرض المزيد» reveals the whole icon library beyond the suggestions.
+  const [iconsExpanded, setIconsExpanded] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const changeLink = (raw: string) => {
     setRawLink(raw);
     const parsed = parseLinkInput(raw);
     if (!parsed || 'error' in parsed) { update({ url: '' }); return; }
     // A recognised platform takes over; a platform picked by hand stays for a plain site.
-    const platform = parsed.mode === 'url' && SOCIAL_IDS.includes(form.platform) && choosingPlatform ? form.platform : parsed.platform;
+    const platform = parsed.mode === 'url' && SOCIAL_IDS.includes(form.platform) && form.platformTouched ? form.platform : parsed.platform;
     update({ url: parsed.url, mode: parsed.mode, platform, display: { ...form.display, kind: form.display.kind === 'video' && parseYouTubeVideoSource(parsed.url) ? 'video' : undefined } });
   };
 
@@ -447,7 +454,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
       fileName: isFile ? form.fileName.trim() || undefined : undefined,
       fileMimeType: isFile ? form.fileMimeType.trim() || undefined : undefined,
       fileSize: isFile ? form.fileSize : undefined,
-      customIcon: ICON_PLATFORMS.includes(isFile ? 'file' : form.platform) && (form.kind === 'link' || isFile) ? form.customIcon || undefined : undefined,
+      customIcon: form.kind === 'link' || isFile ? form.customIcon || undefined : undefined,
     };
     const members = form.kind === 'group' ? form.sectionMembers : undefined;
     // A completed platform from signup (note 25) becomes visible once its link is in.
@@ -517,7 +524,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
   const renderIconChooser = () => {
     const isFile = form.kind === 'file';
     const platform = isFile ? 'file' : form.platform;
-    const canCustom = ICON_PLATFORMS.includes(platform);
+    const canCustom = true;
     const uploaded = form.customIcon.startsWith('data:');
     const subject = `${form.title} ${form.url}`.toLowerCase();
     const suggestions = isFile
@@ -529,10 +536,11 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
       : ['globe', 'link', 'info', 'phone', 'location', 'store', 'booking', 'file'];
     const selected = form.customIcon.startsWith('icon:') ? form.customIcon.slice(5) : '';
     const query = iconQuery.trim().toLowerCase();
-    const library = query
-      ? LINK_ICONS.filter((icon) => `${icon.label} ${icon.id}`.toLowerCase().includes(query))
-      // Note (7): a fixed order — choosing an icon only moves the blue frame, never the icons.
-      : [...new Set([...suggestions, selected])].filter(Boolean).map((id) => LINK_ICONS.find((icon) => icon.id === id)).filter((icon): icon is (typeof LINK_ICONS)[number] => Boolean(icon));
+    // Note (7): a fixed order — choosing an icon only moves the blue frame, never
+    // the icons. Note B: «عرض المزيد» reveals the whole library beyond the few
+    // suggestions; search still finds any icon by name.
+    const compact = [...new Set([...suggestions, selected])].filter(Boolean).map((id) => LINK_ICONS.find((icon) => icon.id === id)).filter((icon): icon is (typeof LINK_ICONS)[number] => Boolean(icon));
+    const library = query ? LINK_ICONS.filter((icon) => `${icon.label} ${icon.id}`.toLowerCase().includes(query)) : iconsExpanded ? LINK_ICONS : compact;
     const platforms = SOCIAL_PLATFORMS.filter((item) => !['file', 'email', 'whatsapp', 'custom'].includes(item.id) && (!query || `${item.name} ${item.id}`.toLowerCase().includes(query)));
     const tile = (active: boolean) => `flex flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 transition-colors ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`;
 
@@ -551,51 +559,52 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
               <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8e8e93]" />
               <input type="search" aria-label="البحث في الأيقونات" placeholder="ابحث عن أيقونة أو منصة…" value={iconQuery} onChange={(event) => setIconQuery(event.target.value)} className="h-10 w-full rounded-xl bg-[#f2f2f7] pl-3 pr-9 text-sm focus:outline-none" />
             </div>
-            {!isFile && form.mode === 'url' && platforms.length > 0 && (
+            {!isFile && form.mode !== 'whatsapp' && form.mode !== 'email' && platforms.length > 0 && (
               <div>
                 <p className="mb-2 text-xs text-[#6e6e73]">شعار منصة</p>
                 <div className="grid grid-cols-4 gap-2">
-                  {platforms.map((item) => (
-                    <button key={item.id} type="button" aria-pressed={form.platform === item.id} onClick={() => update({ platform: item.id, customIcon: '' })} className={`${tile(form.platform === item.id)} min-h-16`}>
+                  {[{ id: 'website', name: 'موقع' }, ...platforms.map((item) => ({ id: item.id as string, name: item.id === 'twitter' ? 'X' : item.name }))].map((item) => (
+                    <button key={item.id} type="button" aria-pressed={form.platform === item.id} onClick={() => pickPlatform(item.id)} className={`${tile(form.platform === item.id)} min-h-16`}>
                       <SocialIcon platform={item.id} iconStyle="color" className="h-5 w-5" />
-                      <span className="max-w-full truncate text-[10px] text-[#6e6e73]">{item.id === 'twitter' ? 'X' : item.name}</span>
+                      <span className="max-w-full truncate text-[10px] text-[#6e6e73]">{item.name}</span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
-            {canCustom ? (
-              <div>
-                <p className="mb-2 text-xs text-[#6e6e73]">{query ? 'من المكتبة' : 'مقترحة لهذا العنصر'}</p>
-                <div className="grid grid-cols-4 gap-2">
-                  <button type="button" onClick={() => update({ customIcon: '' })} aria-pressed={!form.customIcon} className={`${tile(!form.customIcon)} min-h-16`}>
-                    <SocialIcon platform={isFile ? 'file' : platform} iconStyle="color" className="h-5 w-5" />
-                    <span className="text-[10px] text-[#6e6e73]">الافتراضية</span>
+            <div>
+              <p className="mb-2 text-xs text-[#6e6e73]">{query ? 'من المكتبة' : iconsExpanded ? 'كل الأيقونات' : 'مقترحة لهذا العنصر'}</p>
+              <div className="grid grid-cols-4 gap-2">
+                <button type="button" onClick={() => update({ customIcon: '' })} aria-pressed={!form.customIcon} className={`${tile(!form.customIcon)} min-h-16`}>
+                  <SocialIcon platform={isFile ? 'file' : platform} iconStyle="color" className="h-5 w-5" />
+                  <span className="text-[10px] text-[#6e6e73]">الافتراضية</span>
+                </button>
+                {library.map(({ id, label, Icon }) => (
+                  <button key={id} type="button" onClick={() => update({ customIcon: `icon:${id}` })} aria-pressed={form.customIcon === `icon:${id}`} aria-label={label} className={`${tile(form.customIcon === `icon:${id}`)} min-h-16`}>
+                    <Icon className="h-5 w-5 text-[#3a3a3c]" />
+                    <span className="max-w-full truncate text-[10px] text-[#6e6e73]">{label}</span>
                   </button>
-                  {library.map(({ id, label, Icon }) => (
-                    <button key={id} type="button" onClick={() => update({ customIcon: `icon:${id}` })} aria-pressed={form.customIcon === `icon:${id}`} aria-label={label} className={`${tile(form.customIcon === `icon:${id}`)} min-h-16`}>
-                      <Icon className="h-5 w-5 text-[#3a3a3c]" />
-                      <span className="max-w-full truncate text-[10px] text-[#6e6e73]">{label}</span>
-                    </button>
-                  ))}
-                </div>
-                {!library.length && <p className="py-2 text-center text-xs text-[#6e6e73]">لا توجد أيقونة مطابقة.</p>}
-                <label className="mt-3 flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0a84ff]/10 text-sm font-bold text-[#0a84ff] focus-within:ring-2 focus-within:ring-[#0a84ff]">
-                  {uploaded ? <img src={form.customIcon} alt="" className="h-6 w-6 rounded-md object-contain" /> : <Upload className="h-4 w-4" />}
-                  {uploaded ? 'تغيير الشعار المرفق' : 'إرفاق شعار خاص'}
-                  <input type="file" aria-label="إرفاق شعار خاص" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = '';
-                    if (!file) return;
-                    if (file.size > MAX_ICON_SOURCE_SIZE) { setIconError('الصورة كبيرة جدًا. الحد الأقصى 8MB.'); return; }
-                    setIconError('');
-                    readFileAsDataUrl(file).then(setIconCrop).catch(() => setIconError('تعذّر قراءة الصورة. حاول مجددًا.'));
-                  }} />
-                </label>
+                ))}
               </div>
-            ) : (
-              <button type="button" onClick={() => update({ platform: 'website', customIcon: '' })} className="w-full text-center text-xs font-bold text-[#0a84ff]">استخدام أيقونة عامة بدل شعار المنصة</button>
-            )}
+              {!library.length && <p className="py-2 text-center text-xs text-[#6e6e73]">لا توجد أيقونة مطابقة.</p>}
+              {!query && LINK_ICONS.length > compact.length && (
+                <button type="button" aria-expanded={iconsExpanded} onClick={() => setIconsExpanded(!iconsExpanded)} className="mt-2 flex w-full items-center justify-center gap-1 text-xs font-bold text-[#0a84ff]">
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${iconsExpanded ? 'rotate-180' : ''}`} />{iconsExpanded ? 'عرض أقل' : 'عرض المزيد'}
+                </button>
+              )}
+              <label className="mt-3 flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0a84ff]/10 text-sm font-bold text-[#0a84ff] focus-within:ring-2 focus-within:ring-[#0a84ff]">
+                {uploaded ? <img src={form.customIcon} alt="" className="h-6 w-6 rounded-md object-contain" /> : <Upload className="h-4 w-4" />}
+                {uploaded ? 'تغيير الشعار المرفق' : 'إرفاق شعار خاص'}
+                <input type="file" aria-label="إرفاق شعار خاص" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (!file) return;
+                  if (file.size > MAX_ICON_SOURCE_SIZE) { setIconError('الصورة كبيرة جدًا. الحد الأقصى 8MB.'); return; }
+                  setIconError('');
+                  readFileAsDataUrl(file).then(setIconCrop).catch(() => setIconError('تعذّر قراءة الصورة. حاول مجددًا.'));
+                }} />
+              </label>
+            </div>
             {!!iconError && <p className="text-xs text-[#ff3b30]">{iconError}</p>}
           </div>
         )}
@@ -632,8 +641,6 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
       : form.platform === 'youtube' ? 'رابط قناة يوتيوب — سيظهر كزر يفتح قناتك.'
       : SOCIAL_IDS.includes(form.platform) ? `رابط ${platformName(form.platform)} — سيظهر كزر يفتح حسابك.`
       : '';
-    const query = platformQuery.trim().toLowerCase();
-    const platforms = SOCIAL_IDS.map((id) => SOCIAL_PLATFORMS.find((platform) => platform.id === id)!).filter((platform) => !query || `${platform.name} ${platform.id}`.toLowerCase().includes(query));
     return (
       <>
         {/* Note 34: one field first — a link, an email or a WhatsApp number. */}
@@ -656,7 +663,6 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
           {!!form.url && (
             <div className="flex items-center justify-between gap-2 px-4 py-2.5 text-xs">
               <span className="flex items-center gap-2 font-bold text-[#1f8a3b]"><Check className="h-4 w-4" />{form.mode === 'email' ? 'بريد إلكتروني' : form.mode === 'whatsapp' ? 'واتساب' : form.platform === 'website' || form.platform === 'custom' ? 'رابط موقع' : platformName(form.platform)}</span>
-              {form.mode !== 'email' && form.mode !== 'whatsapp' && <button type="button" onClick={() => setChoosingPlatform(!choosingPlatform)} className="font-bold text-[#0a84ff]">{choosingPlatform ? 'إغلاق' : 'تغيير الشعار'}</button>}
             </div>
           )}
           {typeHint && <p className="-mt-1 px-4 pb-2.5 text-xs leading-5 text-[#8e8e93]">{typeHint}</p>}
@@ -696,28 +702,6 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
             </div>
           )}
         </div>
-
-        {choosingPlatform && !!form.url && (
-          <Group title="الشعار" footer="يتغيّر الشعار فقط؛ الرابط والعنوان يبقيان كما هما.">
-            <div className="space-y-3 p-3">
-              <div className="relative">
-                <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8e8e93]" />
-                <input type="search" aria-label="ابحث عن منصة" placeholder="ابحث: يوتيوب، سناب، تيك توك…" value={platformQuery} onChange={(event) => setPlatformQuery(event.target.value)} className="h-10 w-full rounded-xl bg-[#f2f2f7] pl-3 pr-9 text-sm focus:outline-none" />
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {[{ id: 'website', name: 'موقع' }, ...platforms].map((platform) => {
-                  const active = form.platform === platform.id;
-                  return (
-                    <button key={platform.id} type="button" aria-pressed={active} onClick={() => update({ platform: platform.id, mode: platform.id === 'website' ? 'url' : 'social', title: form.title, titleTouched: form.titleTouched || Boolean(form.title.trim()) })} className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}>
-                      <SocialIcon platform={platform.id} iconStyle="color" className="h-6 w-6" />
-                      <span className="max-w-full truncate text-[10px] text-[#3a3a3c]">{platform.id === 'website' ? 'موقع' : platformName(platform.id)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </Group>
-        )}
 
         {/* Then the title, suggested from what was recognised and free to change. */}
         {/* Note 42: the suggested title shows as text; «تغيير العنوان» opens the field. */}
