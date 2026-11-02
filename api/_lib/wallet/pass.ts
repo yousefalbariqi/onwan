@@ -68,9 +68,39 @@ function signManifest(manifest: Uint8Array): Uint8Array {
   return out;
 }
 
-export type PassInput = { username: string; name: string };
+export type PassInput = { username: string; name: string; design?: { wallpaper?: any; theme?: any } };
 
-export function buildPkpass({ username, name }: PassInput): Uint8Array {
+type Rgb = [number, number, number];
+const ORANGE: Rgb = [255, 107, 44];
+function parseColour(value: unknown): Rgb | null {
+  const text = String(value ?? '');
+  const hex = text.match(/#([0-9a-f]{6}|[0-9a-f]{3})\b/i)?.[1];
+  if (hex) {
+    const full = hex.length === 3 ? hex.split('').map(c => c + c).join('') : hex;
+    return [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16)) as Rgb;
+  }
+  const rgb = text.match(/rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i);
+  return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])].map(c => Math.min(255, c)) as Rgb : null;
+}
+// The card wears the page's own background (owner decision, 2 Nov 2026):
+// the plain colour, a gradient's first colour, or the average colour the
+// editor stored for a photo/video. Older pages fall back to the theme's
+// button colour, then the brand orange.
+export function passColours(design: PassInput['design']) {
+  const wallpaper = design?.wallpaper ?? {};
+  const background = (wallpaper.type === 'color' || wallpaper.type === 'gradient' ? parseColour(wallpaper.value) : parseColour(wallpaper.tint))
+    ?? parseColour(design?.theme?.buttonColor) ?? ORANGE;
+  const [r, g, b] = background.map(c => c / 255).map(c => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4;
+  const css = (c: Rgb) => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  return {
+    backgroundColor: css(background),
+    foregroundColor: light ? 'rgb(17, 17, 17)' : 'rgb(255, 255, 255)',
+    labelColor: light ? 'rgb(90, 90, 90)' : 'rgb(230, 230, 230)',
+  };
+}
+
+export function buildPkpass({ username, name, design }: PassInput): Uint8Array {
   const publicUrl = `https://${username}.${ROOT_DOMAIN()}`;
   const host = `${username}.${ROOT_DOMAIN()}`;
   const pass = {
@@ -80,17 +110,11 @@ export function buildPkpass({ username, name }: PassInput): Uint8Array {
     serialNumber: `onwan-${username}`,
     organizationName: 'عنوان',
     description: `بطاقة ${name || 'عنوان'}`,
-    logoText: 'عنوان',
-    // All-orange brand card: Apple uses one foreground colour for the whole
-    // pass, so every label and value reads white on the brand orange, and the
-    // QR sits in its own white box with «امسح لفتح الصفحة» beneath it.
-    foregroundColor: 'rgb(255, 255, 255)',
-    backgroundColor: 'rgb(255, 107, 44)',
-    labelColor: 'rgb(255, 236, 226)',
+    // The entity's name at the top, its full link beneath, the QR at the bottom.
+    logoText: name || username,
+    ...passColours(design),
     storeCard: {
-      headerFields: [{ key: 'brand', label: 'الرابط', value: ROOT_DOMAIN() }],
-      primaryFields: [{ key: 'name', label: '', value: name || username }],
-      secondaryFields: [{ key: 'link', label: 'صفحتكم', value: host }],
+      secondaryFields: [{ key: 'link', label: 'الصفحة', value: host }],
     },
     barcodes: [{ format: 'PKBARCODE_FORMAT_QR', message: publicUrl, messageEncoding: 'iso-8859-1', altText: 'امسح لفتح الصفحة' }],
     barcode: { format: 'PKBARCODE_FORMAT_QR', message: publicUrl, messageEncoding: 'iso-8859-1', altText: 'امسح لفتح الصفحة' },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, Flag, Share, UserPlus, X } from 'lucide-react';
+import { ArrowRight, Check, Copy, Flag, Share, UserPlus, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router';
 import { PageData, mergeWithDefaults, usePageContext } from '../context/PageContext';
 import { PageView } from '../components/PageView';
@@ -7,6 +7,7 @@ import { fetchPublicPage, reportPage } from '../lib/api';
 import PartnerStorefront from '../partner/PartnerStorefront';
 import { ROOT_DOMAIN, getCustomHost, getSubdomainUsername, pageUrl } from '../lib/site';
 import { downloadVCard } from '../lib/vcard';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from '../components/ui/dialog';
 
 type Lang = 'ar' | 'en';
 
@@ -149,12 +150,16 @@ function VisitorActions({ page, lang, onSwitchLang, shareNotice, middle }: { pag
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState('');
   const [reporting, setReporting] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   // On the entity's own domain, that is the address visitors share.
   const url = getCustomHost() ? window.location.origin : pageUrl(page.username);
   const textColor = page.theme.textColor;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(url);
+    if (shareNotice) { setNotice(shareNotice); return; }
+    try { await navigator.clipboard.writeText(url); }
+    catch { setNotice(lang === 'ar' ? 'تعذر نسخ الرابط. حاول مرة أخرى.' : 'Unable to copy the link. Please try again.'); return; }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
   };
@@ -174,22 +179,40 @@ function VisitorActions({ page, lang, onSwitchLang, shareNotice, middle }: { pag
     await handleCopy();
   };
 
-  // Notes 02/03: the two buttons at the top of the page replace the four
-  // boxes that were here — the device share sheet covers WhatsApp and copying.
+  const contactHint = lang === 'ar'
+    ? 'بعد فتح بطاقة الاتصال، اضغط «إنشاء جهة اتصال جديدة» ثم «تم» لإكمال الحفظ.'
+    : 'After opening the contact card, tap “Create New Contact”, then “Done” to finish saving.';
+  const handleSave = async () => {
+    setSaving(true);
+    setNotice('');
+    try { await downloadVCard(page); }
+    catch { setNotice(lang === 'ar' ? 'تعذر فتح بطاقة الاتصال. حاول مرة أخرى.' : 'Unable to open the contact card. Please try again.'); }
+    finally { setSaving(false); }
+  };
+  const actionClass = 'flex min-h-12 items-center gap-3 rounded-lg px-3 text-start hover:bg-gray-100 disabled:opacity-50';
   return (
     <div className="w-full">
       <div className="fixed inset-x-0 top-0 z-20 mx-auto flex max-w-[680px] items-center justify-between gap-3 px-4" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }} dir="rtl">
-        <button type="button" onClick={handleShare} aria-label={t.share} className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/90 text-[#1d1d1f] shadow-[0_2px_12px_rgba(0,0,0,0.12)] backdrop-blur-md transition-transform active:scale-95">
-          {copied ? <Check className="h-5 w-5" /> : <Share className="h-5 w-5" />}
-        </button>
+        <Dialog open={actionsOpen} onOpenChange={(open) => { setActionsOpen(open); setNotice(''); }}>
+          <DialogTrigger asChild>
+            <button type="button" aria-label={lang === 'ar' ? 'المشاركة وحفظ جهة الاتصال' : 'Share and save contact'} className="flex h-11 w-11 shrink-0 items-center justify-center bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ color: textColor }}>
+              <Share className="h-6 w-6" />
+            </button>
+          </DialogTrigger>
+          <DialogContent className="bg-white text-gray-900 sm:max-w-sm" dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ fontFamily: 'Tajawal, sans-serif' }}>
+            <DialogTitle className="px-5 text-center">{lang === 'ar' ? 'المشاركة وحفظ جهة الاتصال' : 'Share and save contact'}</DialogTitle>
+            <DialogDescription className="text-start leading-relaxed">{contactHint}</DialogDescription>
+            <div className="grid gap-1">
+              <button type="button" onClick={handleShare} className={actionClass}><Share className="h-5 w-5" />{t.share}</button>
+              <button type="button" onClick={handleSave} disabled={saving} className={actionClass}><UserPlus className="h-5 w-5" />{t.saveContact}</button>
+              <button type="button" onClick={handleCopy} className={actionClass}>{copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}{copied ? t.copied : t.copy}</button>
+            </div>
+            {notice && <p role="status" className="text-sm">{notice}</p>}
+          </DialogContent>
+        </Dialog>
         {middle}
-        {/* Note 02 (updated): icon above a short label keeps the button narrow. */}
-        <button type="button" onClick={() => downloadVCard(page)} className="flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl bg-white/90 px-3 text-[11px] font-semibold leading-tight text-[#1d1d1f] shadow-[0_2px_12px_rgba(0,0,0,0.12)] backdrop-blur-md transition-transform active:scale-95">
-          <UserPlus className="h-5 w-5" />
-          {t.saveContact}
-        </button>
       </div>
-      {notice && <p role="status" className="fixed inset-x-0 top-0 z-20 mx-auto mt-20 w-fit max-w-[90vw] rounded-full bg-black/75 px-4 py-1.5 text-center text-xs font-semibold text-white">{notice}</p>}
+      {notice && !actionsOpen && <p role="status" className="fixed inset-x-0 top-0 z-20 mx-auto mt-20 w-fit max-w-[90vw] rounded-full bg-black/75 px-4 py-1.5 text-center text-xs font-semibold text-white">{notice}</p>}
       {copied && <p role="status" className="fixed inset-x-0 top-0 z-20 mx-auto mt-20 w-fit rounded-full bg-black/75 px-4 py-1.5 text-xs font-semibold text-white">{t.copied}</p>}
 
       <div className="mt-8 flex items-center justify-center gap-4">

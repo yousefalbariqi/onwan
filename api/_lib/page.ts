@@ -563,6 +563,8 @@ function normalizeWallpaper(input: any) {
   for (const key of ['position', 'positionX', 'positionY', 'zoom', 'dim']) {
     if (typeof value[key] === 'string' || typeof value[key] === 'number') result[key] = value[key];
   }
+  // The browser's average colour of a photo/video background, for the Wallet card.
+  if (['image', 'video'].includes(value.type) && typeof value.tint === 'string' && /^#[0-9a-f]{6}$/i.test(value.tint)) result.tint = value.tint;
   if (value.type === 'image') validateImageValue(value.value, 'صورة الخلفية');
   if (value.type === 'video') {
     if (value.poster) result.poster = validateImageValue(value.poster, 'غلاف الفيديو');

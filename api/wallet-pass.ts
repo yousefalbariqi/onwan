@@ -58,6 +58,7 @@ export default async function handler(req: any, res: any) {
 
     let username = '';
     let name = '';
+    let design: { wallpaper?: unknown; theme?: unknown } | undefined;
     if (pass) {
       // Step 2: redeem the short-lived link (opened directly by the browser).
       const userId = verifyPassToken(pass);
@@ -65,6 +66,7 @@ export default async function handler(req: any, res: any) {
       const page = await getPageDataByUserId(userId);
       username = page?.username ?? '';
       name = page?.name ?? '';
+      design = page ?? undefined;
       if (!username) throw new HttpError(409, 'عيّن رابط الصفحة أولًا قبل إنشاء البطاقة.');
     } else if (raw || host) {
       username = normalizeUsername(raw) || (host ? await getUsernameByDomain(host) : '');
@@ -72,16 +74,18 @@ export default async function handler(req: any, res: any) {
       const page = await getPublicPageByUsername(username);
       if (!page || page.state !== 'published') throw new HttpError(404, 'الصفحة غير متاحة.');
       name = page.pageData.name;
+      design = page.pageData;
     } else {
       const user = await requireUser(req, res);
       if (!user) return;
       const page = await getPageDataByUserId(user.id);
       username = page?.username ?? '';
       name = page?.name ?? '';
+      design = page ?? undefined;
       if (!username) throw new HttpError(409, 'عيّن رابط الصفحة أولًا قبل إنشاء البطاقة.');
     }
 
-    const pkpass = buildPkpass({ username, name });
+    const pkpass = buildPkpass({ username, name, design });
     res.status(200);
     res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
     // `inline`, not `attachment`: iOS Safari refuses to «download» a pkpass, but

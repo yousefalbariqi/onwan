@@ -1,6 +1,7 @@
 import { arrangeSections, moveSectionItem, reorderSectionItem, saveSectionItem } from '../../../shared/linkSections';
 import { expandPageData, slimPageData } from '../../../shared/pageTransfer';
 import { moveInlineMedia } from '../lib/mediaUpload';
+import { withWallpaperTint } from '../lib/wallpaperTint';
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
 import { Account, ApiError, fetchMyPage, saveMyDraft, saveMyPage } from '../lib/api';
 import { DRAFT_STORAGE_KEY, HISTORY_STORAGE_PREFIX, SESSION_CLEARED_EVENT, clearLocalAccountData, clearSessionToken, getSessionToken, sessionOwner } from '../lib/session';
@@ -104,6 +105,7 @@ export interface PageData {
     zoom?: number;
     dim?: number; // تعتيم الخلفية 0-80
     poster?: string;
+    tint?: string; // average colour of a photo/video background, for the Wallet card
     uploaded?: boolean;
     fileName?: string;
     fileSize?: number;
@@ -744,11 +746,11 @@ export function PageProvider({ children, source }: { children: ReactNode; source
       try {
         let savedData: PageData;
         if (source) {
-          savedData = mergeWithDefaults((await source.save(sent)).pageData);
+          savedData = mergeWithDefaults((await source.save(await withWallpaperTint(sent))).pageData);
         } else {
           // Inline images and PDFs go to storage once (note 53); files
           // unchanged since the last save are not sent again (note 28).
-          const prepared = await moveInlineMedia(sent);
+          const prepared = await moveInlineMedia(await withWallpaperTint(sent));
           const body = slimPageData(prepared, previous);
           const response = await saveMyPage(body);
           const expanded = expandPageData(response.pageData, prepared);
