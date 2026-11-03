@@ -3,6 +3,7 @@ import { zipSync } from 'fflate';
 import { getEnv } from '../runtime.js';
 import { HttpError } from '../http.js';
 import { iconPng, icon2xPng, icon3xPng } from './images.js';
+import { qrStripImages } from './qrStrip.js';
 
 // Apple Wallet pass signing, in the Worker. Apple needs a PKCS#7 detached
 // signature over manifest.json (SHA-1 of every file), which the Workers runtime
@@ -94,6 +95,7 @@ export function passColours(design: PassInput['design']) {
   const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4;
   const css = (c: Rgb) => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
   return {
+    rgb: background,
     backgroundColor: css(background),
     foregroundColor: light ? 'rgb(17, 17, 17)' : 'rgb(255, 255, 255)',
     labelColor: light ? 'rgb(90, 90, 90)' : 'rgb(230, 230, 230)',
@@ -103,6 +105,7 @@ export function passColours(design: PassInput['design']) {
 export function buildPkpass({ username, name, design }: PassInput): Uint8Array {
   const publicUrl = `https://${username}.${ROOT_DOMAIN()}`;
   const host = `${username}.${ROOT_DOMAIN()}`;
+  const colours = passColours(design);
   const pass = {
     formatVersion: 1,
     passTypeIdentifier: PASS_TYPE_ID(),
@@ -110,14 +113,15 @@ export function buildPkpass({ username, name, design }: PassInput): Uint8Array {
     serialNumber: `onwan-${username}`,
     organizationName: 'عنوان',
     description: `بطاقة ${name || 'عنوان'}`,
-    // The entity's name at the top, its full link beneath, the QR at the bottom.
+    // The entity's name at the top, the QR as the strip image, the full link beneath.
+    // No barcodes key: the strip is the QR, and Wallet would draw a second one.
     logoText: name || username,
-    ...passColours(design),
+    backgroundColor: colours.backgroundColor,
+    foregroundColor: colours.foregroundColor,
+    labelColor: colours.labelColor,
     storeCard: {
       secondaryFields: [{ key: 'link', label: 'الصفحة', value: host }],
     },
-    barcodes: [{ format: 'PKBARCODE_FORMAT_QR', message: publicUrl, messageEncoding: 'iso-8859-1', altText: 'امسح لفتح الصفحة' }],
-    barcode: { format: 'PKBARCODE_FORMAT_QR', message: publicUrl, messageEncoding: 'iso-8859-1', altText: 'امسح لفتح الصفحة' },
   };
 
   const files: Record<string, Uint8Array> = {
@@ -125,6 +129,7 @@ export function buildPkpass({ username, name, design }: PassInput): Uint8Array {
     'icon.png': b64ToBytes(iconPng),
     'icon@2x.png': b64ToBytes(icon2xPng),
     'icon@3x.png': b64ToBytes(icon3xPng),
+    ...qrStripImages(publicUrl, colours.rgb),
   };
 
   const manifest: Record<string, string> = {};
