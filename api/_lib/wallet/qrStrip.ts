@@ -1,12 +1,6 @@
 import { zlibSync } from 'fflate';
-// The core encoder only: the package entry pulls in Node canvas/PNG code.
-import QR from 'qrcode/lib/core/qrcode.js';
-
-// The QR drawn as the store card's strip image (owner decision, 3 Nov 2026):
-// Wallet did not show the pass's own barcode on the owner's iPhone, an image
-// always shows. Apple's strip is 375×123 pt; the QR takes the full height, in
-// a white box on the card's colour, with a quiet zone so scanners read it.
-
+// The strip is a quiet accent behind Wallet's native name field.
+// The QR is supplied through pass.json, never baked into this image.
 const STRIP = { width: 375, height: 123 };
 type Rgb = [number, number, number];
 
@@ -49,23 +43,10 @@ function png(width: number, height: number, pixel: (x: number, y: number) => Rgb
   return out;
 }
 
-export function qrStripImages(message: string, background: Rgb) {
-  const modules = QR.create(message, { errorCorrectionLevel: 'M' }).modules;
-  const size: number = modules.size;
-  const cells = size + 4; // two-module quiet zone inside the white box
+export function cardStripImages(background: Rgb) {
   const images: Record<string, Uint8Array> = {};
   for (const scale of [1, 2, 3]) {
-    const width = STRIP.width * scale, height = STRIP.height * scale;
-    const cell = Math.floor(height / cells);
-    const box = cell * cells;
-    const left = Math.floor((width - box) / 2), top = Math.floor((height - box) / 2);
-    images[scale === 1 ? 'strip.png' : `strip@${scale}x.png`] = png(width, height, (x, y) => {
-      const bx = x - left, by = y - top;
-      if (bx < 0 || by < 0 || bx >= box || by >= box) return background;
-      const mx = Math.floor(bx / cell) - 2, my = Math.floor(by / cell) - 2;
-      const dark = mx >= 0 && my >= 0 && mx < size && my < size && modules.get(my, mx);
-      return dark ? [0, 0, 0] : [255, 255, 255];
-    });
+    images[scale === 1 ? 'strip.png' : `strip@${scale}x.png`] = png(STRIP.width * scale, STRIP.height * scale, () => background);
   }
   return images;
 }

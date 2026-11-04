@@ -5,6 +5,7 @@ import { usePageContext } from '../context/PageContext';
 import { pageUrl, pageHost } from '../lib/site';
 import { downloadVCard } from '../lib/vcard';
 import { requestWalletPassLink } from '../lib/api';
+import { OnwanLogo } from './OnwanLogo';
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from './ui/dialog';
 
 export function SharingPanel({ username }: { username: string }) {
@@ -45,7 +46,7 @@ export function SharingPanel({ username }: { username: string }) {
     try { await navigator.clipboard.writeText(url); setNotice('تم نسخ الرابط'); }
     catch { setNotice('تعذر النسخ؛ يمكنك نسخ الرابط من الحقل.'); }
   };
-  const light = [1, 3, 5].reduce((sum, start, index) => sum + parseInt(cardColor.slice(start, start + 2), 16) * [0.299, 0.587, 0.114][index], 0) > 160;
+  const bannerColor = '#' + [1, 3, 5].map(start => Math.round(parseInt(cardColor.slice(start, start + 2), 16) * 0.24 + 255 * 0.76).toString(16).padStart(2, '0')).join('');
   return <div dir="rtl" className="space-y-5 p-5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
     {!published && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">الرابط والباركود يعملان للزوار بعد نشر الصفحة.</p>}
     <section className="space-y-3 rounded-2xl bg-white p-4">
@@ -65,12 +66,13 @@ export function SharingPanel({ username }: { username: string }) {
     <section className="space-y-4 rounded-2xl bg-white p-4">
       <h3 className="font-bold">بطاقة المحفظة</h3>
       <p className="text-sm text-gray-500">اختر لون بطاقتك المميز، ثم أضفها إلى المحفظة.</p>
-      <div className="rounded-2xl p-5 shadow-sm" style={{ backgroundColor: cardColor, color: light ? '#111111' : '#ffffff' }}>
-        <p className="text-lg font-bold">{pageData.name || 'صفحتك'}</p><p dir="ltr" className="mt-1 text-right text-sm">{pageHost(username)}</p>
-        {cardQr && <img src={cardQr} alt="باركود البطاقة" className="mt-5 h-24 w-24 rounded-lg" />}
+      <div className="overflow-hidden rounded-[22px] border border-black/5 bg-[#f8f8f6] text-[#1c1e1d] shadow-sm">
+        <div className="flex items-center justify-between gap-3 px-4 py-3"><OnwanLogo className="shrink-0 scale-75 origin-right" /><div className="min-w-0 text-left"><span className="block text-xs text-[#454d47]">الرابط</span><span dir="ltr" className="block break-all text-xs font-semibold">{pageHost(username)}</span></div></div>
+        <div className="px-5 py-6 text-center" style={{ backgroundColor: bannerColor }}><p className="mb-1 text-xs text-[#454d47]">بطاقة تعريفية</p><p className="break-words text-xl font-bold">{pageData.name || 'صفحتك'}</p></div>
+        <div className="flex flex-col items-center px-5 pb-5 pt-4">{cardQr && <img src={cardQr} alt="باركود البطاقة" className="aspect-square w-48 max-w-full" />}<p className="mt-2 text-xs text-[#454d47]">امسح لفتح الصفحة</p></div>
       </div>
-      <label className="flex items-center justify-between text-sm">لون البطاقة<input type="color" aria-label="لون البطاقة" value={cardColor} onChange={event => setCardColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
-      <p className="text-xs text-gray-500">معاينة اللون؛ تنسيق البطاقة يتبع تطبيق المحفظة.</p>
+      <label className="flex items-center justify-between text-sm">اللون المميز للبطاقة<input type="color" aria-label="لون البطاقة" value={cardColor} onChange={event => setCardColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
+      <p className="text-xs text-gray-500">معاينة تقريبية؛ نستخدم درجة فاتحة من اللون المختار لوضوح الاسم. حجم الباركود والمسافات يحددهما Apple Wallet.</p>
       {walletUrl ? <a href={walletUrl} className={action}><WalletCards size={18} />إضافة إلى Apple Wallet</a> : <button type="button" disabled={!walletError} onClick={() => setAttempt(value => value + 1)} className={`w-full ${action}`}>{walletError ? 'إعادة تجهيز البطاقة' : 'جارٍ تجهيز البطاقة…'}</button>}
       {walletError && <p role="status" className="text-sm text-red-700">{walletError}</p>}
       <button type="button" disabled className={`w-full ${action}`}>Google Wallet — قريبًا</button>

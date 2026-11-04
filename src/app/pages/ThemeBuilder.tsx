@@ -6,8 +6,9 @@ import { TEMPLATE_SAMPLE, extractDesign, type PageTemplate } from '../lib/pageDe
 import { TemplatePreview } from '../components/TemplatePreview';
 import { ConfirmSheet } from '../components/ios';
 import Builder from './Builder';
+import { adminLink } from '../lib/site';
 
-// «صانع القوالب» (/nonprofit/theme-builder): the manager makes the ready-made
+// «صانع القوالب» (admin.onwan.link/theme-builder, /admin/theme-builder in dev): the manager makes the ready-made
 // templates associations see. Access comes from the administration sign-in
 // («مدير عنوان» only) — the link alone opens nothing. A template is designed
 // in the same editor, on generic sample content that is never saved with it.
@@ -34,7 +35,7 @@ export default function ThemeBuilder() {
         <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm">
           <h1 className="text-xl font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>صانع القوالب</h1>
           <p className="mt-2 text-sm text-[#737373]">هذه الصفحة لمدير عنوان. سجّل الدخول من لوحة الإدارة ثم افتحها من جديد.</p>
-          <a href="/admin" className="mt-5 inline-flex rounded-full bg-[#FF6B2C] px-5 py-2.5 font-bold text-white hover:bg-[#F25A18]">لوحة الإدارة</a>
+          <a href={adminLink()} className="mt-5 inline-flex rounded-full bg-[#FF6B2C] px-5 py-2.5 font-bold text-white hover:bg-[#F25A18]">لوحة الإدارة</a>
         </div>
       </main>
     );

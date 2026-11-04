@@ -102,6 +102,7 @@ export const router = createBrowserRouter(isAdminHost() ? [
   { path: '/', element: <PageProvider><Outlet /></PageProvider>, errorElement: <ErrorBoundary />, children: [
     { index: true, element: <AdminApp /> },
     { path: 'edit/:userId', element: <StaffPageEditor /> },
+    { path: 'theme-builder', element: <ThemeBuilder /> },
     { path: '*', element: <Navigate to="/" replace /> },
   ] },
 ] : isNonprofitHost() ? [
@@ -117,7 +118,6 @@ export const router = createBrowserRouter(isAdminHost() ? [
     { path: 'preview', element: <PublicPage /> },
     { path: 'onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate> },
     { path: 'quote', element: <NonprofitQuote /> },
-    { path: 'theme-builder', element: <ThemeBuilder /> },
     { path: 'privacy', element: <NonprofitLegal page="privacy" /> },
     { path: 'terms', element: <NonprofitLegal page="terms" /> },
     { path: 'reports', element: <NonprofitLegal page="reports" /> },
@@ -148,7 +148,6 @@ export const router = createBrowserRouter(isAdminHost() ? [
       }, { path: 'nonprofit/builder', element: <NonprofitBuilder />,
       }, { path: 'nonprofit/onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate>,
       }, { path: 'nonprofit/quote', element: <NonprofitQuote />,
-      }, { path: 'nonprofit/theme-builder', element: <ThemeBuilder />,
       }, { path: 'nonprofit/privacy', element: <NonprofitLegal page="privacy" />,
       }, { path: 'nonprofit/terms', element: <NonprofitLegal page="terms" />,
       }, { path: 'nonprofit/reports', element: <NonprofitLegal page="reports" />,
@@ -202,6 +201,10 @@ export const router = createBrowserRouter(isAdminHost() ? [
       {
         path: 'admin',
         element: isLocalHost() ? <AdminApp /> : <AdminRedirect />,
+      },
+      {
+        path: 'admin/theme-builder',
+        element: isLocalHost() ? <ThemeBuilder /> : <AdminRedirect />,
       },
       {
         path: 'admin/edit/:userId',

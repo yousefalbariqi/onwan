@@ -3,7 +3,8 @@ import { zipSync } from 'fflate';
 import { getEnv } from '../runtime.js';
 import { HttpError } from '../http.js';
 import { iconPng, icon2xPng, icon3xPng } from './images.js';
-import { qrStripImages } from './qrStrip.js';
+import { cardStripImages } from './qrStrip.js';
+import { walletMark1x, walletMark2x, walletMark3x } from './mark.js';
 
 // Apple Wallet pass signing, in the Worker. Apple needs a PKCS#7 detached
 // signature over manifest.json (SHA-1 of every file), which the Workers runtime
@@ -102,10 +103,30 @@ export function passColours(design: PassInput['design']) {
   };
 }
 
+// Keep the accent pale enough for Wallet's single foreground colour to read
+// well both over the strip and on the light card body.
+export function walletCardAppearance(design: PassInput['design']) {
+  const accent = passColours(design).rgb;
+  return {
+    backgroundColor: 'rgb(248, 248, 246)',
+    foregroundColor: 'rgb(28, 30, 29)',
+    labelColor: 'rgb(69, 77, 71)',
+    strip: accent.map(value => Math.round(value * 0.24 + 255 * 0.76)) as Rgb,
+  };
+}
+
 export function buildPkpass({ username, name, design, style }: PassInput): Uint8Array {
   const publicUrl = `https://${username}.${ROOT_DOMAIN()}`;
   const host = `${username}.${ROOT_DOMAIN()}`;
-  const colours = passColours(design);
+  const colours = walletCardAppearance(design);
+  const fields = {
+    headerFields: [{ key: 'link', label: 'الرابط', value: host, textAlignment: 'PKTextAlignmentLeft' }],
+    primaryFields: [{ key: 'name', label: 'بطاقة تعريفية', value: name || username, textAlignment: 'PKTextAlignmentCenter' }],
+    backFields: [
+      { key: 'page', label: 'فتح الصفحة', value: publicUrl },
+      { key: 'about', label: 'عنوان', value: 'امسح رمز QR لزيارة الصفحة والاطلاع على معلومات التواصل.' },
+    ],
+  };
   const pass = {
     formatVersion: 1,
     passTypeIdentifier: PASS_TYPE_ID(),
@@ -113,20 +134,14 @@ export function buildPkpass({ username, name, design, style }: PassInput): Uint8
     serialNumber: `onwan-${username}`,
     organizationName: 'عنوان',
     description: `بطاقة ${name || 'عنوان'}`,
-    // The entity's name at the top, the QR as the strip image, the full link beneath.
-    // No barcodes key: the strip is the QR, and Wallet would draw a second one.
-    logoText: name || username,
+    logoText: 'عنوان',
     backgroundColor: colours.backgroundColor,
     foregroundColor: colours.foregroundColor,
     labelColor: colours.labelColor,
-    // Test (4 Nov 2026): a generic pass with Wallet's own QR at the bottom,
-    // to see whether the native barcode shows where the store card's did not.
-    ...(style === 'generic' ? {
-      generic: { secondaryFields: [{ key: 'link', label: 'الصفحة', value: host }] },
-      barcodes: [{ format: 'PKBARCODE_FORMAT_QR', message: publicUrl, messageEncoding: 'iso-8859-1' }],
-    } : {
-      storeCard: { secondaryFields: [{ key: 'link', label: 'الصفحة', value: host }] },
-    }),
+    suppressStripShine: true,
+    // PassKit JSON uses this case-sensitive name (not PKBARCODE_FORMAT_QR).
+    barcodes: [{ format: 'PKBarcodeFormatQR', message: publicUrl, messageEncoding: 'iso-8859-1', altText: 'امسح لفتح الصفحة' }],
+    ...(style === 'generic' ? { generic: fields } : { storeCard: fields }),
   };
 
   const files: Record<string, Uint8Array> = {
@@ -134,7 +149,10 @@ export function buildPkpass({ username, name, design, style }: PassInput): Uint8
     'icon.png': b64ToBytes(iconPng),
     'icon@2x.png': b64ToBytes(icon2xPng),
     'icon@3x.png': b64ToBytes(icon3xPng),
-    ...(style === 'generic' ? {} : qrStripImages(publicUrl, colours.rgb)),
+    'logo.png': b64ToBytes(walletMark1x),
+    'logo@2x.png': b64ToBytes(walletMark2x),
+    'logo@3x.png': b64ToBytes(walletMark3x),
+    ...(style === 'generic' ? {} : cardStripImages(colours.strip)),
   };
 
   const manifest: Record<string, string> = {};
