@@ -5,6 +5,7 @@ import { getUsernameByDomain } from './_lib/domains.js';
 import { requireUser } from './_lib/session.js';
 import { getEnv } from './_lib/runtime.js';
 import { buildPkpass, walletConfigured } from './_lib/wallet/pass.js';
+import { readWalletArtwork, validateWalletArtwork, type WalletArtworkRefs } from './_lib/wallet/artwork.js';
 import { allowMethods, handleApiError, HttpError, sendJson } from './_lib/http.js';
 
 // A signed .pkpass for Apple Wallet.
@@ -17,13 +18,13 @@ import { allowMethods, handleApiError, HttpError, sendJson } from './_lib/http.j
 
 const PASS_LINK_TTL_MS = 30 * 60 * 1000;
 
-function signPassToken(userId: string): string {
-  const payload = Buffer.from(JSON.stringify({ u: userId, e: Date.now() + PASS_LINK_TTL_MS })).toString('base64url');
+function signPassToken(userId: string, artwork?: WalletArtworkRefs): string {
+  const payload = Buffer.from(JSON.stringify({ u: userId, a: artwork, e: Date.now() + PASS_LINK_TTL_MS })).toString('base64url');
   const sig = crypto.createHmac('sha256', getEnv('SESSION_SECRET') || '').update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
-function verifyPassToken(token: string): string | null {
+function verifyPassToken(token: string): { userId: string; artwork?: WalletArtworkRefs } | null {
   const [payload, sig] = String(token).split('.');
   if (!payload || !sig) return null;
   const expected = crypto.createHmac('sha256', getEnv('SESSION_SECRET') || '').update(payload).digest('base64url');
@@ -33,7 +34,7 @@ function verifyPassToken(token: string): string | null {
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
     if (!data.u || !data.e || Date.now() > data.e) return null;
-    return String(data.u);
+    return { userId: String(data.u), artwork: validateWalletArtwork(data.a, String(data.u)) };
   } catch {
     return null;
   }
@@ -54,19 +55,28 @@ export default async function handler(req: any, res: any) {
     if (req.query?.link) {
       const user = await requireUser(req, res);
       if (!user) return;
+      let artwork: WalletArtworkRefs | undefined;
+      if (req.query?.artwork) {
+        let input: unknown;
+        try { input = JSON.parse(String(req.query.artwork)); }
+        catch { throw new HttpError(400, 'تصميم البطاقة غير صالح.'); }
+        artwork = validateWalletArtwork(input, user.id);
+      }
       const page = await getPageDataByUserId(user.id);
       if (!page?.username) throw new HttpError(409, 'عيّن رابط الصفحة أولًا قبل إنشاء البطاقة.');
-      return sendJson(res, 200, { url: `/api/wallet-pass?pass=${encodeURIComponent(signPassToken(user.id))}${color ? `&color=${encodeURIComponent(color)}` : ''}` });
+      return sendJson(res, 200, { url: `/api/wallet-pass?pass=${encodeURIComponent(signPassToken(user.id, artwork))}${color ? `&color=${encodeURIComponent(color)}` : ''}` });
     }
 
+    let artworkRefs: WalletArtworkRefs | undefined;
     let username = '';
     let name = '';
     let design: { wallpaper?: unknown; theme?: unknown } | undefined;
     if (pass) {
       // Step 2: redeem the short-lived link (opened directly by the browser).
-      const userId = verifyPassToken(pass);
-      if (!userId) throw new HttpError(401, 'انتهت صلاحية رابط البطاقة. أنشئه من جديد.');
-      const page = await getPageDataByUserId(userId);
+      const verified = verifyPassToken(pass);
+      if (!verified) throw new HttpError(401, 'انتهت صلاحية رابط البطاقة. أنشئه من جديد.');
+      artworkRefs = verified.artwork;
+      const page = await getPageDataByUserId(verified.userId);
       username = page?.username ?? '';
       name = page?.name ?? '';
       design = page ?? undefined;
@@ -89,7 +99,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (color) design = { ...design, wallpaper: { type: 'color', value: color } };
-    const pkpass = buildPkpass({ username, name, design, style: req.query?.style === 'generic' ? 'generic' : undefined });
+    const pkpass = buildPkpass({ username, name, design, artwork: await readWalletArtwork(artworkRefs), style: req.query?.style === 'generic' ? 'generic' : undefined });
     res.status(200);
     res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
     // `inline`, not `attachment`: iOS Safari refuses to «download» a pkpass, but

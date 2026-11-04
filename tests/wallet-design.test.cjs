@@ -45,7 +45,7 @@ test('signed card contains the native QR, page identity, logo and retina strip a
   assert.equal(pass.barcodes.length, 1);
   assert.equal(pass.barcodes[0].format, 'PKBarcodeFormatQR');
   assert.equal(pass.barcodes[0].message, 'https://yaamur.example.test');
-  assert.equal(pass.storeCard.backFields[0].value, 'https://yaamur.example.test');
+  assert.equal(pass.storeCard.backFields.find(field => field.key === 'page').value, 'https://yaamur.example.test');
   assert.equal(pass.backgroundColor, 'rgb(248, 248, 246)');
   for (const [file, width, height] of [['strip.png', 375, 123], ['strip@2x.png', 750, 246], ['strip@3x.png', 1125, 369], ['logo@3x.png', 108, 90]]) {
     const bytes = Buffer.from(files[file]);
@@ -75,4 +75,47 @@ test('generic diagnostic style keeps its native QR without an unsupported strip'
   assert.equal(pass.generic.primaryFields[0].value, 'test');
   assert.equal(pass.barcodes[0].format, 'PKBarcodeFormatQR');
   assert.equal(files['strip.png'], undefined);
+});
+
+test('uploaded artwork replaces the default logo and oversized native name', () => {
+  const { cardStripImages } = load('api/_lib/wallet/qrStrip.ts');
+  const strip = cardStripImages([240, 230, 220])['strip@3x.png'];
+  const logo = Uint8Array.from([1, 2, 3, 4]);
+  const files = unzipSync(buildPkpass({ username: 'yaamur', name: 'جمعية ذات اسم طويل', artwork: { logo, strip } }));
+  const pass = JSON.parse(Buffer.from(files['pass.json']).toString());
+  assert.equal(pass.logoText, undefined);
+  assert.equal(pass.storeCard.primaryFields, undefined);
+  assert.equal(pass.storeCard.backFields.find(field => field.key === 'name').value, 'جمعية ذات اسم طويل');
+  assert.deepEqual(files['logo@3x.png'], logo);
+  assert.deepEqual(files['strip@3x.png'], strip);
+  assert.equal(pass.barcodes[0].format, 'PKBarcodeFormatQR');
+});
+
+function artworkModule(bucket) {
+  const module = { exports: {} };
+  const source = fs.readFileSync('api/_lib/wallet/artwork.ts', 'utf8');
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function('require', 'module', 'exports', code)(name => {
+    if (name === '../runtime.js') return { getBinding: () => bucket };
+    if (name === '../http.js') return { HttpError: class extends Error { constructor(status, message) { super(message); this.status = status; } } };
+    throw new Error(name);
+  }, module, module.exports);
+  return module.exports;
+}
+
+test('artwork references reject other owners, remote URLs and non-PNG uploads', () => {
+  const { validateWalletArtwork } = artworkModule();
+  const strip = '/media/files/owner/' + 'a'.repeat(64) + '.png';
+  assert.deepEqual(validateWalletArtwork({ strip }, 'owner'), { strip });
+  for (const path of [strip.replace('/owner/', '/other/'), 'https://example.test/logo.png', strip.replace('.png', '.jpg'), strip + '/../secret']) {
+    assert.throws(() => validateWalletArtwork({ strip: path }, 'owner'));
+  }
+});
+
+test('missing or incorrectly sized artwork fails before card issuance', async () => {
+  const refs = { strip: '/media/files/owner/' + 'a'.repeat(64) + '.png' };
+  await assert.rejects(artworkModule({ get: async () => null }).readWalletArtwork(refs));
+  const { cardStripImages } = load('api/_lib/wallet/qrStrip.ts');
+  const png = cardStripImages([255, 255, 255])['strip.png'];
+  await assert.rejects(artworkModule({ get: async () => ({ size: png.length, arrayBuffer: async () => png.buffer }) }).readWalletArtwork(refs));
 });

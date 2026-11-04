@@ -137,8 +137,8 @@ export function login(identifier: string, password: string) {
 // A short-lived, openable URL for the signed-in owner's Apple Wallet card.
 // iOS Safari adds a pass only from a real URL it navigates to (not a blob
 // download), so the UI opens this URL directly.
-export async function requestWalletPassLink(color?: string): Promise<string> {
-  const { url } = await request<{ url: string }>(`/api/wallet-pass?link=1${color ? `&color=${encodeURIComponent(color)}` : ''}`, { authenticated: true });
+export async function requestWalletPassLink(color?: string, artwork?: { logo?: string; strip: string }): Promise<string> {
+  const { url } = await request<{ url: string }>(`/api/wallet-pass?link=1${color ? `&color=${encodeURIComponent(color)}` : ''}${artwork ? `&artwork=${encodeURIComponent(JSON.stringify(artwork))}` : ''}`, { authenticated: true });
   return url;
 }
 

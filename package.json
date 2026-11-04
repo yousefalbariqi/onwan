@@ -13,6 +13,7 @@
     "test:worker": "wrangler deploy --dry-run --outdir .worker-build && node --test tests/worker.test.cjs tests/worker-runtime.test.cjs tests/nonprofit-request.test.cjs",
     "build:worker": "npm run build && wrangler deploy --dry-run --outdir .worker-build",
     "dev:local": "sh scripts/dev-local.sh",
+    "dev:lan": "sh scripts/dev-local.sh --ip 0.0.0.0",
     "test:nonprofit-admin": "node --test tests/nonprofit-request.test.cjs tests/nonprofit-admin.integration.cjs"
   },
   "dependencies": {

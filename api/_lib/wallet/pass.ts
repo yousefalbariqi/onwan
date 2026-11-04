@@ -70,7 +70,7 @@ function signManifest(manifest: Uint8Array): Uint8Array {
   return out;
 }
 
-export type PassInput = { username: string; name: string; design?: { wallpaper?: any; theme?: any }; style?: 'generic' };
+export type PassInput = { username: string; name: string; design?: { wallpaper?: any; theme?: any }; artwork?: { logo?: Uint8Array; strip?: Uint8Array }; style?: 'generic' };
 
 type Rgb = [number, number, number];
 const ORANGE: Rgb = [255, 107, 44];
@@ -115,14 +115,16 @@ export function walletCardAppearance(design: PassInput['design']) {
   };
 }
 
-export function buildPkpass({ username, name, design, style }: PassInput): Uint8Array {
+export function buildPkpass({ username, name, design, style, artwork }: PassInput): Uint8Array {
   const publicUrl = `https://${username}.${ROOT_DOMAIN()}`;
   const host = `${username}.${ROOT_DOMAIN()}`;
   const colours = walletCardAppearance(design);
   const fields = {
     headerFields: [{ key: 'link', label: 'الرابط', value: host, textAlignment: 'PKTextAlignmentLeft' }],
-    primaryFields: [{ key: 'name', label: 'بطاقة تعريفية', value: name || username, textAlignment: 'PKTextAlignmentCenter' }],
+    // A rendered banner gives us a predictable medium font and one-line fitting.
+    ...(artwork?.strip && style !== 'generic' ? {} : { primaryFields: [{ key: 'name', label: 'بطاقة تعريفية', value: name || username, textAlignment: 'PKTextAlignmentCenter' }] }),
     backFields: [
+      { key: 'name', label: 'بطاقة تعريفية', value: name || username },
       { key: 'page', label: 'فتح الصفحة', value: publicUrl },
       { key: 'about', label: 'عنوان', value: 'امسح رمز QR لزيارة الصفحة والاطلاع على معلومات التواصل.' },
     ],
@@ -134,7 +136,7 @@ export function buildPkpass({ username, name, design, style }: PassInput): Uint8
     serialNumber: `onwan-${username}`,
     organizationName: 'عنوان',
     description: `بطاقة ${name || 'عنوان'}`,
-    logoText: 'عنوان',
+    ...(artwork?.logo ? {} : { logoText: 'عنوان' }),
     backgroundColor: colours.backgroundColor,
     foregroundColor: colours.foregroundColor,
     labelColor: colours.labelColor,
@@ -149,10 +151,12 @@ export function buildPkpass({ username, name, design, style }: PassInput): Uint8
     'icon.png': b64ToBytes(iconPng),
     'icon@2x.png': b64ToBytes(icon2xPng),
     'icon@3x.png': b64ToBytes(icon3xPng),
-    'logo.png': b64ToBytes(walletMark1x),
-    'logo@2x.png': b64ToBytes(walletMark2x),
-    'logo@3x.png': b64ToBytes(walletMark3x),
-    ...(style === 'generic' ? {} : cardStripImages(colours.strip)),
+    ...(artwork?.logo ? { 'logo@3x.png': artwork.logo } : {
+      'logo.png': b64ToBytes(walletMark1x),
+      'logo@2x.png': b64ToBytes(walletMark2x),
+      'logo@3x.png': b64ToBytes(walletMark3x),
+    }),
+    ...(style === 'generic' ? {} : artwork?.strip ? { 'strip@3x.png': artwork.strip } : cardStripImages(colours.strip)),
   };
 
   const manifest: Record<string, string> = {};

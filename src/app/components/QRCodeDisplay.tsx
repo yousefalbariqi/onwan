@@ -5,6 +5,7 @@ import { usePageContext } from '../context/PageContext';
 import { pageUrl, pageHost } from '../lib/site';
 import { downloadVCard } from '../lib/vcard';
 import { requestWalletPassLink } from '../lib/api';
+import { prepareWalletArtwork, renderWalletBanner } from '../lib/walletArtwork';
 import { OnwanLogo } from './OnwanLogo';
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from './ui/dialog';
 
@@ -17,7 +18,8 @@ export function SharingPanel({ username }: { username: string }) {
   const [cardQr, setCardQr] = useState('');
   const [walletUrl, setWalletUrl] = useState('');
   const [walletError, setWalletError] = useState('');
-  const [attempt, setAttempt] = useState(0);
+  const [preparing, setPreparing] = useState(false);
+  const [bannerImage, setBannerImage] = useState('');
   const [notice, setNotice] = useState('');
   const url = pageUrl(username);
   const published = account?.pageStatus === 'published';
@@ -35,12 +37,20 @@ export function SharingPanel({ username }: { username: string }) {
     return () => { alive = false; };
   }, [url]);
   useEffect(() => {
-    let alive = true;
     setWalletUrl(''); setWalletError('');
-    requestWalletPassLink(cardColor).then(value => { if (alive) setWalletUrl(value); })
-      .catch(() => { if (alive) setWalletError('تعذر تجهيز بطاقة Apple Wallet. حاول مجددًا.'); });
+    let alive = true;
+    setBannerImage('');
+    renderWalletBanner(pageData.name || username, cardColor).then(value => { if (alive) setBannerImage(value); }).catch(() => {});
     return () => { alive = false; };
-  }, [cardColor, attempt]);
+  }, [cardColor, pageData.name, pageData.profileImage, username]);
+  const prepareCard = async () => {
+    setPreparing(true); setWalletError('');
+    try {
+      const artwork = await prepareWalletArtwork(pageData.name || username, pageData.profileImage || '', cardColor);
+      setWalletUrl(await requestWalletPassLink(cardColor, artwork));
+    } catch (error) { setWalletError(error instanceof Error ? error.message : 'تعذر تجهيز بطاقة Apple Wallet. حاول مجددًا.'); }
+    finally { setPreparing(false); }
+  };
   if (!username) return <p className="p-5">اختر رابط صفحتك أولًا.</p>;
   const copy = async () => {
     try { await navigator.clipboard.writeText(url); setNotice('تم نسخ الرابط'); }
@@ -67,13 +77,13 @@ export function SharingPanel({ username }: { username: string }) {
       <h3 className="font-bold">بطاقة المحفظة</h3>
       <p className="text-sm text-gray-500">اختر لون بطاقتك المميز، ثم أضفها إلى المحفظة.</p>
       <div className="overflow-hidden rounded-[22px] border border-black/5 bg-[#f8f8f6] text-[#1c1e1d] shadow-sm">
-        <div className="flex items-center justify-between gap-3 px-4 py-3"><OnwanLogo className="shrink-0 scale-75 origin-right" /><div className="min-w-0 text-left"><span className="block text-xs text-[#454d47]">الرابط</span><span dir="ltr" className="block break-all text-xs font-semibold">{pageHost(username)}</span></div></div>
-        <div className="px-5 py-6 text-center" style={{ backgroundColor: bannerColor }}><p className="mb-1 text-xs text-[#454d47]">بطاقة تعريفية</p><p className="break-words text-xl font-bold">{pageData.name || 'صفحتك'}</p></div>
+        <div dir="ltr" className="flex items-center justify-between gap-3 px-4 py-3">{pageData.profileImage ? <img src={pageData.profileImage} alt="شعار الصفحة" className="h-12 w-28 object-contain" /> : <OnwanLogo className="shrink-0 scale-75 origin-left" />}<div className="min-w-0 text-left"><span className="block text-xs text-[#454d47]">الرابط</span><span dir="ltr" className="block break-all text-xs font-semibold">{pageHost(username)}</span></div></div>
+        {bannerImage ? <img src={bannerImage} alt={`بطاقة تعريفية — ${pageData.name || username}`} className="block w-full" /> : <div className="h-28" style={{ backgroundColor: bannerColor }} />}
         <div className="flex flex-col items-center px-5 pb-5 pt-4">{cardQr && <img src={cardQr} alt="باركود البطاقة" className="aspect-square w-48 max-w-full" />}<p className="mt-2 text-xs text-[#454d47]">امسح لفتح الصفحة</p></div>
       </div>
-      <label className="flex items-center justify-between text-sm">اللون المميز للبطاقة<input type="color" aria-label="لون البطاقة" value={cardColor} onChange={event => setCardColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
-      <p className="text-xs text-gray-500">معاينة تقريبية؛ نستخدم درجة فاتحة من اللون المختار لوضوح الاسم. حجم الباركود والمسافات يحددهما Apple Wallet.</p>
-      {walletUrl ? <a href={walletUrl} className={action}><WalletCards size={18} />إضافة إلى Apple Wallet</a> : <button type="button" disabled={!walletError} onClick={() => setAttempt(value => value + 1)} className={`w-full ${action}`}>{walletError ? 'إعادة تجهيز البطاقة' : 'جارٍ تجهيز البطاقة…'}</button>}
+      <label className="flex items-center justify-between text-sm">اللون المميز للبطاقة<input type="color" aria-label="لون البطاقة" disabled={preparing} value={cardColor} onChange={event => setCardColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
+      <p className="text-xs text-gray-500">معاينة تقريبية؛ نستخدم درجة فاتحة من اللون المختار لوضوح الاسم. حجم الباركود وموضع الشعار يحددهما Apple Wallet؛ لا يمكن ضبط الباركود على ٩٠٪ في هذا القالب.</p>
+      {walletUrl ? <a href={walletUrl} className={action}><WalletCards size={18} />إضافة إلى Apple Wallet</a> : <button type="button" disabled={preparing} onClick={prepareCard} className={`w-full ${action}`}>{preparing ? 'جارٍ تجهيز البطاقة…' : walletError ? 'إعادة تجهيز البطاقة' : 'تجهيز بطاقة Apple Wallet'}</button>}
       {walletError && <p role="status" className="text-sm text-red-700">{walletError}</p>}
       <button type="button" disabled className={`w-full ${action}`}>Google Wallet — قريبًا</button>
       <p className="text-xs text-gray-500">الإضافة إلى Google Wallet غير متاحة حاليًا.</p>

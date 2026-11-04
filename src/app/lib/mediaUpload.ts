@@ -105,3 +105,10 @@ export async function moveInlineMedia(page: PageData, token = getSessionToken())
     links: page.links.map((link) => ({ ...link, url: swap(link.url), customIcon: swap(link.customIcon), display: link.display ? { ...link.display, image: swap(link.display.image) } : link.display })),
   };
 }
+
+// Reuse authenticated storage, upload deduplication and limits for Wallet PNGs.
+export function storeInlineMedia(dataUrl: string): Promise<string> {
+  const token = getSessionToken();
+  if (!token || !isInline(dataUrl)) return Promise.reject(new Error('سجّل الدخول لتجهيز البطاقة.'));
+  return store(dataUrl, token);
+}

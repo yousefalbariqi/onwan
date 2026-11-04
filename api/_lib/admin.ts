@@ -103,7 +103,6 @@ async function customerTarget(userId: unknown) {
 
 const handlers: Record<string, Handler> = {
   ...nonprofitAdminHandlers,
-  ...templateAdminHandlers,
   ...partnerAdminHandlers,
   ...serviceAdminHandlers,
 
@@ -1001,7 +1000,11 @@ async function loadStaff(req: any): Promise<Staff> {
 
 // The single place where the permissions matrix is enforced.
 export async function runAdminAction(req: any, action: string, params: any) {
-  const handler = Object.prototype.hasOwnProperty.call(handlers, action) ? handlers[action] : null;
+  // Template handlers are looked up here, not spread into `handlers`:
+  // pageTemplates.ts imports this module, so when it loads first (through
+  // api/nonprofit.ts) its handlers are not defined yet when `handlers` is built.
+  const all = { ...templateAdminHandlers, ...handlers };
+  const handler = Object.prototype.hasOwnProperty.call(all, action) ? all[action] : null;
   const context: AdminContext = { origin: getOrigin(req) };
 
   if (!handler) {
