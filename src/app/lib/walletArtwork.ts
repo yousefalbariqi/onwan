@@ -32,18 +32,69 @@ export async function renderWalletBanner(name: string, color: string) {
   return strip.element.toDataURL('image/png');
 }
 
-export async function prepareWalletArtwork(name: string, profileImage: string, color: string) {
+// Poster artwork is decorative; the name, link and QR remain native fields.
+export async function renderWalletPoster(color: string, background?: string) {
+  const poster = canvas(1074, 1344); // 358 × 448 pt at 3x, per Apple HIG.
+  poster.context.fillStyle = '#f8f8f6';
+  poster.context.fillRect(0, 0, 1074, 1344);
+  if (background) {
+    const image = new Image(); image.crossOrigin = 'anonymous'; image.src = background;
+    await image.decode();
+    const scale = Math.max(1074 / image.naturalWidth, 1344 / image.naturalHeight);
+    const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
+    poster.context.drawImage(image, (1074 - width) / 2, (1344 - height) / 2, width, height);
+    // Quiet light surfaces preserve contrast under the system header/footer.
+    const wash = poster.context.createLinearGradient(0, 0, 0, 1344);
+    wash.addColorStop(0, 'rgba(248,248,246,.96)');
+    wash.addColorStop(.2, 'rgba(248,248,246,.12)');
+    wash.addColorStop(.5, 'rgba(248,248,246,.12)');
+    wash.addColorStop(.72, 'rgba(248,248,246,.96)');
+    wash.addColorStop(1, '#f8f8f6');
+    poster.context.fillStyle = wash;
+    poster.context.fillRect(0, 0, 1074, 1344);
+  } else {
+    const rgb = [1, 3, 5].map(i => Math.round(parseInt(color.slice(i, i + 2), 16) * .24 + 255 * .76));
+    poster.context.fillStyle = `rgb(${rgb.join(',')})`;
+    poster.context.fillRect(0, 180, 1074, 420);
+  }
+  let png = poster.element.toDataURL('image/png');
+  if (png.length * .75 > 900_000) {
+    // Keep PNG and Apple's exact pixel dimensions. The generic uploader would
+    // otherwise convert an oversized photograph to WebP, which passes reject.
+    const source = poster.context.getImageData(0, 0, 1074, 1344);
+    const original = new Uint8ClampedArray(source.data);
+    for (const steps of [32, 16, 8, 4, 2]) {
+      for (let i = 0; i < source.data.length; i += 4) {
+        for (let c = 0; c < 3; c++) source.data[i + c] = Math.round(Math.round(original[i + c] / 255 * (steps - 1)) / (steps - 1) * 255);
+      }
+      poster.context.putImageData(source, 0, 0);
+      png = poster.element.toDataURL('image/png');
+      if (png.length * .75 <= 900_000) break;
+    }
+    if (png.length * .75 > 900_000) throw new Error('خلفية البطاقة كبيرة جدًا. اختر صورة أبسط.');
+  }
+  return png;
+}
+
+export async function prepareWalletArtwork(name: string, profileImage: string, color: string, background?: string) {
   const bannerImage = await renderWalletBanner(name, color);
+  const posterImage = await renderWalletPoster(color, background);
   let logo: string | undefined;
+  let primaryLogo: string | undefined;
   if (profileImage) {
     const image = new Image(); image.crossOrigin = 'anonymous'; image.src = profileImage;
     await image.decode();
-    const asset = canvas(480, 150);
-    const ratio = Math.min(480 / image.naturalWidth, 150 / image.naturalHeight);
-    const width = image.naturalWidth * ratio, height = image.naturalHeight * ratio;
-    asset.context.drawImage(image, (480 - width) / 2, (150 - height) / 2, width, height);
-    logo = await storeInlineMedia(asset.element.toDataURL('image/png'));
+    const fit = (width: number, height: number) => {
+      const asset = canvas(width, height);
+      const ratio = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+      const w = image.naturalWidth * ratio, h = image.naturalHeight * ratio;
+      asset.context.drawImage(image, (width - w) / 2, (height - h) / 2, w, h);
+      return asset.element.toDataURL('image/png');
+    };
+    logo = await storeInlineMedia(fit(480, 150));
+    primaryLogo = await storeInlineMedia(fit(378, 90));
   }
-  const banner = await storeInlineMedia(bannerImage);
-  return { logo, strip: banner };
+  const strip = await storeInlineMedia(bannerImage);
+  const poster = await storeInlineMedia(posterImage);
+  return { logo, primaryLogo, strip, poster, displayName: name };
 }

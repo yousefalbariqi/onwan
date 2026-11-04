@@ -3,7 +3,7 @@ import { zipSync } from 'fflate';
 import { getEnv } from '../runtime.js';
 import { HttpError } from '../http.js';
 import { iconPng, icon2xPng, icon3xPng } from './images.js';
-import { cardStripImages } from './qrStrip.js';
+import { cardStripImages, posterArtworkImages } from './qrStrip.js';
 import { walletMark1x, walletMark2x, walletMark3x } from './mark.js';
 
 // Apple Wallet pass signing, in the Worker. Apple needs a PKCS#7 detached
@@ -70,7 +70,7 @@ function signManifest(manifest: Uint8Array): Uint8Array {
   return out;
 }
 
-export type PassInput = { username: string; name: string; design?: { wallpaper?: any; theme?: any }; artwork?: { logo?: Uint8Array; strip?: Uint8Array }; style?: 'generic' };
+export type PassInput = { username: string; name: string; design?: { wallpaper?: any; theme?: any }; artwork?: { logo?: Uint8Array; strip?: Uint8Array; poster?: Uint8Array; primaryLogo?: Uint8Array; displayName?: string }; style?: 'generic' };
 
 type Rgb = [number, number, number];
 const ORANGE: Rgb = [255, 107, 44];
@@ -137,13 +137,22 @@ export function buildPkpass({ username, name, design, style, artwork }: PassInpu
     serialNumber: `onwan-${username}`,
     organizationName: 'عنوان',
     description: `بطاقة ${name || 'عنوان'}`,
-    ...(artwork?.logo ? {} : { logoText: 'عنوان' }),
+    ...(artwork?.logo || artwork?.primaryLogo ? {} : { logoText: 'عنوان' }),
     backgroundColor: colours.backgroundColor,
     foregroundColor: colours.foregroundColor,
     labelColor: colours.labelColor,
     suppressStripShine: true,
     // PassKit JSON uses this case-sensitive name (not PKBARCODE_FORMAT_QR).
     barcodes: [{ format: 'PKBarcodeFormatQR', message: publicUrl, messageEncoding: 'iso-8859-1', altText: 'امسح لفتح الصفحة' }],
+    // iOS/watchOS 27+ selects this style; earlier systems use the legacy
+    // dictionary below. No user-agent sniffing or minimum OS version needed.
+    posterGeneric: {
+      headerFields: [{ key: 'poster-link', label: 'الرابط', value: host }],
+      primaryFields: [{ key: 'poster-name', label: 'بطاقة تعريفية', value: artwork?.displayName || name || username }],
+      footerFields: [{ key: 'poster-instruction', value: 'امسح رمز QR لفتح الصفحة' }],
+      backFields: fields.backFields,
+    },
+    footerBackgroundColor: colours.backgroundColor,
     ...(style === 'generic' ? { generic: fields } : { storeCard: fields }),
   };
 
@@ -157,6 +166,8 @@ export function buildPkpass({ username, name, design, style, artwork }: PassInpu
       'logo@2x.png': b64ToBytes(walletMark2x),
       'logo@3x.png': b64ToBytes(walletMark3x),
     }),
+    ...(artwork?.poster ? { 'artwork@3x.png': artwork.poster } : posterArtworkImages(colours.strip)),
+    'primaryLogo@3x.png': artwork?.primaryLogo || b64ToBytes(walletMark3x),
     ...(style === 'generic' ? {} : artwork?.strip ? { 'strip@3x.png': artwork.strip } : cardStripImages(colours.strip)),
   };
 

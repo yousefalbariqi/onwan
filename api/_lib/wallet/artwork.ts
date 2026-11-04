@@ -1,13 +1,13 @@
 import { getBinding } from '../runtime.js';
 import { HttpError } from '../http.js';
 
-export type WalletArtworkRefs = { logo?: string; strip: string };
+export type WalletArtworkRefs = { logo?: string; strip: string; poster?: string; primaryLogo?: string; displayName?: string };
 export function validateWalletArtwork(value: unknown, owner: string): WalletArtworkRefs | undefined {
   if (value === undefined) return undefined;
   const input = value as WalletArtworkRefs;
   const valid = (path: unknown) => typeof path === 'string' && path.startsWith(`/media/files/${owner}/`) && /^\/media\/files\/[a-zA-Z0-9-]{1,64}\/[a-f0-9]{64}\.png$/.test(path);
-  if (!input || !valid(input.strip) || (input.logo !== undefined && !valid(input.logo))) throw new HttpError(400, 'تصميم البطاقة غير صالح.');
-  return { strip: input.strip, ...(input.logo ? { logo: input.logo } : {}) };
+  if (!input || !valid(input.strip) || [input.logo, input.poster, input.primaryLogo].some(path => path !== undefined && !valid(path)) || (input.displayName !== undefined && (typeof input.displayName !== 'string' || !input.displayName.trim() || input.displayName.length > 160))) throw new HttpError(400, 'تصميم البطاقة غير صالح.');
+  return { strip: input.strip, ...(input.logo ? { logo: input.logo } : {}), ...(input.poster ? { poster: input.poster } : {}), ...(input.primaryLogo ? { primaryLogo: input.primaryLogo } : {}), ...(input.displayName ? { displayName: input.displayName.trim() } : {}) };
 }
 export async function readWalletArtwork(refs?: WalletArtworkRefs) {
   if (!refs) return undefined;
@@ -21,5 +21,5 @@ export async function readWalletArtwork(refs?: WalletArtworkRefs) {
     if (bytes.length < 24 || view.getUint32(0) !== 0x89504e47 || view.getUint32(4) !== 0x0d0a1a0a || view.getUint32(16) !== width || view.getUint32(20) !== height) throw new HttpError(400, 'مقاسات تصميم البطاقة غير صالحة.');
     return bytes;
   }
-  return { strip: await read(refs.strip, 1125, 369), logo: refs.logo ? await read(refs.logo, 480, 150) : undefined };
+  return { strip: await read(refs.strip, 1125, 369), logo: refs.logo ? await read(refs.logo, 480, 150) : undefined, poster: refs.poster ? await read(refs.poster, 1074, 1344) : undefined, primaryLogo: refs.primaryLogo ? await read(refs.primaryLogo, 378, 90) : undefined, displayName: refs.displayName };
 }

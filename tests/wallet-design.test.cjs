@@ -120,3 +120,48 @@ test('missing or incorrectly sized artwork fails before card issuance', async ()
   const png = cardStripImages([255, 255, 255])['strip.png'];
   await assert.rejects(artworkModule({ get: async () => ({ size: png.length, arrayBuffer: async () => png.buffer }) }).readWalletArtwork(refs));
 });
+
+
+test('one signed pass contains posterGeneric plus the legacy style, sharing identity and native QR', () => {
+  for (const style of [undefined, 'generic']) {
+    const files = unzipSync(buildPkpass({ username: 'poster', name: 'جمعية عنوان', style }));
+    const pass = JSON.parse(Buffer.from(files['pass.json']).toString());
+    assert.equal(pass.posterGeneric.primaryFields[0].value, 'جمعية عنوان');
+    assert.equal(pass.posterGeneric.headerFields.length, 1);
+    assert.equal(pass.posterGeneric.footerFields.length, 1);
+    assert.ok(style === 'generic' ? pass.generic : pass.storeCard);
+    assert.equal(pass.serialNumber, 'onwan-poster');
+    assert.equal(pass.barcodes[0].format, 'PKBarcodeFormatQR');
+    assert.equal(pass.barcodes[0].message, 'https://poster.example.test');
+    assert.equal(pass.minimumOSVersion, undefined);
+    for (const [file, width, height] of [['artwork.png', 358, 448], ['artwork@2x.png', 716, 896], ['artwork@3x.png', 1074, 1344]]) {
+      const image = Buffer.from(files[file]);
+      assert.equal(image.readUInt32BE(16), width);
+      assert.equal(image.readUInt32BE(20), height);
+    }
+    assert.ok(files['primaryLogo@3x.png']);
+    const manifest = JSON.parse(Buffer.from(files['manifest.json']).toString());
+    assert.ok(manifest['artwork@3x.png']);
+    assert.ok(manifest['primaryLogo@3x.png']);
+  }
+});
+
+test('poster uses the chosen short name and separate artwork/logo without changing the fallback', () => {
+  const poster = Uint8Array.from([10, 20, 30]);
+  const primaryLogo = Uint8Array.from([40, 50, 60]);
+  const files = unzipSync(buildPkpass({ username: 'poster', name: 'الاسم الكامل للجمعية', artwork: { poster, primaryLogo, displayName: 'جمعية عنوان' } }));
+  const pass = JSON.parse(Buffer.from(files['pass.json']).toString());
+  assert.equal(pass.posterGeneric.primaryFields[0].value, 'جمعية عنوان');
+  assert.equal(pass.storeCard.primaryFields[0].value, 'الاسم الكامل للجمعية');
+  assert.deepEqual(files['artwork@3x.png'], poster);
+  assert.deepEqual(files['primaryLogo@3x.png'], primaryLogo);
+});
+
+test('poster references and custom names are owner-scoped and validated', () => {
+  const { validateWalletArtwork } = artworkModule();
+  const strip = '/media/files/owner/' + 'a'.repeat(64) + '.png';
+  assert.deepEqual(validateWalletArtwork({ strip, poster: strip, primaryLogo: strip, displayName: 'عنوان' }, 'owner'), { strip, poster: strip, primaryLogo: strip, displayName: 'عنوان' });
+  assert.throws(() => validateWalletArtwork({ strip, poster: strip.replace('/owner/', '/other/') }, 'owner'));
+  assert.throws(() => validateWalletArtwork({ strip, primaryLogo: 'https://example.test/logo.png' }, 'owner'));
+  assert.throws(() => validateWalletArtwork({ strip, displayName: 'x'.repeat(161) }, 'owner'));
+});

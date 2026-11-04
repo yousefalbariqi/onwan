@@ -50,3 +50,13 @@ export function cardStripImages(background: Rgb) {
   }
   return images;
 }
+
+// Apple's poster artwork is 358 × 448 pt. Keep the lower barcode/footer
+// region light; Wallet overlays its own accessible fields and native QR.
+export function posterArtworkImages(accent: Rgb) {
+  const files: Record<string, Uint8Array> = {};
+  for (const scale of [1, 2, 3]) {
+    files[scale === 1 ? 'artwork.png' : `artwork@${scale}x.png`] = png(358 * scale, 448 * scale, (_x, y) => y >= 60 * scale && y < 200 * scale ? accent : [248, 248, 246]);
+  }
+  return files;
+}
