@@ -9,7 +9,7 @@ import { usePageContext } from '../context/PageContext';
 // general editor. The section list is still under study — it mirrors the
 // current sections until the nonprofit sections are approved.
 export const nonprofitEditorConfig: EditorConfig = {
-  sections: ['header', 'links', 'style', 'wallpaper'],
+  sections: ['header', 'links', 'style', 'wallpaper', 'sharing'],
   labels: {},
   // Note 10: wide logos can shrink below the frame and stay whole.
   logoZoomOut: true,

@@ -1,3 +1,4 @@
+import '../../styles/nonprofit-builder.css';
 import { nonprofitPath } from '../lib/nonprofit';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
@@ -10,43 +11,29 @@ import { TemplateGallery } from '../components/TemplateGallery';
 import { WallpaperEditor } from '../components/WallpaperEditor';
 import { StyleEditor } from '../components/StyleEditor';
 import { LinkEditor } from '../components/LinkEditor';
-import { QRCodeDisplay } from '../components/QRCodeDisplay';
+import { SharingPanel } from '../components/QRCodeDisplay';
 import { AccountPanel } from '../components/AccountPanel';
 import { NonprofitSettings } from '../components/NonprofitSettings';
 import { accountCall } from '../lib/api';
 import { BRAND_NAME, pageHost, pageUrl } from '../lib/site';
-import { User, Image as ImageIcon, Sparkles, Link2, Eye, ArrowLeft, Save, Settings, X, Check, Undo2, Redo2, History, Loader2, RotateCw, LogOut, ChevronDown, Palette } from 'lucide-react';
+import { User, Image as ImageIcon, Sparkles, Link2, Eye, ArrowLeft, Save, Settings, X, Check, Undo2, Redo2, History, Loader2, RotateCw, LogOut, ChevronDown, Palette, Share2 } from 'lucide-react';
 import { EmailVerifyChip } from '../components/EmailVerifyChip';
 import AuthModal from '../components/AuthModal';
 import { DesignServiceSheet } from '../components/DesignServiceSheet';
 import { TemporaryPasswordGate } from '../components/TemporaryPasswordGate';
 
-export type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account' | 'history';
+export type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account' | 'history' | 'sharing';
 
 // A product built on this editor (e.g. the nonprofit editor) narrows or
 // renames its sections here. Without it the general editor is unchanged.
 export type EditorConfig = { sections?: Tab[]; labels?: Partial<Record<Tab, string>>; logoZoomOut?: boolean; logoBanner?: boolean };
 
-// Note 25: the association's editor sits on a calm «عنوان» backdrop — the
-// brand's stacked cards, few and very faint, fixed at the screen's edges so
-// they stay in empty space and never move with the tools. Only the editor's
-// surroundings; buttons, panels and the designed page are untouched.
-const brandCard = (fill: string, angle: number, dot: boolean) =>
-  `<g transform='rotate(${angle} 60 44)'><rect x='4' y='4' width='112' height='80' rx='16' fill='${fill}'/>${dot ? "<circle cx='32' cy='50' r='10' fill='%23FF6B2C' fill-opacity='.55'/><rect x='52' y='45' width='46' height='10' rx='5' fill='%23ffffff' fill-opacity='.8'/>" : ''}</g>`;
-const brandSvg = (inner: string, opacity = 0.5) => `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='110' viewBox='-10 -10 140 110' opacity='${opacity}'>${inner}</svg>")`;
+// The nonprofit workspace uses quiet surfaces so the page remains the focus.
 const DESKTOP_DENSITY = 0.8;
 const brandBackdrop: React.CSSProperties = {
-  backgroundColor: '#F8F8F6',
-  backgroundImage: [
-    brandSvg(brandCard('%23C9C0B4', -12, false) + brandCard('%23111111', -4, true), 0.18),
-    brandSvg(brandCard('%23FFF0E8', 14, false)),
-    brandSvg(brandCard('%23ECEAE5', 8, true)),
-    'radial-gradient(%23E7E3DC 1px, transparent 1.4px)'.replace(/%23/g, '#'),
-  ].join(', '),
-  backgroundPosition: 'left 2% bottom 4%, right 3% top 10%, left 30% top 2%, 0 0',
-  backgroundSize: '150px auto, 120px auto, 90px auto, 22px 22px',
-  backgroundRepeat: 'no-repeat, no-repeat, no-repeat, repeat',
-  backgroundAttachment: 'fixed',
+  backgroundColor: '#F4F3EF',
+  backgroundImage: 'radial-gradient(ellipse at 100% 0%, rgba(255, 226, 207, 0.42), transparent 48%), radial-gradient(ellipse at 0% 100%, rgba(220, 232, 225, 0.38), transparent 52%)',
+  backgroundRepeat: 'no-repeat',
 };
 
 // `staffEdit` is set when an employee edits a customer's page from the
@@ -422,10 +409,12 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     { id: 'links' as Tab, label: 'المحتوى', icon: Link2 },
     { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon },
     { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles },
+    { id: 'sharing' as Tab, label: 'المشاركة', icon: Share2 },
     { id: 'account' as Tab, label: 'الإعدادات', icon: Settings },
   ].filter((tab) => (!staffEdit && !guestPreview) || tab.id !== 'account').filter(showSection).map(withLabel);
 
   const renderActivePanel = () => {
+    if (activeTab === 'sharing') return <SharingPanel username={pageData.username} />;
     // Themes live inside «الخلفية» now; 'theme' just opens it on that segment.
     if (activeTab === 'theme') {
       // Note 47: in the association's editor, «ثيمات الصفحة» is its own section.
@@ -504,7 +493,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
   }
 
   return (
-    <div className="flex h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col bg-gray-50" dir="rtl">
+    <div data-nonprofit-builder={compactBar || undefined} className="flex h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col bg-gray-50" dir="rtl">
       {/* Note 18: in the association's editor this bar is for the phone only;
           on a computer its actions live in the one toolbar above the preview. */}
       {/* Note 39: the association's editor has no top bar on any screen —
@@ -547,7 +536,6 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
             <EmailVerifyChip />
           ) : (
             <>
-              {!staffEdit && !guestPreview && <QRCodeDisplay username={pageData.username} />}
               {designOffer && (
                 <button
                   onClick={() => setDesignSheet(true)}
@@ -584,12 +572,13 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
       <div className="lg:hidden flex-1 min-h-0 overflow-y-auto scroll-smooth bg-[#f5f5f7]" style={{ fontFamily: 'Tajawal, sans-serif', ...(compactBar ? brandBackdrop : {}) }}>
         <main className="mx-auto max-w-md space-y-7 px-4 pb-10 pt-5">
           {/* Apple-style row of round shortcuts, scrolls sideways */}
-          <section className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <section data-builder-shortcuts className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
               { id: 'header' as Tab, label: 'الهوية', icon: User, tone: 'bg-[#7cc4ff] text-[#0b4fa8]' },
               { id: 'links' as Tab, label: 'المحتوى', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
+              ...((!staffEdit || compactBar) && !guestPreview && isAuthenticated ? [{ id: 'sharing' as Tab, label: 'المشاركة', icon: Share2, tone: 'bg-[#d5eee5] text-[#176b50]' }] : []),
               ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
             ].filter(showSection).map(withLabel).concat(
               // Notes 18–19: the association's own «الإعدادات», on every screen.
@@ -597,7 +586,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
             ).map((item) => {
               const Icon = item.icon;
               return (
-                <button key={item.id} onClick={() => openPanel(item.id)} className="flex w-[68px] shrink-0 snap-start flex-col items-center gap-2 transition-transform active:scale-95">
+                <button data-builder-section={item.id} key={item.id} onClick={() => openPanel(item.id)} className="flex w-[68px] shrink-0 snap-start flex-col items-center gap-2 transition-transform active:scale-95">
                   <span className={`flex h-[68px] w-[68px] items-center justify-center rounded-full shadow-sm ${item.tone}`}><Icon className="h-7 w-7" /></span>
                   <span className="text-xs font-bold text-[#3a3a3c]" style={{ fontFamily: 'Cairo, sans-serif' }}>{item.label}</span>
                 </button>
@@ -670,7 +659,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                   <button onClick={cancelPanel} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[#55555b]" aria-label="إغلاق"><X className="h-5 w-5" /></button>
                   <h2 className="text-lg font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{mobilePanel === 'theme' ? (compactBar ? 'القوالب الجاهزة' : 'الخلفية') : mobilePanel === 'account' ? 'الإعدادات' : mobilePanel === 'history' ? 'السجل' : tabs.find((tab) => tab.id === mobilePanel)?.label}</h2>
-                  {mobilePanel === 'account' || guestPreview || !isAuthenticated ? <span /> : (
+                  {mobilePanel === 'account' || mobilePanel === 'sharing' || guestPreview || !isAuthenticated ? <span /> : (
                     <button onClick={finishPanel} className={`justify-self-end rounded-full px-3.5 py-2 text-[13px] font-black transition-colors ${panelChanged ? 'bg-emerald-600 text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)]' : 'bg-emerald-50 text-emerald-700'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                       احفظ تعديلاتي
                     </button>
@@ -737,6 +726,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               { id: 'links' as Tab, label: 'المحتوى', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
+              ...((!staffEdit || compactBar) && !guestPreview && isAuthenticated ? [{ id: 'sharing' as Tab, label: 'المشاركة', icon: Share2, tone: 'bg-[#d5eee5] text-[#176b50]' }] : []),
               ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
             ].filter(showSection).map(withLabel).concat(
               compactBar ? [{ id: 'theme' as Tab, label: 'القوالب', icon: Palette, tone: 'bg-[#FFF0E8] text-[#F25A18]' }, { id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }, { id: 'history' as Tab, label: 'السجل', icon: History, tone: 'bg-[#e5e5ea] text-[#3a3a3c]' }] : [],
@@ -744,7 +734,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               const Icon = item.icon;
               const active = activeTab === item.id || (!compactBar && item.id === 'wallpaper' && activeTab === 'theme');
               return (
-                <button key={item.id} onClick={() => setActiveTab(item.id)} className="group flex flex-col items-center gap-1.5">
+                <button data-builder-section={item.id} aria-pressed={active} key={item.id} onClick={() => setActiveTab(item.id)} className="group flex flex-col items-center gap-1.5">
                   <span className={`flex h-14 w-14 items-center justify-center rounded-full transition-all ${item.tone} ${active ? 'scale-105 ring-[3px] ring-[#0a84ff] ring-offset-2 ring-offset-[#f5f5f7]' : 'opacity-80 group-hover:opacity-100'}`}>
                     <Icon className="h-6 w-6" />
                   </span>
@@ -754,7 +744,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
             })}
           </nav>
 
-          <aside className="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#f2f2f7] shadow-[0_2px_12px_rgba(0,0,0,0.05)] ring-1 ring-black/[0.04]">
+          <aside data-builder-panel className="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#f2f2f7] shadow-[0_2px_12px_rgba(0,0,0,0.05)] ring-1 ring-black/[0.04]">
             <div className="border-b border-black/5 bg-white/80 px-6 py-4 backdrop-blur">
               <h2 className="text-xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 {activeTab === 'theme' ? (compactBar ? 'القوالب الجاهزة' : 'الخلفية') : activeTab === 'account' ? 'الإعدادات' : activeTab === 'history' ? 'السجل' : tabs.find((tab) => tab.id === activeTab)?.label}
@@ -766,7 +756,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
 
           <section className="flex min-h-0 flex-col items-center gap-4">
             {/* The edit actions come first, on the right where an Arabic reader starts. */}
-            <div className="flex w-full items-center justify-between rounded-full bg-white px-3 py-2 shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+            <div data-builder-toolbar className="flex w-full items-center justify-between rounded-full bg-white px-3 py-2 shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
               {compactBar ? (
                 // Note 18: editing tools together on the right, a short quiet state,
                 // and the step forward alone on the left as the main action.
@@ -799,7 +789,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
                 </>
               )}
             </div>
-            <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+            <div data-builder-preview-stage className="flex min-h-0 w-full flex-1 items-center justify-center">
               <div className="aspect-[390/862] h-full max-h-[780px] max-w-full"><PhonePreview onItemClick={openItem} /></div>
             </div>
             {compactBar && !themesSeen && (

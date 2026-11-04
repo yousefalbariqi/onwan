@@ -69,7 +69,7 @@ function signManifest(manifest: Uint8Array): Uint8Array {
   return out;
 }
 
-export type PassInput = { username: string; name: string; design?: { wallpaper?: any; theme?: any } };
+export type PassInput = { username: string; name: string; design?: { wallpaper?: any; theme?: any }; style?: 'generic' };
 
 type Rgb = [number, number, number];
 const ORANGE: Rgb = [255, 107, 44];
@@ -102,7 +102,7 @@ export function passColours(design: PassInput['design']) {
   };
 }
 
-export function buildPkpass({ username, name, design }: PassInput): Uint8Array {
+export function buildPkpass({ username, name, design, style }: PassInput): Uint8Array {
   const publicUrl = `https://${username}.${ROOT_DOMAIN()}`;
   const host = `${username}.${ROOT_DOMAIN()}`;
   const colours = passColours(design);
@@ -119,9 +119,14 @@ export function buildPkpass({ username, name, design }: PassInput): Uint8Array {
     backgroundColor: colours.backgroundColor,
     foregroundColor: colours.foregroundColor,
     labelColor: colours.labelColor,
-    storeCard: {
-      secondaryFields: [{ key: 'link', label: 'الصفحة', value: host }],
-    },
+    // Test (4 Nov 2026): a generic pass with Wallet's own QR at the bottom,
+    // to see whether the native barcode shows where the store card's did not.
+    ...(style === 'generic' ? {
+      generic: { secondaryFields: [{ key: 'link', label: 'الصفحة', value: host }] },
+      barcodes: [{ format: 'PKBARCODE_FORMAT_QR', message: publicUrl, messageEncoding: 'iso-8859-1' }],
+    } : {
+      storeCard: { secondaryFields: [{ key: 'link', label: 'الصفحة', value: host }] },
+    }),
   };
 
   const files: Record<string, Uint8Array> = {
@@ -129,7 +134,7 @@ export function buildPkpass({ username, name, design }: PassInput): Uint8Array {
     'icon.png': b64ToBytes(iconPng),
     'icon@2x.png': b64ToBytes(icon2xPng),
     'icon@3x.png': b64ToBytes(icon3xPng),
-    ...qrStripImages(publicUrl, colours.rgb),
+    ...(style === 'generic' ? {} : qrStripImages(publicUrl, colours.rgb)),
   };
 
   const manifest: Record<string, string> = {};

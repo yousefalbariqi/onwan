@@ -47,13 +47,16 @@ export default async function handler(req: any, res: any) {
     const host = String(req.query?.host ?? '');
     const pass = String(req.query?.pass ?? '');
 
+    const color = String(req.query?.color ?? '');
+    if (color && !/^#[0-9a-f]{6}$/i.test(color)) throw new HttpError(400, 'لون البطاقة غير صالح.');
+
     // Step 1: the signed-in owner asks for an openable link.
     if (req.query?.link) {
       const user = await requireUser(req, res);
       if (!user) return;
       const page = await getPageDataByUserId(user.id);
       if (!page?.username) throw new HttpError(409, 'عيّن رابط الصفحة أولًا قبل إنشاء البطاقة.');
-      return sendJson(res, 200, { url: `/api/wallet-pass?pass=${encodeURIComponent(signPassToken(user.id))}` });
+      return sendJson(res, 200, { url: `/api/wallet-pass?pass=${encodeURIComponent(signPassToken(user.id))}${color ? `&color=${encodeURIComponent(color)}` : ''}` });
     }
 
     let username = '';
@@ -85,7 +88,8 @@ export default async function handler(req: any, res: any) {
       if (!username) throw new HttpError(409, 'عيّن رابط الصفحة أولًا قبل إنشاء البطاقة.');
     }
 
-    const pkpass = buildPkpass({ username, name, design });
+    if (color) design = { ...design, wallpaper: { type: 'color', value: color } };
+    const pkpass = buildPkpass({ username, name, design, style: req.query?.style === 'generic' ? 'generic' : undefined });
     res.status(200);
     res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
     // `inline`, not `attachment`: iOS Safari refuses to «download» a pkpass, but
