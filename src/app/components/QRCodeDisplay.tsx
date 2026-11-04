@@ -5,8 +5,8 @@ import { usePageContext } from '../context/PageContext';
 import { pageUrl, pageHost } from '../lib/site';
 import { downloadVCard } from '../lib/vcard';
 import { requestWalletPassLink } from '../lib/api';
-import { prepareWalletArtwork, renderWalletBanner, renderWalletPoster } from '../lib/walletArtwork';
-import { ExpandedQRCode } from './ExpandedQRCode';
+import { prepareWalletArtwork, renderWalletBanner } from '../lib/walletArtwork';
+import { walletPaletteFromHex } from '../../../shared/walletPalette';
 import { OnwanLogo } from './OnwanLogo';
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from './ui/dialog';
 
@@ -15,12 +15,8 @@ export function SharingPanel({ username }: { username: string }) {
   const [color, setColor] = useState('#111111');
   const [transparent, setTransparent] = useState(false);
   const [cardColor, setCardColor] = useState(() => pageData.extractedColors?.find(color => /^#[0-9a-f]{6}$/i.test(color)) || (/^#[0-9a-f]{6}$/i.test(pageData.theme.buttonColor) ? pageData.theme.buttonColor : '#ff6b2c'));
-  const [posterBackground, setPosterBackground] = useState('');
-  const [posterPreview, setPosterPreview] = useState('');
-  const [previewStyle, setPreviewStyle] = useState<'classic' | 'poster'>('poster');
   const [shortName, setShortName] = useState('');
   const [logoOverride, setLogoOverride] = useState<string | null>(null);
-  const [expandedQr, setExpandedQr] = useState(false);
   const cardName = shortName.trim() || pageData.name || username;
   const cardLogo = logoOverride ?? pageData.profileImage;
   const [qr, setQr] = useState('');
@@ -52,17 +48,13 @@ export function SharingPanel({ username }: { username: string }) {
     renderWalletBanner(cardName, cardColor).then(value => { if (alive) setBannerImage(value); }).catch(() => {});
     return () => { alive = false; };
   }, [cardColor, cardName, cardLogo, username]);
-  useEffect(() => {
-    let alive = true;
-    setWalletUrl(''); setPosterPreview('');
-    renderWalletPoster(cardColor, posterBackground).then(value => { if (alive) setPosterPreview(value); }).catch(() => { if (alive) setWalletError('تعذرت قراءة خلفية البطاقة. اختر صورة أخرى.'); });
-    return () => { alive = false; };
-  }, [cardColor, posterBackground]);
   const prepareCard = async () => {
     setPreparing(true); setWalletError('');
     try {
-      const artwork = await prepareWalletArtwork(cardName, cardLogo || '', cardColor, posterBackground || undefined);
-      setWalletUrl(await requestWalletPassLink(cardColor, artwork));
+      const artwork = await prepareWalletArtwork(cardName, cardLogo || '', cardColor);
+      const passUrl = await requestWalletPassLink(cardColor, artwork);
+      setWalletUrl(passUrl);
+      window.location.assign(passUrl);
     } catch (error) { setWalletError(error instanceof Error ? error.message : 'تعذر تجهيز بطاقة Apple Wallet. حاول مجددًا.'); }
     finally { setPreparing(false); }
   };
@@ -71,7 +63,7 @@ export function SharingPanel({ username }: { username: string }) {
     try { await navigator.clipboard.writeText(url); setNotice('تم نسخ الرابط'); }
     catch { setNotice('تعذر النسخ؛ يمكنك نسخ الرابط من الحقل.'); }
   };
-  const bannerColor = '#' + [1, 3, 5].map(start => Math.round(parseInt(cardColor.slice(start, start + 2), 16) * 0.24 + 255 * 0.76).toString(16).padStart(2, '0')).join('');
+  const palette = walletPaletteFromHex(cardColor);
   return <div dir="rtl" className="space-y-5 p-5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
     {!published && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">الرابط والباركود يعملان للزوار بعد نشر الصفحة.</p>}
     <section className="space-y-3 rounded-2xl bg-white p-4">
@@ -91,7 +83,12 @@ export function SharingPanel({ username }: { username: string }) {
     <section className="space-y-4 rounded-2xl bg-white p-4">
       <h3 className="font-bold">بطاقة المحفظة</h3>
       <p className="text-sm text-gray-500">اختر لون بطاقتك المميز، ثم أضفها إلى المحفظة.</p>
-      <label className="block space-y-2 text-sm"><span>الاسم المختصر على البطاقة (اختياري)</span><input value={shortName} disabled={preparing} maxLength={160} placeholder={pageData.name} onChange={event => setShortName(event.target.value)} className="min-h-11 w-full rounded-xl border border-gray-200 px-3" /></label>
+      <div className="overflow-hidden rounded-[22px] border border-black/5 text-[#1c1e1d] shadow-[0_12px_30px_-16px_rgba(0,0,0,0.3)]" style={{ backgroundColor: palette.backgroundColor }}>
+        <div dir="ltr" className="flex items-center justify-between gap-3 px-4 py-3">{cardLogo ? <img src={cardLogo} alt="شعار الصفحة" className="h-12 w-28 object-contain" /> : <OnwanLogo className="shrink-0 scale-75 origin-left" />}<div className="min-w-0 text-left"><span className="block text-xs text-[#454d47]">الرابط</span><span dir="ltr" className="block break-all text-xs font-semibold">{pageHost(username)}</span></div></div>
+        {bannerImage ? <img src={bannerImage} alt={`بطاقة تعريفية — ${cardName}`} className="block w-full" /> : <div className="h-28" style={{ backgroundColor: palette.stripColor }} />}
+        <div className="flex flex-col items-center px-5 pb-5 pt-4">{cardQr && <img src={cardQr} alt="باركود البطاقة" className="aspect-square w-48 max-w-full" />}<p className="mt-2 text-xs text-[#454d47]">امسح لفتح الصفحة</p></div>
+      </div>
+      <details className="rounded-xl border border-gray-200 p-3"><summary className="cursor-pointer text-sm font-bold">تخصيص الاسم والشعار</summary><div className="mt-4 space-y-4"><label className="block space-y-2 text-sm"><span>الاسم المختصر على البطاقة (اختياري)</span><input value={shortName} disabled={preparing} maxLength={160} placeholder={pageData.name} onChange={event => setShortName(event.target.value)} className="min-h-11 w-full rounded-xl border border-gray-200 px-3" /></label>
       <label className="block space-y-2 text-sm"><span>شعار البطاقة</span><input type="file" disabled={preparing} accept="image/png,image/jpeg,image/webp,image/gif" className="block w-full text-xs" onChange={event => {
         const file = event.target.files?.[0]; if (!file) return;
         if (file.size > 5_000_000) { setWalletError('اختر شعارًا أصغر من 5MB.'); return; }
@@ -100,41 +97,15 @@ export function SharingPanel({ username }: { username: string }) {
         reader.onerror = () => setWalletError('تعذرت قراءة الشعار.');
         reader.readAsDataURL(file);
       }} /></label>
-      <p className="text-xs text-gray-500">اختر شعار الجمعية إن كانت صورة الصفحة شخصية. هذا الاختيار يخص البطاقة فقط.</p>
-      <label className="block space-y-2 text-sm"><span>خلفية التصميم الحديث (اختياري)</span><input type="file" disabled={preparing} accept="image/png,image/jpeg,image/webp" className="block w-full text-xs" onChange={event => {
-        const file = event.target.files?.[0]; if (!file) return;
-        if (file.size > 5_000_000) { setWalletError('اختر خلفية أصغر من 5MB.'); return; }
-        const reader = new FileReader();
-        reader.onload = () => { setPosterBackground(String(reader.result)); setWalletError(''); };
-        reader.onerror = () => setWalletError('تعذرت قراءة الخلفية.');
-        reader.readAsDataURL(file);
-      }} /></label>
-      {posterBackground && <button type="button" disabled={preparing} onClick={() => setPosterBackground('')} className="text-xs font-bold text-gray-600 underline">استخدام خلفية الهوية</button>}
-      <div role="group" aria-label="معاينة تصميم البطاقة" className="flex gap-2">
-        <button type="button" aria-pressed={previewStyle === 'poster'} onClick={() => setPreviewStyle('poster')} className={`min-h-11 flex-1 rounded-xl border px-3 text-sm font-bold ${previewStyle === 'poster' ? 'border-black bg-black text-white' : 'border-gray-200'}`}>الحديث · iOS 27+</button>
-        <button type="button" aria-pressed={previewStyle === 'classic'} onClick={() => setPreviewStyle('classic')} className={`min-h-11 flex-1 rounded-xl border px-3 text-sm font-bold ${previewStyle === 'classic' ? 'border-black bg-black text-white' : 'border-gray-200'}`}>الكلاسيكي · iOS 26 وأقدم</button>
-      </div>
-      {previewStyle === 'poster' ? <div className="relative isolate aspect-[358/448] overflow-hidden rounded-[22px] border border-black/5 bg-[#f8f8f6] text-[#1c1e1d] shadow-sm">
-        {posterPreview && <img src={posterPreview} alt="خلفية التصميم الحديث" className="absolute inset-0 -z-10 h-full w-full object-cover" />}
-        <div dir="ltr" className="flex items-center justify-between gap-2 p-4">{cardLogo ? <img src={cardLogo} alt="شعار الصفحة" className="h-[30px] w-28 object-contain" /> : <OnwanLogo className="scale-75 origin-left" />}<span className="break-all text-xs">{pageHost(username)}</span></div>
-        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-[#f8f8f6]/95 p-4"><div className="min-w-0 flex-1"><p className="text-xs text-[#454d47]">بطاقة تعريفية</p><p className="mt-1 break-words font-bold">{cardName}</p><p className="mt-2 text-[10px] text-[#454d47]">امسح رمز QR لفتح الصفحة</p></div>{cardQr && <img src={cardQr} alt="باركود البطاقة" className="w-[42%] shrink-0" />}</div>
-      </div> : (
-      <div className="overflow-hidden rounded-[22px] border border-black/5 bg-[#f8f8f6] text-[#1c1e1d] shadow-sm">
-        <div dir="ltr" className="flex items-center justify-between gap-3 px-4 py-3">{cardLogo ? <img src={cardLogo} alt="شعار الصفحة" className="h-12 w-28 object-contain" /> : <OnwanLogo className="shrink-0 scale-75 origin-left" />}<div className="min-w-0 text-left"><span className="block text-xs text-[#454d47]">الرابط</span><span dir="ltr" className="block break-all text-xs font-semibold">{pageHost(username)}</span></div></div>
-        {bannerImage ? <img src={bannerImage} alt={`بطاقة تعريفية — ${cardName}`} className="block w-full" /> : <div className="h-28" style={{ backgroundColor: bannerColor }} />}
-        <div className="flex flex-col items-center px-5 pb-5 pt-4">{cardQr && <img src={cardQr} alt="باركود البطاقة" className="aspect-square w-48 max-w-full" />}<p className="mt-2 text-xs text-[#454d47]">امسح لفتح الصفحة</p></div>
-      </div>
-      )}
-      <button type="button" onClick={() => setExpandedQr(true)} className="min-h-11 w-full rounded-xl border border-gray-200 text-sm font-bold">عرض الباركود بأكبر مساحة للشاشة</button>
+      <p className="text-xs text-gray-500">اختر شعار الجمعية إن كانت صورة الصفحة شخصية. هذا الاختيار يخص البطاقة فقط.</p></div></details>
       <label className="flex items-center justify-between text-sm">اللون المميز للبطاقة<input type="color" aria-label="لون البطاقة" disabled={preparing} value={cardColor} onChange={event => setCardColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
-      <p className="text-xs text-gray-500">ملف واحد يحتوي التصميمين؛ يختار Apple Wallet التصميم الحديث على iOS وwatchOS 27 فأحدث، والكلاسيكي على الأقدم. المعاينة تقريبية؛ حجم QR وتوزيع الحقول النهائي يحددهما Wallet.</p>
-      {walletUrl ? <a href={walletUrl} className={action}><WalletCards size={18} />إضافة إلى Apple Wallet</a> : <button type="button" disabled={preparing} onClick={prepareCard} className={`w-full ${action}`}>{preparing ? 'جارٍ تجهيز البطاقة…' : walletError ? 'إعادة تجهيز البطاقة' : 'تجهيز بطاقة Apple Wallet'}</button>}
+      <p className="text-xs text-gray-500">معاينة تقريبية للبطاقة. اختر لون هويتك، ثم أضفها إلى المحفظة.</p>
+      {walletUrl ? <a href={walletUrl} className={action}><WalletCards size={18} />إضافة إلى Apple Wallet</a> : <button type="button" disabled={preparing} onClick={prepareCard} className={`w-full ${action}`}>{preparing ? 'جارٍ تجهيز بطاقتك…' : walletError ? 'إعادة المحاولة' : 'إضافة إلى Apple Wallet'}</button>}
       {walletError && <p role="status" className="text-sm text-red-700">{walletError}</p>}
       <button type="button" disabled className={`w-full ${action}`}>Google Wallet — قريبًا</button>
       <p className="text-xs text-gray-500">الإضافة إلى Google Wallet غير متاحة حاليًا.</p>
       <button type="button" onClick={() => downloadVCard(pageData)} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gray-200 text-sm font-bold"><ContactRound size={18} />حفظ جهة الاتصال</button>
     </section>
-    <Dialog open={expandedQr} onOpenChange={setExpandedQr}><DialogContent dir="rtl" className="overflow-y-auto p-0" style={{ top: 0, left: 0, width: '100vw', height: '100dvh', maxWidth: 'none', transform: 'none', borderRadius: 0 }}><DialogTitle className="sr-only">عرض الباركود الموسّع</DialogTitle><ExpandedQRCode url={url} name={cardName} onClose={() => setExpandedQr(false)} /></DialogContent></Dialog>
     <p role="status" aria-live="polite" className="text-sm text-gray-600">{notice}</p>
   </div>;
 }

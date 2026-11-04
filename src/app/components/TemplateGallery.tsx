@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Search } from 'lucide-react';
 import { usePageContext } from '../context/PageContext';
 import { nonprofitCall } from '../lib/api';
@@ -10,11 +10,13 @@ type ListResult = { templates: PageTemplate[]; more: boolean; categories: string
 // «القوالب الجاهزة» in the association's editor: the templates the manager has
 // shown, nine at a time. Tapping one tries it on the draft (undo or history
 // bring the old look back); «اعتماد» counts it as used. Content never changes.
-// Until any template is shown, the former colour themes stay (fallback).
-export function TemplateGallery({ fallback }: { fallback: ReactNode }) {
+// Only templates from «صانع القوالب» are offered (owner decision, 4 Nov 2026):
+// never the former colour themes, even when none is shown yet.
+export function TemplateGallery({ initialCategory = '' }: { initialCategory?: string }) {
   const { applyDesign } = usePageContext();
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState(initialCategory);
+  useEffect(() => { setCategory(initialCategory); }, [initialCategory]);
   const [result, setResult] = useState<ListResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -48,8 +50,8 @@ export function TemplateGallery({ fallback }: { fallback: ReactNode }) {
   };
 
   const nothingShown = !query && !category && result && result.templates.length === 0;
-  if (failed && !result) return <>{fallback}</>;
-  if (nothingShown) return <>{fallback}</>;
+  if (failed && !result) return <TemplatesUnavailable onRetry={() => load(0)} />;
+  if (nothingShown) return <p className="p-5 text-center text-sm text-[#8e8e93]" style={{ fontFamily: 'Tajawal, sans-serif' }}>لا توجد قوالب بعد.</p>;
 
   return (
     <div className="space-y-4 p-5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
@@ -90,5 +92,70 @@ export function TemplateGallery({ fallback }: { fallback: ReactNode }) {
         <button type="button" disabled={loading} onClick={() => load(result.templates.length)} className="w-full rounded-xl bg-[#f2f2f7] py-2.5 text-sm font-bold text-[#111111] disabled:opacity-50">{loading ? '…' : 'عرض المزيد'}</button>
       )}
     </div>
+  );
+}
+
+function TemplatesUnavailable({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="space-y-3 p-5 text-center text-sm text-[#8e8e93]" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+      <p>تعذّر تحميل القوالب.</p>
+      <button type="button" onClick={onRetry} className="rounded-full bg-[#f2f2f7] px-4 py-2 font-bold text-[#111111]">إعادة المحاولة</button>
+    </div>
+  );
+}
+
+type Shelf = { category: string; templates: PageTemplate[] };
+
+// Under the association's editor: every shown template, one row per category
+// in the order the categories were added. Tapping one tries it on the draft.
+export function TemplateShelves({ desktop, onShowAll }: { desktop: boolean; onShowAll: (category: string) => void }) {
+  const { applyDesign } = usePageContext();
+  const [shelves, setShelves] = useState<Shelf[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [tried, setTried] = useState('');
+  const load = () => {
+    setFailed(false);
+    nonprofitCall<{ shelves: Shelf[] }>({ action: 'templates.shelves' })
+      .then((next) => setShelves(next.shelves))
+      .catch(() => setFailed(true));
+  };
+  useEffect(load, []);
+
+  if (failed) return <TemplatesUnavailable onRetry={load} />;
+  if (!shelves || !shelves.length) return null;
+  const card = desktop ? 'w-[132px]' : 'w-[31%]';
+  return (
+    <>
+      {shelves.map((shelf) => (
+        <section key={shelf.category || 'other'}>
+          <div className="mb-3 flex items-end justify-between px-1">
+            <h2 className="text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{shelf.category || 'قوالب أخرى'}</h2>
+            <button type="button" onClick={() => onShowAll(shelf.category)} className="text-sm font-bold text-emerald-700">عرض الكل</button>
+          </div>
+          <div className={desktop ? 'flex snap-x gap-4 overflow-x-auto pb-3' : '-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'}>
+            {shelf.templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                aria-pressed={tried === template.id}
+                aria-label={`تجربة قالب ${template.name}`}
+                onClick={() => {
+                  applyDesign(template.design);
+                  setTried(template.id);
+                  void nonprofitCall({ action: 'templates.track', id: template.id, event: 'tried' }).catch(() => undefined);
+                }}
+                className={`${card} shrink-0 snap-start text-right transition-transform active:scale-[0.97]`}
+              >
+                <span className={`relative block rounded-2xl ${tried === template.id ? 'ring-2 ring-emerald-400/70 ring-offset-2' : ''}`}>
+                  <TemplatePreview design={template.design} />
+                  {tried === template.id && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow"><Check className="h-3.5 w-3.5" /></span>}
+                </span>
+                <span className="mt-2 block truncate text-center text-xs font-bold text-[#3a3a3c]">{template.name}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }

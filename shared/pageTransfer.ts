@@ -9,7 +9,7 @@ export const KEPT = '__onwan_kept__';
 type TransferLink = { id?: string; url?: string; customIcon?: string; display?: { image?: string } | null };
 type Transferable = {
   profileImage?: string;
-  wallpaper?: { value?: string; poster?: string };
+  wallpaper?: { value?: string; poster?: string; preview?: string };
   links?: TransferLink[];
 };
 
@@ -23,7 +23,7 @@ export function slimPageData<T extends Transferable>(data: T, reference: Transfe
   return {
     ...data,
     ...(data.profileImage !== undefined ? { profileImage: same(data.profileImage, reference.profileImage) } : {}),
-    ...(data.wallpaper ? { wallpaper: { ...data.wallpaper, value: same(data.wallpaper.value, reference.wallpaper?.value), ...(data.wallpaper.poster !== undefined ? { poster: same(data.wallpaper.poster, reference.wallpaper?.poster) } : {}) } } : {}),
+    ...(data.wallpaper ? { wallpaper: { ...data.wallpaper, value: same(data.wallpaper.value, reference.wallpaper?.value), ...(data.wallpaper.poster !== undefined ? { poster: same(data.wallpaper.poster, reference.wallpaper?.poster) } : {}), ...(data.wallpaper.preview !== undefined ? { preview: same(data.wallpaper.preview, reference.wallpaper?.preview) } : {}) } } : {}),
     ...(data.links ? {
       links: data.links.map((link) => {
         const previous = link.id ? previousLinks.get(link.id) : undefined;
@@ -56,7 +56,7 @@ export function expandPageData<T extends Transferable>(data: T, reference: Trans
   const expanded = {
     ...data,
     ...(data.profileImage !== undefined ? { profileImage: take(data.profileImage, reference?.profileImage) } : {}),
-    ...(data.wallpaper ? { wallpaper: { ...data.wallpaper, value: take(data.wallpaper.value, reference?.wallpaper?.value), ...(data.wallpaper.poster !== undefined ? { poster: take(data.wallpaper.poster, reference?.wallpaper?.poster) } : {}) } } : {}),
+    ...(data.wallpaper ? { wallpaper: { ...data.wallpaper, value: take(data.wallpaper.value, reference?.wallpaper?.value), ...(data.wallpaper.poster !== undefined ? { poster: take(data.wallpaper.poster, reference?.wallpaper?.poster) } : {}), ...(data.wallpaper.preview !== undefined ? { preview: take(data.wallpaper.preview, reference?.wallpaper?.preview) } : {}) } } : {}),
     ...(data.links ? {
       links: data.links.map((link) => {
         const previous = link.id ? previousLinks.get(link.id) : undefined;

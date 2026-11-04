@@ -98,6 +98,7 @@ export interface PageData {
   wallpaper: {
     type: 'color' | 'gradient' | 'image' | 'video';
     value: string;
+    preview?: string; // lightweight version of the same image, replaced after full decode
     position?: 'top' | 'center' | 'bottom';
     // Background photo framing from «تنسيق»: focus 0–100 % and zoom 1–3.
     positionX?: number;

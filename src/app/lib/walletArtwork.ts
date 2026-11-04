@@ -1,3 +1,4 @@
+import { walletPaletteFromHex } from '../../../shared/walletPalette';
 import { storeInlineMedia } from './mediaUpload';
 
 function canvas(width: number, height: number) {
@@ -15,27 +16,28 @@ export async function renderWalletBanner(name: string, color: string) {
   await document.fonts.load('600 28px Tajawal');
   await document.fonts.ready;
   const strip = canvas(1125, 369);
-  const rgb = [1, 3, 5].map(i => Math.round(parseInt(color.slice(i, i + 2), 16) * .24 + 255 * .76));
-  strip.context.fillStyle = `rgb(${rgb.join(',')})`;
+  const palette = walletPaletteFromHex(color);
+  strip.context.fillStyle = palette.stripColor;
   strip.context.fillRect(0, 0, 1125, 369);
   strip.context.textAlign = 'center';
   strip.context.direction = 'rtl';
   strip.context.fillStyle = '#454d47';
-  strip.context.font = '400 33px Tajawal';
-  strip.context.fillText('بطاقة تعريفية', 562.5, 125);
+  strip.context.font = '400 30px Tajawal';
+  strip.context.fillText('بطاقة تعريفية', 562.5, 119);
   let size = 84; // 28 pt, instead of Wallet's oversized primary field.
   do { strip.context.font = `600 ${size}px Tajawal`; size--; }
   while (strip.context.measureText(name).width > 1005 && size >= 18);
   strip.context.fillStyle = '#1c1e1d';
-  strip.context.fillText(name, 562.5, 229, 1005);
+  strip.context.fillText(name, 562.5, 224, 1005);
 
   return strip.element.toDataURL('image/png');
 }
 
 // Poster artwork is decorative; the name, link and QR remain native fields.
 export async function renderWalletPoster(color: string, background?: string) {
+  const palette = walletPaletteFromHex(color);
   const poster = canvas(1074, 1344); // 358 × 448 pt at 3x, per Apple HIG.
-  poster.context.fillStyle = '#f8f8f6';
+  poster.context.fillStyle = palette.backgroundColor;
   poster.context.fillRect(0, 0, 1074, 1344);
   if (background) {
     const image = new Image(); image.crossOrigin = 'anonymous'; image.src = background;
@@ -53,8 +55,7 @@ export async function renderWalletPoster(color: string, background?: string) {
     poster.context.fillStyle = wash;
     poster.context.fillRect(0, 0, 1074, 1344);
   } else {
-    const rgb = [1, 3, 5].map(i => Math.round(parseInt(color.slice(i, i + 2), 16) * .24 + 255 * .76));
-    poster.context.fillStyle = `rgb(${rgb.join(',')})`;
+    poster.context.fillStyle = palette.stripColor;
     poster.context.fillRect(0, 180, 1074, 420);
   }
   let png = poster.element.toDataURL('image/png');

@@ -565,7 +565,10 @@ function normalizeWallpaper(input: any) {
   }
   // The browser's average colour of a photo/video background, for the Wallet card.
   if (['image', 'video'].includes(value.type) && typeof value.tint === 'string' && /^#[0-9a-f]{6}$/i.test(value.tint)) result.tint = value.tint;
-  if (value.type === 'image') validateImageValue(value.value, 'صورة الخلفية');
+  if (value.type === 'image') {
+    validateImageValue(value.value, 'صورة الخلفية');
+    if (value.preview) result.preview = validateImageValue(value.preview, 'المعاينة الخفيفة للخلفية');
+  }
   if (value.type === 'video') {
     if (value.poster) result.poster = validateImageValue(value.poster, 'غلاف الفيديو');
     if (typeof value.uploaded === 'boolean') result.uploaded = value.uploaded;

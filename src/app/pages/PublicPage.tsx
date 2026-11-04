@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Check, Copy, Flag, Share, UserPlus, X } from 'lucide-react';
-import { useNavigate, useParams, useLocation } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { PageData, mergeWithDefaults, usePageContext } from '../context/PageContext';
-import { ExpandedQRCode } from '../components/ExpandedQRCode';
 import { PageView } from '../components/PageView';
 import { fetchPublicPage, reportPage } from '../lib/api';
 import PartnerStorefront from '../partner/PartnerStorefront';
@@ -262,7 +261,6 @@ function Notice({ title, text }: { title: string; text: string }) {
 
 export default function PublicPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { username: routeUsername } = useParams();
   // name.onwan.link is the real address; /:name on the main domain is kept as
   // a fallback for local development and preview deployments.
@@ -372,11 +370,6 @@ export default function PublicPage() {
 
   if (remote.status === 'not_found') {
     return <Notice title="الصفحة غير موجودة" text="هذا الرابط غير مرتبط بصفحة منشورة حاليًا." />;
-  }
-
-  if (new URLSearchParams(location.search).get('qr') === '1') {
-    const destination = username ? pageUrl(username) : window.location.origin;
-    return <ExpandedQRCode url={destination} name={remote.pageData.name || username || ''} onClose={() => { const location = new URL(window.location.href); location.searchParams.delete('qr'); navigate(location.pathname + location.search, { replace: true }); }} />;
   }
 
   const english = remote.pageData.translations?.en;

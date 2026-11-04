@@ -1,3 +1,4 @@
+import { walletPalette } from '../../../shared/walletPalette.js';
 import forge from 'node-forge';
 import { zipSync } from 'fflate';
 import { getEnv } from '../runtime.js';
@@ -106,13 +107,7 @@ export function passColours(design: PassInput['design']) {
 // Keep the accent pale enough for Wallet's single foreground colour to read
 // well both over the strip and on the light card body.
 export function walletCardAppearance(design: PassInput['design']) {
-  const accent = passColours(design).rgb;
-  return {
-    backgroundColor: 'rgb(248, 248, 246)',
-    foregroundColor: 'rgb(28, 30, 29)',
-    labelColor: 'rgb(69, 77, 71)',
-    strip: accent.map(value => Math.round(value * 0.24 + 255 * 0.76)) as Rgb,
-  };
+  return walletPalette(passColours(design).rgb);
 }
 
 export function buildPkpass({ username, name, design, style, artwork }: PassInput): Uint8Array {
@@ -126,7 +121,6 @@ export function buildPkpass({ username, name, design, style, artwork }: PassInpu
     backFields: [
       { key: 'name', label: 'بطاقة تعريفية', value: name || username },
       { key: 'page', label: 'فتح الصفحة', value: publicUrl },
-      { key: 'large-qr', label: 'عرض باركود كبير بملء الشاشة', value: `${publicUrl}/?qr=1` },
       { key: 'about', label: 'عنوان', value: 'امسح رمز QR لزيارة الصفحة والاطلاع على معلومات التواصل.' },
     ],
   };
@@ -166,7 +160,7 @@ export function buildPkpass({ username, name, design, style, artwork }: PassInpu
       'logo@2x.png': b64ToBytes(walletMark2x),
       'logo@3x.png': b64ToBytes(walletMark3x),
     }),
-    ...(artwork?.poster ? { 'artwork@3x.png': artwork.poster } : posterArtworkImages(colours.strip)),
+    ...(artwork?.poster ? { 'artwork@3x.png': artwork.poster } : posterArtworkImages(colours.strip, colours.body)),
     'primaryLogo@3x.png': artwork?.primaryLogo || b64ToBytes(walletMark3x),
     ...(style === 'generic' ? {} : artwork?.strip ? { 'strip@3x.png': artwork.strip } : cardStripImages(colours.strip)),
   };

@@ -254,7 +254,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
   // with a flexible width up to 680 px; the sides continue the page's own
   // background — its photo or video poster enlarged and softly blurred, tinted
   // with the page colour, or the same colour / gradient with a soft glow.
-  const backdropImage = wallpaper.type === 'image' ? wallpaper.value : wallpaper.type === 'video' ? wallpaper.poster : undefined;
+  const backdropImage = wallpaper.type === 'image' ? (wallpaper.preview || wallpaper.value) : wallpaper.type === 'video' ? wallpaper.poster : undefined;
   const backdrop = isPublic && (
     <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true" style={backdropImage ? { backgroundColor: theme.background } : backgroundStyle}>
       {backdropImage && <div className="absolute -inset-24 bg-cover bg-center" style={{ backgroundImage: `url(${backdropImage})`, filter: 'blur(60px) saturate(1.15)', transform: 'scale(1.2)' }} />}
@@ -271,8 +271,8 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
         isPublic
           // Content starts at the top (not vertically centred), so a short page
           // has no empty band above the photo.
-          ? 'relative mx-auto flex min-h-screen w-full max-w-[680px] items-start justify-center overflow-hidden transition-all duration-500 min-[680px]:shadow-[0_8px_48px_rgba(0,0,0,0.12)]'
-          : `relative w-full rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 ${
+          ? 'relative mx-auto flex min-h-screen w-full max-w-[680px] items-start justify-center overflow-hidden transition-colors duration-300 min-[680px]:shadow-[0_8px_48px_rgba(0,0,0,0.12)]'
+          : `relative w-full rounded-3xl shadow-2xl overflow-hidden transition-colors duration-300 ${
               isHeroLayout ? 'min-h-[700px]' : 'min-h-[600px]'
             }`
       }

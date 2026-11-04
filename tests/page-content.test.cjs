@@ -516,3 +516,16 @@ test('note (9): a custom font is only a stored font file and a plain name', asyn
   assert.equal(sniffFileType(new TextEncoder().encode('wOF2xxxx')), 'font/woff2');
   assert.equal(sniffFileType(new Uint8Array([0, 1, 0, 0, 0, 0])), 'font/ttf');
 });
+
+test('background preview survives save/load with framing and rejects unsafe image values', async () => {
+  const service = api();
+  const preview = '/media/files/owner/' + 'b'.repeat(64) + '.webp';
+  const wallpaper = { type: 'image', value: image, preview, positionX: 30, positionY: 70, zoom: 1.5, dim: 20 };
+  const saved = await service.savePageData('owner', { wallpaper });
+  assert.deepEqual(saved.wallpaper, wallpaper);
+  assert.deepEqual((await service.getPageDataByUserId('owner')).wallpaper, wallpaper);
+  assert.equal(service.validatePartnerPageDraft({ wallpaper }).wallpaper.preview, preview);
+  await assert.rejects(() => service.savePageData('owner', { wallpaper: { ...wallpaper, preview: 'javascript:alert(1)' } }), { status: 400 });
+  assert.throws(() => service.validatePartnerPageDraft({ wallpaper: { ...wallpaper, preview: ['invalid'] } }), { status: 400 });
+  assert.equal((await service.savePageData('owner', { wallpaper: { type: 'color', value: '#fff', preview } })).wallpaper.preview, undefined);
+});

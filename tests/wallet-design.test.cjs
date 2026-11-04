@@ -29,6 +29,7 @@ function load(file) {
   new Function('require', 'module', 'exports', code)(name => {
     if (name === '../runtime.js') return { getEnv: key => env[key] };
     if (name === '../http.js') return { HttpError: Error };
+    if (name === '../../../shared/walletPalette.js') return load('shared/walletPalette.ts');
     if (name.startsWith('./')) return load('api/_lib/wallet/' + name.slice(2).replace(/\.js$/, '.ts'));
     return require(name);
   }, module, module.exports);
@@ -46,8 +47,8 @@ test('signed card contains the native QR, page identity, logo and retina strip a
   assert.equal(pass.barcodes[0].format, 'PKBarcodeFormatQR');
   assert.equal(pass.barcodes[0].message, 'https://yaamur.example.test');
   assert.equal(pass.storeCard.backFields.find(field => field.key === 'page').value, 'https://yaamur.example.test');
-  assert.equal(pass.storeCard.backFields.find(field => field.key === 'large-qr').value, 'https://yaamur.example.test/?qr=1');
-  assert.equal(pass.backgroundColor, 'rgb(248, 248, 246)');
+  assert.equal(pass.storeCard.backFields.some(field => field.key === 'large-qr'), false);
+  assert.equal(pass.backgroundColor, 'rgb(255, 240, 234)');
   for (const [file, width, height] of [['strip.png', 375, 123], ['strip@2x.png', 750, 246], ['strip@3x.png', 1125, 369], ['logo@3x.png', 108, 90]]) {
     const bytes = Buffer.from(files[file]);
     assert.equal(bytes.readUInt32BE(16), width);

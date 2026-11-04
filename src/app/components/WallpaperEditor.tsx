@@ -1,3 +1,5 @@
+import { preloadMedia } from '../lib/mediaUpload';
+import { createWallpaperVariants } from '../lib/wallpaperVariants';
 import { PageData, themes, usePageContext } from '../context/PageContext';
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Check, Loader2, Search, SlidersHorizontal, Upload, X } from 'lucide-react';
@@ -25,10 +27,8 @@ const gradients = [
   { name: 'رمل', value: 'linear-gradient(135deg, #fef3c7 0%, #d6d3d1 100%)' },
 ];
 
-// Stored inline for now; final storage limits are pending (P-02). A larger
-// source is scaled down to a phone-sized JPEG before it is used.
+// The save pipeline stores the optimized image and its small preview in R2.
 const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
-const MAX_IMAGE_EDGE = 1600;
 
 export type WallpaperSegment = 'themes' | 'colors' | 'gradients' | 'photo' | 'video';
 
@@ -52,24 +52,6 @@ const THEME_WORDS: Record<string, string> = {
 // Lenient Arabic/Latin matching: case, hamza forms, taa marbuta and diacritics.
 const fold = (text: string) => text.toLowerCase().replace(/[\u064B-\u0652\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
 const matches = (query: string, ...texts: string[]) => !fold(query) || texts.some((text) => fold(text).includes(fold(query)));
-
-function scaleImage(source: string) {
-  return new Promise<string>((resolve, reject) => {
-    const image = new Image();
-    image.onerror = () => reject(new Error('تعذّر فتح الصورة. جرّب صورة أخرى.'));
-    image.onload = () => {
-      const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.width, image.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      const context = canvas.getContext('2d');
-      if (!context) { reject(new Error('تعذّر تجهيز الصورة. حاول مجددًا.')); return; }
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
-    };
-    image.src = source;
-  });
-}
 
 // A phone-shaped card, as in Apple's wallpaper picker.
 function PhoneCard({ name, style, active, onClick, children, short = false }: { name: string; style: CSSProperties; active: boolean; onClick: () => void; children?: ReactNode; short?: boolean }) {
@@ -213,9 +195,13 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, se
     const reader = new FileReader();
     reader.onerror = () => { setPreparing(false); setImageError('تعذّر قراءة الصورة. حاول مجددًا.'); };
     reader.onloadend = () => {
-      scaleImage(String(reader.result || ''))
+      createWallpaperVariants(String(reader.result || ''))
         // A new photo starts centred; the dimming chosen before is kept.
-        .then((value) => updateWallpaper({ type: 'image', value, positionX: 50, positionY: 50, zoom: 1, dim: pageData.wallpaper.dim ?? 0 }))
+        .then((versions) => {
+          preloadMedia(versions.preview);
+          preloadMedia(versions.value);
+          updateWallpaper({ type: 'image', ...versions, positionX: 50, positionY: 50, zoom: 1, dim: pageData.wallpaper.dim ?? 0 });
+        })
         .catch((error: Error) => setImageError(error.message))
         .finally(() => setPreparing(false));
     };

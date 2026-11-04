@@ -7,7 +7,7 @@ import { PhonePreview } from '../components/PhonePreview';
 import { PageView } from '../components/PageView';
 import { wallpaperFocus } from '../components/WallpaperImage';
 import { HeaderEditor } from '../components/HeaderEditor';
-import { TemplateGallery } from '../components/TemplateGallery';
+import { TemplateGallery, TemplateShelves } from '../components/TemplateGallery';
 import { WallpaperEditor } from '../components/WallpaperEditor';
 import { StyleEditor } from '../components/StyleEditor';
 import { LinkEditor } from '../components/LinkEditor';
@@ -60,6 +60,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
   const [logoutPrompt, setLogoutPrompt] = useState(false);
   // Note 18: the association's editor has one compact toolbar on a computer.
   const compactBar = Boolean(staffEdit?.exitAsLogout);
+  const [templateCategory, setTemplateCategory] = useState('');
   // Notes 22–23: an item tapped in the preview opens in «المحتوى».
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null);
   // Note 31: a small «الثيمات ↓» under the preview until the themes have been seen.
@@ -282,6 +283,8 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
   // «مميزة» and «الخلفيات المقترحة»: on the phone under the current look; on
   // the desktop (note 3) as a gallery under the editor, more cards in a row.
   const renderGalleries = (desktop: boolean) => {
+    // Association editor: the templates, by category, instead of the colour themes.
+    if (compactBar) return <TemplateShelves desktop={desktop} onShowAll={(category) => { setTemplateCategory(category); if (desktop) setActiveTab('theme'); else openPanel('theme'); }} />;
     const card = desktop ? 'w-[132px]' : 'w-[31%]';
     return (
       <>
@@ -419,8 +422,8 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     if (activeTab === 'theme') {
       // Note 47: in the association's editor, «ثيمات الصفحة» is its own section.
       const themes = <WallpaperEditor key="themes" initialSegment="themes" onThemeSelected={noteThemeChange} segments={compactBar ? ['themes'] : undefined} />;
-      // Ready-made templates from «صانع القوالب»; the colour themes until any is shown.
-      return compactBar ? <TemplateGallery fallback={themes} /> : themes;
+      // The association's editor offers only templates from «صانع القوالب».
+      return compactBar ? <TemplateGallery initialCategory={templateCategory} /> : themes;
     }
 
     if (activeTab === 'header') {

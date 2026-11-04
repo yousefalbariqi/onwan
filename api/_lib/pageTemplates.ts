@@ -55,7 +55,8 @@ async function listTemplates({ query, category, offset, visibleOnly }: { query?:
     [visibleOnly, search, text(category, 40), start],
   );
   const categories = await pool.query<{ category: string }>(
-    `select distinct category from page_templates where category <> '' and ($1::boolean is false or status = 'visible') order by category`,
+    // Categories in the order they were first added (owner decision, 4 Nov 2026).
+    `select category from page_templates where category <> '' and ($1::boolean is false or status = 'visible') group by category order by min(created_at), category`,
     [visibleOnly],
   );
   return { templates: result.rows.slice(0, PAGE_SIZE), more: result.rows.length > PAGE_SIZE, categories: categories.rows.map((row) => row.category) };
@@ -116,8 +117,27 @@ export const templateAdminHandlers: Record<string, Handler> = {
 };
 
 // For a signed-in association: the shown templates, and «جرّب» / «استخدم» counts.
+// The editor's shelves under the page: every shown template, one row per
+// category in the order the categories were added; uncategorised ones last.
+async function templateShelves() {
+  const rows = (await pool.query(
+    `select ${LIST_COLUMNS}, min(created_at) over (partition by category) as category_added from page_templates
+      where status = 'visible'
+      order by category = '', category_added, category, sort_order, created_at desc
+      limit 200`,
+  )).rows;
+  const shelves: { category: string; templates: any[] }[] = [];
+  for (const { category_added: _added, ...row } of rows) {
+    const shelf = shelves[shelves.length - 1];
+    if (shelf?.category === row.category) shelf.templates.push(row);
+    else shelves.push({ category: row.category, templates: [row] });
+  }
+  return { shelves };
+}
+
 export async function runTemplateAction(action: string, params: any) {
   if (action === 'templates.list') return listTemplates({ ...params, visibleOnly: true });
+  if (action === 'templates.shelves') return templateShelves();
   if (action === 'templates.track') {
     const column = params.event === 'used' ? 'used_count' : params.event === 'tried' ? 'tried_count' : '';
     if (!column) throw new HttpError(400, 'إجراء غير معروف.');

@@ -10,12 +10,23 @@ import { PageData } from '../context/PageContext';
 // is for transparent logos only — opaque photos are never cropped. Checked once
 // per image; an image that cannot be read (cross-origin) is treated as opaque
 // and untrimmed, as before.
+type LogoDisplay = { transparent: boolean; trimmed: string; aspect?: number };
+const logoDisplayCache = new Map<string, LogoDisplay>();
+const rememberLogo = (src: string, value: LogoDisplay) => {
+  if (logoDisplayCache.size >= 40) logoDisplayCache.delete(logoDisplayCache.keys().next().value!);
+  logoDisplayCache.set(src, value);
+  return value;
+};
+
 function useLogoDisplay(src: string) {
-  const [state, setState] = useState<{ transparent: boolean; trimmed: string }>({ transparent: false, trimmed: '' });
+  const [state, setState] = useState<LogoDisplay & { src: string }>(() => ({ src, ...(logoDisplayCache.get(src) ?? { transparent: false, trimmed: '' }) }));
   useEffect(() => {
-    setState({ transparent: false, trimmed: '' });
+    const cached = logoDisplayCache.get(src);
+    if (cached) { setState({ src, ...cached }); return; }
+    setState({ src, transparent: false, trimmed: '' });
     if (!src) return;
     let cancelled = false;
+    const finish = (value: LogoDisplay) => { if (!cancelled) setState({ src, ...rememberLogo(src, value) }); };
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -47,31 +58,33 @@ function useLogoDisplay(src: string) {
         }
         if (cancelled) return;
         // Opaque image, or nothing visible: leave it whole (no crop).
-        if (!transparent || maxX < minX || maxY < minY) { setState({ transparent, trimmed: '' }); return; }
+        if (!transparent || maxX < minX || maxY < minY) { finish({ transparent, trimmed: '', aspect: sw / sh }); return; }
         // Only trim when there is real empty margin to remove (>6% on a side).
         const padX = (minX + (w - 1 - maxX)) / w;
         const padY = (minY + (h - 1 - maxY)) / h;
-        if (padX < 0.06 && padY < 0.06) { setState({ transparent, trimmed: '' }); return; }
+        if (padX < 0.06 && padY < 0.06) { finish({ transparent, trimmed: '', aspect: sw / sh }); return; }
         // Map the content box back to natural pixels and add a small margin so
         // the logo breathes inside its frame rather than touching the edges.
         const inv = 1 / scale;
         let bx = minX * inv, by = minY * inv;
         let bw = (maxX - minX + 1) * inv, bh = (maxY - minY + 1) * inv;
-        const margin = 0.06 * Math.max(bw, bh);
+        // Padding follows the short side, so a wide mark does not gain
+        // a tall empty band from its own width.
+        const margin = 0.04 * Math.min(bw, bh);
         bx = Math.max(0, bx - margin); by = Math.max(0, by - margin);
         bw = Math.min(sw - bx, bw + margin * 2); bh = Math.min(sh - by, bh + margin * 2);
         const out = document.createElement('canvas');
         out.width = Math.max(1, Math.round(bw)); out.height = Math.max(1, Math.round(bh));
         const octx = out.getContext('2d');
-        if (!octx) { setState({ transparent, trimmed: '' }); return; }
+        if (!octx) { finish({ transparent, trimmed: '', aspect: sw / sh }); return; }
         octx.drawImage(img, bx, by, bw, bh, 0, 0, out.width, out.height);
-        setState({ transparent, trimmed: out.toDataURL('image/png') });
+        finish({ transparent, trimmed: out.toDataURL('image/png'), aspect: out.width / out.height });
       } catch { /* unreadable: keep the whole image */ }
     };
     img.src = src;
     return () => { cancelled = true; };
   }, [src]);
-  return state;
+  return state.src === src ? state : logoDisplayCache.get(src) ?? { transparent: false, trimmed: '' };
 }
 
 interface ProfileImageDisplayProps {
@@ -100,7 +113,7 @@ export function ProfileImageDisplay({
     transform: (profileStyle.zoom ?? 1) !== 1 ? `scale(${Math.min(3, Math.max(0.3, profileStyle.zoom ?? 1))})` : undefined,
     transformOrigin: `${profileStyle.positionX ?? 50}% ${profileStyle.positionY ?? 50}%`,
   };
-  const { transparent, trimmed } = useLogoDisplay(profileImage);
+  const { transparent, trimmed, aspect } = useLogoDisplay(profileImage);
   const displaySrc = trimmed || profileImage;
   const frameFill = transparent ? '' : 'bg-white/10 backdrop-blur-sm';
   const isHeroFillStyle = profileStyle.type === 'hero';
@@ -202,6 +215,15 @@ export function ProfileImageDisplay({
 
   // صورة كاملة (Hero)
   if (isHeroFillStyle || isHeroSafeStyle) {
+    // A transparent mark is content, not a full-height photograph. Its box
+    // follows the visible logo's ratio, so the name follows immediately below.
+    // Both editor and real page use this path; photo hero layouts stay fixed.
+    if (profileImage && transparent && aspect && Number.isFinite(aspect)) {
+      return <div data-logo-layout="intrinsic" className="relative w-full overflow-hidden" style={{ aspectRatio: String(Math.max(1, aspect)) }}>
+        <img src={displaySrc} alt={name} className="absolute inset-0 h-full w-full" style={{ ...imageStyle, objectFit: 'contain' }} />
+      </div>;
+    }
+
     // Note 52: the photo itself fades out at the bottom (a mask), so the
     // page's real background — a colour, a gradient, a photo or a video —
     // shows through. No fixed colour is painted over it and the box has no
