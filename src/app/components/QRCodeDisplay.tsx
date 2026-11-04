@@ -6,6 +6,7 @@ import { pageUrl, pageHost } from '../lib/site';
 import { downloadVCard } from '../lib/vcard';
 import { requestWalletPassLink } from '../lib/api';
 import { prepareWalletArtwork, renderWalletBanner } from '../lib/walletArtwork';
+import { ExpandedQRCode } from './ExpandedQRCode';
 import { OnwanLogo } from './OnwanLogo';
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from './ui/dialog';
 
@@ -13,7 +14,12 @@ export function SharingPanel({ username }: { username: string }) {
   const { pageData, account } = usePageContext();
   const [color, setColor] = useState('#111111');
   const [transparent, setTransparent] = useState(false);
-  const [cardColor, setCardColor] = useState('#ff6b2c');
+  const [cardColor, setCardColor] = useState(() => pageData.extractedColors?.find(color => /^#[0-9a-f]{6}$/i.test(color)) || (/^#[0-9a-f]{6}$/i.test(pageData.theme.buttonColor) ? pageData.theme.buttonColor : '#ff6b2c'));
+  const [shortName, setShortName] = useState('');
+  const [logoOverride, setLogoOverride] = useState<string | null>(null);
+  const [expandedQr, setExpandedQr] = useState(false);
+  const cardName = shortName.trim() || pageData.name || username;
+  const cardLogo = logoOverride ?? pageData.profileImage;
   const [qr, setQr] = useState('');
   const [cardQr, setCardQr] = useState('');
   const [walletUrl, setWalletUrl] = useState('');
@@ -40,13 +46,13 @@ export function SharingPanel({ username }: { username: string }) {
     setWalletUrl(''); setWalletError('');
     let alive = true;
     setBannerImage('');
-    renderWalletBanner(pageData.name || username, cardColor).then(value => { if (alive) setBannerImage(value); }).catch(() => {});
+    renderWalletBanner(cardName, cardColor).then(value => { if (alive) setBannerImage(value); }).catch(() => {});
     return () => { alive = false; };
-  }, [cardColor, pageData.name, pageData.profileImage, username]);
+  }, [cardColor, cardName, cardLogo, username]);
   const prepareCard = async () => {
     setPreparing(true); setWalletError('');
     try {
-      const artwork = await prepareWalletArtwork(pageData.name || username, pageData.profileImage || '', cardColor);
+      const artwork = await prepareWalletArtwork(cardName, cardLogo || '', cardColor);
       setWalletUrl(await requestWalletPassLink(cardColor, artwork));
     } catch (error) { setWalletError(error instanceof Error ? error.message : 'تعذر تجهيز بطاقة Apple Wallet. حاول مجددًا.'); }
     finally { setPreparing(false); }
@@ -76,11 +82,22 @@ export function SharingPanel({ username }: { username: string }) {
     <section className="space-y-4 rounded-2xl bg-white p-4">
       <h3 className="font-bold">بطاقة المحفظة</h3>
       <p className="text-sm text-gray-500">اختر لون بطاقتك المميز، ثم أضفها إلى المحفظة.</p>
+      <label className="block space-y-2 text-sm"><span>الاسم المختصر على البطاقة (اختياري)</span><input value={shortName} disabled={preparing} maxLength={160} placeholder={pageData.name} onChange={event => setShortName(event.target.value)} className="min-h-11 w-full rounded-xl border border-gray-200 px-3" /></label>
+      <label className="block space-y-2 text-sm"><span>شعار البطاقة</span><input type="file" disabled={preparing} accept="image/png,image/jpeg,image/webp,image/gif" className="block w-full text-xs" onChange={event => {
+        const file = event.target.files?.[0]; if (!file) return;
+        if (file.size > 5_000_000) { setWalletError('اختر شعارًا أصغر من 5MB.'); return; }
+        const reader = new FileReader();
+        reader.onload = () => { setLogoOverride(String(reader.result)); setWalletError(''); };
+        reader.onerror = () => setWalletError('تعذرت قراءة الشعار.');
+        reader.readAsDataURL(file);
+      }} /></label>
+      <p className="text-xs text-gray-500">اختر شعار الجمعية إن كانت صورة الصفحة شخصية. هذا الاختيار يخص البطاقة فقط.</p>
       <div className="overflow-hidden rounded-[22px] border border-black/5 bg-[#f8f8f6] text-[#1c1e1d] shadow-sm">
-        <div dir="ltr" className="flex items-center justify-between gap-3 px-4 py-3">{pageData.profileImage ? <img src={pageData.profileImage} alt="شعار الصفحة" className="h-12 w-28 object-contain" /> : <OnwanLogo className="shrink-0 scale-75 origin-left" />}<div className="min-w-0 text-left"><span className="block text-xs text-[#454d47]">الرابط</span><span dir="ltr" className="block break-all text-xs font-semibold">{pageHost(username)}</span></div></div>
-        {bannerImage ? <img src={bannerImage} alt={`بطاقة تعريفية — ${pageData.name || username}`} className="block w-full" /> : <div className="h-28" style={{ backgroundColor: bannerColor }} />}
+        <div dir="ltr" className="flex items-center justify-between gap-3 px-4 py-3">{cardLogo ? <img src={cardLogo} alt="شعار الصفحة" className="h-12 w-28 object-contain" /> : <OnwanLogo className="shrink-0 scale-75 origin-left" />}<div className="min-w-0 text-left"><span className="block text-xs text-[#454d47]">الرابط</span><span dir="ltr" className="block break-all text-xs font-semibold">{pageHost(username)}</span></div></div>
+        {bannerImage ? <img src={bannerImage} alt={`بطاقة تعريفية — ${cardName}`} className="block w-full" /> : <div className="h-28" style={{ backgroundColor: bannerColor }} />}
         <div className="flex flex-col items-center px-5 pb-5 pt-4">{cardQr && <img src={cardQr} alt="باركود البطاقة" className="aspect-square w-48 max-w-full" />}<p className="mt-2 text-xs text-[#454d47]">امسح لفتح الصفحة</p></div>
       </div>
+      <button type="button" onClick={() => setExpandedQr(true)} className="min-h-11 w-full rounded-xl border border-gray-200 text-sm font-bold">عرض الباركود بأكبر مساحة للشاشة</button>
       <label className="flex items-center justify-between text-sm">اللون المميز للبطاقة<input type="color" aria-label="لون البطاقة" disabled={preparing} value={cardColor} onChange={event => setCardColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
       <p className="text-xs text-gray-500">معاينة تقريبية؛ نستخدم درجة فاتحة من اللون المختار لوضوح الاسم. حجم الباركود وموضع الشعار يحددهما Apple Wallet؛ لا يمكن ضبط الباركود على ٩٠٪ في هذا القالب.</p>
       {walletUrl ? <a href={walletUrl} className={action}><WalletCards size={18} />إضافة إلى Apple Wallet</a> : <button type="button" disabled={preparing} onClick={prepareCard} className={`w-full ${action}`}>{preparing ? 'جارٍ تجهيز البطاقة…' : walletError ? 'إعادة تجهيز البطاقة' : 'تجهيز بطاقة Apple Wallet'}</button>}
@@ -89,6 +106,7 @@ export function SharingPanel({ username }: { username: string }) {
       <p className="text-xs text-gray-500">الإضافة إلى Google Wallet غير متاحة حاليًا.</p>
       <button type="button" onClick={() => downloadVCard(pageData)} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gray-200 text-sm font-bold"><ContactRound size={18} />حفظ جهة الاتصال</button>
     </section>
+    <Dialog open={expandedQr} onOpenChange={setExpandedQr}><DialogContent dir="rtl" className="overflow-y-auto p-0" style={{ top: 0, left: 0, width: '100vw', height: '100dvh', maxWidth: 'none', transform: 'none', borderRadius: 0 }}><DialogTitle className="sr-only">عرض الباركود الموسّع</DialogTitle><ExpandedQRCode url={url} name={cardName} onClose={() => setExpandedQr(false)} /></DialogContent></Dialog>
     <p role="status" aria-live="polite" className="text-sm text-gray-600">{notice}</p>
   </div>;
 }

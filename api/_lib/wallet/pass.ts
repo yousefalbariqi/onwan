@@ -126,6 +126,7 @@ export function buildPkpass({ username, name, design, style, artwork }: PassInpu
     backFields: [
       { key: 'name', label: 'بطاقة تعريفية', value: name || username },
       { key: 'page', label: 'فتح الصفحة', value: publicUrl },
+      { key: 'large-qr', label: 'عرض باركود كبير بملء الشاشة', value: `${publicUrl}/?qr=1` },
       { key: 'about', label: 'عنوان', value: 'امسح رمز QR لزيارة الصفحة والاطلاع على معلومات التواصل.' },
     ],
   };

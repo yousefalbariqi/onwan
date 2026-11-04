@@ -46,6 +46,7 @@ test('signed card contains the native QR, page identity, logo and retina strip a
   assert.equal(pass.barcodes[0].format, 'PKBarcodeFormatQR');
   assert.equal(pass.barcodes[0].message, 'https://yaamur.example.test');
   assert.equal(pass.storeCard.backFields.find(field => field.key === 'page').value, 'https://yaamur.example.test');
+  assert.equal(pass.storeCard.backFields.find(field => field.key === 'large-qr').value, 'https://yaamur.example.test/?qr=1');
   assert.equal(pass.backgroundColor, 'rgb(248, 248, 246)');
   for (const [file, width, height] of [['strip.png', 375, 123], ['strip@2x.png', 750, 246], ['strip@3x.png', 1125, 369], ['logo@3x.png', 108, 90]]) {
     const bytes = Buffer.from(files[file]);

@@ -21,7 +21,7 @@ export async function renderWalletBanner(name: string, color: string) {
   strip.context.textAlign = 'center';
   strip.context.direction = 'rtl';
   strip.context.fillStyle = '#454d47';
-  strip.context.font = '500 42px Tajawal';
+  strip.context.font = '400 33px Tajawal';
   strip.context.fillText('بطاقة تعريفية', 562.5, 125);
   let size = 84; // 28 pt, instead of Wallet's oversized primary field.
   do { strip.context.font = `600 ${size}px Tajawal`; size--; }
