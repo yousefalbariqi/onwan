@@ -35,18 +35,14 @@ function renderer(transparent) {
   };
 }
 
-test('wide transparent logos reserve their real aspect ratio in both hero layouts', () => {
+test('transparent logos retain the original hero height and manual positioning', () => {
   for (const type of ['hero', 'hero_safe']) {
     const view = renderer(true);
     view.render(type); view.load();
     const result = view.render(type);
-    assert.equal(result.props['data-logo-layout'], 'intrinsic');
-    assert.equal(Number(result.props.style.aspectRatio), 1710 / 486);
-    assert.equal(result.props.className.includes('min-h-'), false);
-    assert.equal(result.props.children.props.style.objectFit, 'contain');
-    assert.ok(390 / Number(result.props.style.aspectRatio) < 112);
-    // Replacing a known logo never applies the previous source's layout.
-    assert.equal(view.render(type, 'different-image.png').props['data-logo-layout'], undefined);
+    assert.ok(result.props.className.includes('min-h-[340px]'));
+    assert.ok(result.props.className.includes('sm:min-h-[400px]'));
+    assert.equal(result.props['data-logo-layout'], undefined);
   }
 });
 
