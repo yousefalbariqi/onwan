@@ -17,6 +17,7 @@
     "dev:lan": "sh scripts/dev-local.sh --ip 0.0.0.0",
     "test:nonprofit-selection": "node --test tests/nonprofit-selection.test.cjs",
     "test:nonprofit-admin": "node --test tests/nonprofit-request.test.cjs tests/nonprofit-admin.integration.cjs",
+    "test:theme-composition": "node --test tests/theme-composition.test.cjs tests/theme-publishing.test.cjs",
     "test:editor-persistence": "node --test tests/editor-persistence.test.cjs tests/editor-preview.test.cjs tests/editor-media.test.cjs tests/content-navigation.test.cjs tests/content-autosave.test.cjs",
     "test:page-revisions": "node --test tests/page-revisions.integration.cjs"
   },

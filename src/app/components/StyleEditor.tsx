@@ -155,6 +155,23 @@ export function StyleEditor() {
         </div>
 
         <div className="h-[280px] space-y-4 overflow-y-auto overscroll-contain px-4 pb-6 pt-1 lg:h-auto lg:overflow-visible">
+          <details className="rounded-xl border border-black/10 p-3">
+            <summary className="cursor-pointer text-sm font-bold">تكوين الصفحة</summary>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {([
+                ['align', 'محاذاة الهوية', [['center', 'وسط'], ['start', 'بداية السطر']]],
+                ['width', 'عرض المحتوى', [['balanced', 'متوازن'], ['narrow', 'ضيق'], ['wide', 'واسع']]],
+                ['surface', 'سطح المحتوى', [['none', 'مفتوح'], ['sheet', 'لوحة ناعمة'], ['outline', 'إطار']]],
+                ['pattern', 'رسوم الخلفية', [['none', 'بدون'], ['grid', 'شبكة'], ['halo', 'هالات'], ['arches', 'أقواس'], ['dots', 'نقاط'], ['diagonal', 'خطوط مائلة']]],
+                ['items', 'عرض المحتوى', [['plain', 'بسيط'], ['tiles', 'بطاقات'], ['ruled', 'فواصل']]],
+                ['inset', 'هوامش الصفحة', [['compact', 'معتدلة'], ['airy', 'رحبة']]],
+              ] as const).map(([key, label, options]) => <label key={key} className="text-xs text-[#1d1d1f]">{label}
+                <select className="mt-1 min-h-11 w-full rounded-lg bg-[#f2f2f7] p-2" value={buttonStyle.composition?.[key] ?? options[0][0]} onChange={event => updateButtonStyle({ composition: { ...buttonStyle.composition, [key]: event.target.value } })}>
+                  {options.map(([value, title]: readonly [string, string]) => <option key={value} value={value}>{title}</option>)}
+                </select>
+              </label>)}
+            </div>
+          </details>
           {tab === 'buttons' && (
             <>
               <div className="grid grid-cols-2 gap-3">

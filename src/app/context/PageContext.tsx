@@ -116,6 +116,7 @@ export interface PageData {
     fileSize?: number;
   };
   buttonStyle: {
+    composition?: { align?: 'center' | 'start'; width?: 'narrow' | 'balanced' | 'wide'; surface?: 'none' | 'sheet' | 'outline'; pattern?: 'none' | 'grid' | 'halo' | 'arches'; items?: 'plain' | 'tiles' | 'ruled'; inset?: 'compact' | 'airy' };
     shape: 'rounded' | 'square' | 'pill';
     border: boolean;
     shadow: boolean;

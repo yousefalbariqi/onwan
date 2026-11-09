@@ -154,3 +154,17 @@ test('applying a template cannot import sample content over onboarding choices',
   assert.equal(e.value.pageData.name, 'my association');
   assert.equal(e.value.pageData.links.length, 1); assert.equal(e.value.pageData.links[0].id, 'chosen');
 });
+
+test('applying a composition changes presentation while preserving content and contacts', async () => {
+  const e = await editor();
+  const before = e.value.pageData;
+  const composition = { align: 'start', width: 'narrow', surface: 'sheet', pattern: 'grid', items: 'tiles', inset: 'airy' };
+  e.value.applyDesign({ theme: before.theme, wallpaper: before.wallpaper, profileStyle: before.profileStyle, typography: before.typography, buttonStyle: { ...before.buttonStyle, composition } });
+  await e.flush();
+  assert.equal(e.value.pageData.name, before.name);
+  assert.deepEqual(e.value.pageData.links, before.links);
+  assert.equal(e.value.pageData.contactPhone, before.contactPhone);
+  assert.deepEqual(e.value.pageData.buttonStyle.composition, composition);
+  await e.advance(2500);
+  assert.deepEqual(e.api.calls.at(-1).data.buttonStyle.composition, composition);
+});

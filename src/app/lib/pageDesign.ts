@@ -39,8 +39,8 @@ export function extractDesign(data: PageData): TemplateDesign {
 // designed and previewed. It is never saved with the template.
 export const TEMPLATE_SAMPLE: Pick<PageData, 'username' | 'profileImage' | 'name' | 'bio' | 'links'> = {
   username: '',
-  profileImage: '',
-  name: 'اسم الجهة',
+  profileImage: '/template-samples/mark.svg',
+  name: 'جمعية الأثر المجتمعي',
   bio: 'وصف مختصر عن الجهة ورسالتها.',
   links: [
     { id: 'sample-heading', title: 'عن الجهة', url: '', display: { kind: 'heading' } },
@@ -48,8 +48,15 @@ export const TEMPLATE_SAMPLE: Pick<PageData, 'username' | 'profileImage' | 'name
     { id: 'sample-site', title: 'الموقع الإلكتروني', url: 'https://example.com', platform: 'website' },
     { id: 'sample-whatsapp', title: 'تواصل عبر واتساب', url: 'https://wa.me/966500000000', platform: 'whatsapp' },
     { id: 'sample-doc', title: 'التقرير السنوي', url: 'https://example.com/report.pdf', display: { kind: 'document', docType: 'report' } },
+    { id: 'sample-initiative', title: 'تعرّف على مبادراتنا', url: 'https://example.com/initiative', display: { layout: 'card', image: '/template-samples/initiative.svg' } },
     { id: 'sample-video', title: 'فيديو تعريفي', url: '', display: { kind: 'video', caption: 'below' } },
   ],
 };
 
 export const templatePageData = (base: PageData, design: TemplateDesign): PageData => ({ ...base, ...TEMPLATE_SAMPLE, ...design });
+
+export const TEMPLATE_SCENARIOS = {
+  standard: TEMPLATE_SAMPLE,
+  long: { ...TEMPLATE_SAMPLE, name: 'الجمعية الأهلية للتنمية المستدامة والتكافل الاجتماعي', bio: 'نساند الأسر ونمكّن الأفراد عبر مبادرات مستدامة وشراكات مجتمعية. نعمل مع المتطوعين والداعمين لتقديم برامج تعليمية وصحية واجتماعية تفتح فرصًا جديدة وتترك أثرًا طويل المدى.' },
+  minimal: { ...TEMPLATE_SAMPLE, profileImage: '', name: 'أثر', bio: 'معًا نصنع الفرق.', links: TEMPLATE_SAMPLE.links.filter(item => ['sample-site', 'sample-whatsapp'].includes(item.id)) },
+} as const;

@@ -1,3 +1,4 @@
+import { PILOT_THEMES } from '../../shared/themePilot.js';
 import type { Handler } from './admin.js';
 import { audit } from './admin.js';
 import { pool } from './db.js';
@@ -32,6 +33,9 @@ export function normalizeDesign(value: any) {
   } else {
     design.wallpaper = { type: wallpaper.type === 'gradient' ? 'gradient' : 'color', value: wallpaper.value, ...(Number.isFinite(wallpaper.dim) ? { dim: Math.max(0, Math.min(80, Number(wallpaper.dim))) } : {}) };
   }
+  const composition = plain(design.buttonStyle.composition);
+  const choices: Record<string, string[]> = { align: ['center', 'start'], width: ['narrow', 'balanced', 'wide'], surface: ['none', 'sheet', 'outline'], pattern: ['none', 'grid', 'halo', 'arches', 'dots', 'diagonal'], items: ['plain', 'tiles', 'ruled'], inset: ['compact', 'airy'] };
+  design.buttonStyle.composition = Object.fromEntries(Object.entries(composition).filter(([key, val]) => choices[key]?.includes(String(val))));
   delete typography.customFont;
   delete typography.useCustomFont;
   for (const key of Object.keys(customColors)) if (!COLOR.test(String(customColors[key] ?? ''))) delete customColors[key];
@@ -64,6 +68,24 @@ async function listTemplates({ query, category, offset, visibleOnly }: { query?:
 
 // The manager's own tools; only «مدير عنوان» can reach them.
 export const templateAdminHandlers: Record<string, Handler> = {
+  'templates.installPilot': { access: 'manager', run: async (_params, staff) => {
+    const client = await pool.connect();
+    let added = 0;
+    try {
+      await client.query('begin');
+      await client.query("select pg_advisory_xact_lock(hashtext('onwan-theme-pilot-v1'))");
+      for (const theme of PILOT_THEMES) {
+        const exists = await client.query("select id from page_templates where design->'theme'->>'id' = $1", [theme.design.theme.id]);
+        if (exists.rows.length) continue;
+        await client.query("insert into page_templates (name, category, status, design) values ($1, $2, 'draft', $3::jsonb)", [theme.name, theme.category, JSON.stringify(normalizeDesign(theme.design))]);
+        added++;
+      }
+      await client.query('commit');
+    } catch (error) { await client.query('rollback'); throw error; }
+    finally { client.release(); }
+    await audit(staff, 'templates.installPilot', { type: 'template', id: 'pilot-v1', label: `المرحلة الأولى: ${added}` });
+    return { added };
+  } },
   'templates.list': { access: 'manager', run: (params) => listTemplates({ ...params, visibleOnly: false }) },
   'templates.get': { access: 'manager', run: async (params) => {
     const row = (await pool.query(`select ${LIST_COLUMNS} from page_templates where id = $1`, [params.id])).rows[0];

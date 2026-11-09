@@ -1,0 +1,19 @@
+[data-composition-width="narrow"] > .page-composition-body { max-width: 420px; }
+[data-composition-width="balanced"] > .page-composition-body { max-width: 520px; }
+[data-composition-width="wide"] > .page-composition-body { max-width: 600px; }
+[data-composition-align="start"] .page-composition-content { align-items: flex-start; }
+[data-composition-align="start"] .page-composition-content > h1,
+[data-composition-align="start"] .page-composition-content > p { text-align: start; }
+[data-composition-inset="airy"] .page-composition-content { padding: 48px 24px 40px; }
+[data-composition-inset="compact"] .page-composition-content { padding: 24px 16px; }
+[data-composition-surface="sheet"] > .page-composition-body { margin: 20px 12px; width: calc(100% - 24px); border-radius: 28px; background: color-mix(in srgb, var(--page-ink, currentColor) 3%, transparent); border: 1px solid color-mix(in srgb, currentColor 12%, transparent); box-shadow: 0 12px 36px #00000008; }
+[data-composition-surface="outline"] > .page-composition-body { margin: 12px; width: calc(100% - 24px); border: 1px solid color-mix(in srgb, currentColor 22%, transparent); }
+[data-composition-pattern="grid"] > .page-composition-pattern { opacity: .065; background-image: linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px); background-size: 32px 32px; }
+[data-composition-pattern="halo"] > .page-composition-pattern { opacity: .12; background: radial-gradient(ellipse at 0% 10%, currentColor, transparent 44%), radial-gradient(ellipse at 100% 65%, currentColor, transparent 40%); }
+[data-composition-pattern="arches"] > .page-composition-pattern { opacity: .075; background: repeating-radial-gradient(ellipse at 100% 0%, transparent 0 44px, currentColor 45px 46px, transparent 47px 74px); }
+@media (max-width: 360px) { [data-composition-inset="airy"] .page-composition-content { padding-inline: 16px; } }
+[data-composition-items="tiles"] .page-composition-items > :is(p, section) { padding: 16px; border-radius: 16px; background: color-mix(in srgb, currentColor 5%, transparent); border: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
+[data-composition-items="ruled"] .page-composition-items > :not(:first-child) { border-block-start: 1px solid color-mix(in srgb, currentColor 18%, transparent); padding-block-start: 16px; }
+.page-composition-content > :is(h1, p) { overflow-wrap: anywhere; max-width: 100%; }
+[data-composition-pattern="dots"] > .page-composition-pattern { opacity: .10; background: radial-gradient(circle, currentColor 1px, transparent 1.5px) 0 0 / 20px 20px; }
+[data-composition-pattern="diagonal"] > .page-composition-pattern { opacity: .045; background: repeating-linear-gradient(135deg, transparent 0 20px, currentColor 21px 22px, transparent 23px 44px); }

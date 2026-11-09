@@ -1,3 +1,5 @@
+import { publishThemeLibrary } from '../admin/publishThemeLibrary';
+import { PILOT_THEMES } from '../lib/themePilot';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, EyeOff, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { PageProvider, mergeWithDefaults, type PageSource } from '../context/PageContext';
@@ -49,7 +51,8 @@ function TemplateEditor({ template, onExit }: { template: PageTemplate; onExit: 
   const source = useMemo<PageSource>(() => ({
     load: async () => ({ pageData: mergeWithDefaults({ ...TEMPLATE_SAMPLE, ...template.design }) }),
     save: async (pageData) => {
-      const r = await adminCall<{ template: PageTemplate }>('templates.save', { id: id.current, design: extractDesign(pageData) });
+      const r = await adminCall<{ template: PageTemplate }>('templates.save', { id: id.current || undefined, name: template.name, category: template.category, design: extractDesign(pageData) });
+      id.current = r.template.id;
       return { pageData: { ...TEMPLATE_SAMPLE, ...r.template.design } };
     },
   }), [template]);
@@ -61,10 +64,14 @@ function TemplateEditor({ template, onExit }: { template: PageTemplate; onExit: 
 }
 
 function TemplateList({ onEdit }: { onEdit: (template: PageTemplate) => void }) {
+  const [pilotScenario, setPilotScenario] = useState<'standard' | 'long' | 'minimal'>('standard');
+  const [pilotWidth, setPilotWidth] = useState(390);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [result, setResult] = useState<ListResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [publishProgress, setPublishProgress] = useState<number | null>(null);
+  const [installed, setInstalled] = useState('');
   const [error, setError] = useState('');
   const [form, setForm] = useState<{ id?: string; name: string; category: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,6 +118,64 @@ function TemplateList({ onEdit }: { onEdit: (template: PageTemplate) => void }) 
           </div>
           <button type="button" onClick={() => setForm({ name: '', category: category })} className="flex items-center gap-1.5 rounded-full bg-[#FF6B2C] px-4 py-2.5 font-bold text-white hover:bg-[#F25A18]"><Plus className="h-4 w-4" />قالب جديد</button>
         </header>
+
+        <section className="space-y-3 rounded-3xl border border-[#E7E7E7] bg-white p-4">
+          <h2 className="text-lg font-bold">المكتبة الكاملة · ٩٦ ثيمًا · ١٢ تصنيفًا</h2>
+          <p className="text-sm leading-6 text-[#737373]">٨ تصاميم لكل تصنيف، متاحة لكل الجمعيات. يحافظ التجهيز على التصاميم الموجودة وتعديلاتك، ويستكمل الناقص ثم يُظهر المكتبة.</p>
+          <button type="button" disabled={busy} className="rounded-full bg-emerald-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-50" onClick={() => run(async () => {
+            setPublishProgress(0);
+            try {
+              const published = await publishThemeLibrary(adminCall, setPublishProgress);
+              setInstalled(`المكتبة مكتملة: ${published.visible} ثيمًا ظاهرًا في ١٢ تصنيفًا. أُضيف ${published.added} تصميمًا جديدًا.`);
+              load(0);
+            } finally { setPublishProgress(null); }
+          })}>{publishProgress !== null ? `جارٍ تجهيز ونشر المكتبة… ${publishProgress} / 96` : 'تجهيز ونشر الثيمات الـ٩٦ لكل التصنيفات'}</button>
+          {publishProgress !== null && <progress aria-label="تقدم نشر المكتبة" max={96} value={publishProgress} className="block w-full accent-emerald-700" />}
+        </section>
+
+        <section className="space-y-4 rounded-3xl border border-[#E7E7E7] bg-white p-4">
+          <div><h2 className="text-lg font-bold">المرحلة الأولى · ٨ اتجاهات للمراجعة</h2><p className="mt-1 text-sm text-[#737373]">افتح أي تصميم لتعديله. عند حفظه يُضاف إلى مكتبتك كمسودة، ولا يظهر للجمعيات حتى تختار إظهاره.</p></div>
+          <button type="button" disabled={busy} className="rounded-full bg-[#111111] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50" onClick={() => run(async () => {
+            let result: { added: number };
+            try { result = await adminCall<{ added: number }>('templates.installPilot'); }
+            catch (error) {
+              // Older running Workers may serve the new static assets before
+              // their API bundle is restarted. Use their existing save actions.
+              if (!(error instanceof Error) || error.message !== 'إجراء غير معروف.') throw error;
+              const ids = new Set<string>();
+              let offset = 0;
+              while (true) {
+                const batch = await adminCall<ListResult>('templates.list', { offset });
+                batch.templates.forEach(t => ids.add(t.design.theme.id));
+                if (!batch.more || !batch.templates.length) break;
+                offset += batch.templates.length;
+              }
+              result = { added: 0 };
+              for (const pilot of PILOT_THEMES) {
+                if (ids.has(pilot.design.theme.id)) continue;
+                await adminCall('templates.save', { name: pilot.name, category: pilot.category, design: pilot.design });
+                ids.add(pilot.design.theme.id);
+                result.added++;
+              }
+            }
+            setInstalled(result.added ? `أُضيف ${result.added} ثيمات كمسودات للمراجعة.` : 'الثيمات الثمانية موجودة بالفعل؛ لم تُكرر.');
+            load(0);
+          })}>{busy ? 'جارٍ تجهيز المسودات…' : 'إضافة الثيمات الثمانية إلى المكتبة كمسودات'}</button>
+          {installed && <p role="status" className="text-sm text-emerald-700">{installed}</p>}
+          <div className="flex flex-wrap gap-3 text-sm">
+            <label>محتوى المعاينة <select className="rounded-lg bg-[#f2f2f7] p-2" value={pilotScenario} onChange={event => setPilotScenario(event.target.value as typeof pilotScenario)}><option value="standard">متنوع</option><option value="long">اسم ووصف طويلان</option><option value="minimal">محتوى مختصر بلا شعار</option></select></label>
+            <label>عرض الهاتف <select className="rounded-lg bg-[#f2f2f7] p-2" value={pilotWidth} onChange={event => setPilotWidth(Number(event.target.value))}><option value={320}>320</option><option value={390}>390</option><option value={430}>430</option></select></label>
+          </div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {PILOT_THEMES.map(pilot => <button key={pilot.name} type="button" className="min-w-0 space-y-2 text-start" disabled={busy} onClick={() => run(async () => {
+              const saved = await adminCall<ListResult>('templates.list', { query: pilot.name, category: pilot.category });
+              onEdit(saved.templates.find(t => t.design.theme.id === pilot.design.theme.id) ?? { id: '', name: pilot.name, category: pilot.category, design: pilot.design, status: 'draft', tried_count: 0, used_count: 0 });
+            })}>
+              <TemplatePreview design={pilot.design} phone scenario={pilotScenario} viewportWidth={pilotWidth} />
+              <span className="block font-bold">{pilot.name}</span><span className="block text-xs leading-5 text-[#737373]">{pilot.idea}</span>
+            </button>)}
+          </div>
+        </section>
 
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-[#E7E7E7] bg-white px-3">

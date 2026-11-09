@@ -1,3 +1,4 @@
+import './pageComposition.css';
 import { FormattedText } from './FormattedText';
 import { sectionBlocks, visibleSectionItems } from '../../../shared/linkSections';
 import { ReactNode, useEffect, useRef } from 'react';
@@ -267,6 +268,12 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
   const page = (
     <div
       ref={rootRef}
+      data-composition-align={data.buttonStyle.composition?.align}
+      data-composition-width={data.buttonStyle.composition?.width}
+      data-composition-surface={data.buttonStyle.composition?.surface}
+      data-composition-pattern={data.buttonStyle.composition?.pattern}
+      data-composition-items={data.buttonStyle.composition?.items}
+      data-composition-inset={data.buttonStyle.composition?.inset}
       className={
         isPublic
           // Content starts at the top (not vertically centred), so a short page
@@ -279,6 +286,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
       style={{ ...backgroundStyle, color: theme.textColor, fontFamily }}
       dir={lang === 'en' ? 'ltr' : 'rtl'}
     >
+      <div aria-hidden="true" className="page-composition-pattern pointer-events-none absolute inset-0" />
       {wallpaper.type === 'image' && <WallpaperImage wallpaper={wallpaper} />}
       {wallpaper.type === 'video' && <VideoBackground src={wallpaper.value} poster={wallpaper.poster} position={wallpaper.position} />}
       {(wallpaper.type === 'image' || wallpaper.type === 'video') && !!wallpaper.dim && (
@@ -288,14 +296,14 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
         />
       )}
 
-      <div className={`relative w-full ${isPublic ? 'max-w-[600px]' : 'max-w-md'}`}>
+      <div className={`page-composition-body relative w-full ${isPublic ? 'max-w-[600px]' : 'max-w-md'}`}>
         {isHeroLayout && (
           <div className="overflow-hidden rounded-t-3xl relative">{profileImage}</div>
         )}
         {isBannerLayout && <div className="relative">{profileImage}</div>}
 
         <div
-          className={`flex flex-col items-center ${
+          className={`page-composition-content flex flex-col items-center ${
             `px-4 sm:px-8 ${isHeroLayout ? 'pt-6' : isBannerLayout ? 'pt-3' : 'pt-8'} pb-8`
           }`}
         >
@@ -334,7 +342,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
             </div>
           )}
 
-          <div className={`w-full ${ITEM_SPACING[design.spacing]}`}>
+          <div className={`page-composition-items w-full ${ITEM_SPACING[design.spacing]}`}>
             {blocks.map(block => block[0].display?.kind === 'heading' && block[0].display.sectionId
               ? <SectionLayout key={`${block[0].id}:${block[0].display.sectionLayout ?? 'list'}`} heading={block[0]} items={block.slice(1)} renderItem={renderItem} lang={lang} spacing={design.spacing} />
               : block.map(renderItem))}
