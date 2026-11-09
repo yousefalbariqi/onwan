@@ -3,7 +3,7 @@ import { pool } from './db.js';
 import { HttpError } from './http.js';
 
 // REQ-015: at most this many saves a day per account (drafts and publishing).
-export const DAILY_SAVE_LIMIT = 200;
+export const DAILY_SAVE_LIMIT = 600;
 // A draft is the editor's state as is; this only bounds its size (files are
 // stored in R2 before a draft is sent, so the JSON itself stays small).
 export const MAX_DRAFT_CHARS = 2_000_000;

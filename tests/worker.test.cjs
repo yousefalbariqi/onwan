@@ -364,10 +364,10 @@ test('a wrong email code keeps the session: 400 with a clear message, not 401', 
   assert.match((await response.json()).error, /غير صحيح/);
 });
 
-// REQ-015: drafts and publishing share one daily limit of 200 saves; a draft never touches the public page.
-test('daily save limit refuses the 201st save; a draft is stored without publishing', async () => {
+// REQ-015: drafts and publishing share one daily limit of 600 saves; a draft never touches the public page.
+test('daily save limit refuses the 601st save; a draft is stored without publishing', async () => {
   const bearer = withRuntime({ env }, () => createSessionToken('user-a', 'a@example.org'));
-  let saves = 199;
+  let saves = 599;
   let revision = 0;
   const seen = [];
   query = async (sql, values = []) => {

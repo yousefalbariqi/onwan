@@ -213,7 +213,7 @@ interface PageContextType {
   updateButtonStyle: (style: Partial<PageData['buttonStyle']>) => void;
   updateProfileStyle: (style: Partial<PageData['profileStyle']>) => void;
   updateTypography: (typography: Partial<NonNullable<PageData['typography']>>) => void;
-  addLink: (link: Omit<Link, 'id'>, memberIds?: string[]) => void;
+  addLink: (link: Omit<Link, 'id'>, memberIds?: string[]) => string;
   removeLink: (id: string) => void;
   updateLink: (id: string, updates: Partial<Link>, memberIds?: string[]) => void;
   moveLink: (id: string, direction: 'up' | 'down') => void;
@@ -962,7 +962,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
 
   // REQ-015: unpublished edits are kept on the server by themselves, merged —
   // one save 2.5 s after the editing pauses, never one per change. They stay
-  // invisible to visitors until «احفظ تعديلاتي» publishes them. Files go to
+  // invisible to visitors until «نشر التعديلات» publishes them. Files go to
   // storage first so the draft stays small.
   useEffect(() => {
     if (source || loadingPage || conflict || !isAuthenticated || !isDirty || draftState === 'limit') return;
@@ -1120,6 +1120,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   const addLink = useCallback((link: Omit<Link, 'id'>, memberIds?: string[]) => {
     const newLink = { ...link, id: crypto.randomUUID() };
     edit((prev) => (prev.links.length >= MAX_LINKS ? prev : { ...prev, links: saveSectionItem(prev.links, newLink, memberIds) }));
+    return newLink.id;
   }, [edit]);
 
   const removeLink = useCallback((id: string) => {

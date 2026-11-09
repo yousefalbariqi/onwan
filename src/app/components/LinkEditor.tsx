@@ -1,3 +1,4 @@
+import { AutoSaveStatus } from './AutoSaveStatus';
 import { contentBack, type ContentScreen } from '../../../shared/contentNavigation';
 import { FormattingTextarea } from './FormattingTextarea';
 import { parseYouTubeVideoSource } from '../../../shared/videoSources';
@@ -351,6 +352,8 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   const [saveError, setSaveError] = useState('');
   const [screen, setScreen] = useState<Screen>(() => pageData.editorForm?.screen ?? { name: 'list' });
   const [form, setForm] = useState<FormState>(() => pageData.editorForm?.form ?? emptyForm('link'));
+  const autoCommitted = useRef('');
+  const autoItemId = useRef<string | undefined>(pageData.editorForm?.screen.id);
   const formStart = useRef(pageData.editorForm?.start ?? '');
   const [rawLink, setRawLink] = useState(pageData.editorForm?.rawLink ?? '');
   const [fileError, setFileError] = useState('');
@@ -374,6 +377,8 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   }, [screen]);
 
   const openForm = (next: FormState, id?: string) => {
+    autoCommitted.current = '';
+    autoItemId.current = id;
     setForm(next);
     setRawLink(rawFromUrl(next.url));
     setEditingTitle(false);
@@ -381,6 +386,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     formStart.current = JSON.stringify(next);
     setFileError('');
     setIconError('');
+    setSaveError('');
     setIconsOpen(false);
     setIconQuery('');
     setActionsFor(null);
@@ -391,12 +397,16 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   // another form is never dropped: the usual «تجاهل؟» question comes first.
   const pendingFocus = useRef<string | null>(null);
   const focusItem = (id: string) => {
+    if (draftSave && formChanged && !isReady(form)) {
+      setSaveError('ما كتبته محفوظ كمسودة. أكمل البيانات المطلوبة قبل تحرير عنصر آخر.');
+      return;
+    }
     const link = links.find((item) => item.id === id);
     if (link) openForm(formFromLink(link, links), link.id);
   };
   useEffect(() => {
     if (!focusId) return;
-    if (formChanged && !(screen.name === 'form' && screen.id === focusId)) {
+    if (!draftSave && formChanged && !(screen.name === 'form' && screen.id === focusId)) {
       pendingFocus.current = focusId;
       setConfirm({ kind: 'leave' });
     } else if (!(screen.name === 'form' && screen.id === focusId)) {
@@ -413,11 +423,18 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [formChanged, draftState, conflict]);
-  useEffect(() => onPendingChange?.(formChanged), [formChanged, onPendingChange]);
+  useEffect(() => onPendingChange?.(!draftSave && formChanged), [formChanged, draftSave, onPendingChange]);
   useEffect(() => () => onPendingChange?.(false), [onPendingChange]);
   const backToList = () => { updatePageData({ editorForm: undefined }); setScreen({ name: 'list' }); };
   const backFromForm = () => { updatePageData({ editorForm: undefined }); setScreen(contentBack(screen).target); };
-  const leaveForm = () => (contentBack(screen, formChanged).confirmDiscard ? setConfirm({ kind: 'leave' }) : backFromForm());
+  const leaveForm = () => {
+    if (!draftSave) { if (contentBack(screen, formChanged).confirmDiscard) setConfirm({ kind: 'leave' }); else backFromForm(); return; }
+    if (formChanged && !isReady(form)) {
+      setSaveError('ما كتبته محفوظ كمسودة. أكمل البيانات المطلوبة للعودة إلى قائمة المحتوى.');
+      return;
+    }
+    if (formChanged) submit(); else backFromForm();
+  };
 
   const update = (changes: Partial<FormState>) => setForm((prev) => {
     const next = { ...prev, ...changes };
@@ -437,7 +454,8 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
       if (pageData.editorForm) updatePageData({ editorForm: undefined });
       return;
     }
-    const snapshot = { form, screen, start: formStart.current, rawLink };
+    if (draftSave && autoCommitted.current === JSON.stringify({ form, rawLink })) return;
+    const snapshot = { form, screen: draftSave && autoItemId.current ? { name: 'form' as const, id: autoItemId.current } : screen, start: formStart.current, rawLink };
     if (JSON.stringify(snapshot) !== JSON.stringify(pageData.editorForm)) updatePageData({ editorForm: snapshot });
   }, [form, screen, rawLink, formChanged, pageData.editorForm, updatePageData]);
 
@@ -453,11 +471,11 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     update({ url: parsed.url, mode: parsed.mode, platform, display: { ...form.display, kind: form.display.kind === 'video' && parseYouTubeVideoSource(parsed.url) ? 'video' : undefined } });
   };
 
-  const submit = () => {
+  const submit = (close = true) => {
     if (!isReady(form)) return;
     const isHeading = form.kind === 'group' || (form.kind === 'text' && form.textStyle === 'heading');
     const display: LinkDisplay = form.kind === 'group'
-      ? { ...form.display, kind: 'heading', sectionId: form.display.sectionId || crypto.randomUUID() }
+      ? { ...form.display, kind: 'heading', sectionId: form.display.sectionId || links.find(item => item.id === autoItemId.current)?.display?.sectionId || crypto.randomUUID() }
       : isHeading
         ? { kind: 'heading' }
         : form.kind === 'text'
@@ -480,12 +498,29 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
       customIcon: form.kind === 'link' || isFile ? form.customIcon || undefined : undefined,
     };
     const members = form.kind === 'group' ? form.sectionMembers : undefined;
-    // A completed platform from signup (note 25) becomes visible once its link is in.
-    const wasIncomplete = screen.name === 'form' && screen.id ? links.some((link) => link.id === screen.id && isIncomplete(link)) : false;
-    if (screen.name === 'form' && screen.id) updateLink(screen.id, wasIncomplete ? { ...values, hidden: false } : values, members);
-    else addLink(values, members);
-    backToList();
+    // A completed platform from signup becomes visible once its link is in.
+    const id = draftSave ? autoItemId.current : screen.name === 'form' ? screen.id : undefined;
+    const wasIncomplete = Boolean(id && links.some(link => link.id === id && isIncomplete(link)));
+    if (id) updateLink(id, wasIncomplete ? { ...values, hidden: false } : values, members);
+    else {
+      if (limitReached) return;
+      autoItemId.current = addLink(values, members);
+    }
+    autoCommitted.current = JSON.stringify({ form, rawLink });
+    updatePageData({ editorForm: undefined });
+    if (close) backToList();
   };
+
+  // Valid input joins the shared draft automatically; incomplete input stays
+  // in editorForm and is also recovered and autosaved by PageContext.
+  useEffect(() => {
+    if (!draftSave || screen.name !== 'form' || !formChanged || !isReady(form)) return;
+    if (autoCommitted.current === JSON.stringify({ form, rawLink })) return;
+    submit(false);
+    // Only input changes trigger a commit, never the resulting shared-page update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftSave, form, rawLink, screen, formChanged]);
+
 
   const saveElementDraft = async () => {
     if (screen.name === 'form') {
@@ -908,12 +943,12 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     );
   };
 
-  const editing = screen.name === 'form' && screen.id ? links.find((item) => item.id === screen.id) : undefined;
+  const editing = screen.name === 'form' ? links.find((item) => item.id === (draftSave ? autoItemId.current : screen.id)) : undefined;
   const kindInfo = KINDS.find((item) => item.id === form.kind)!;
 
   return (
     <Panel>
-      {draftSave && !externalSave && <div className="sticky top-0 z-10 flex justify-end bg-[#f2f2f7] py-2"><button type="button" disabled={saving || conflict} onClick={() => { setSaveError(''); void saveElementDraft().catch(error => setSaveError(error.message)); }} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? 'جارٍ الحفظ…' : 'حفظ تعديلاتي'}</button></div>}
+      {draftSave && !externalSave && <AutoSaveStatus />}
       {saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
       <div ref={topRef} className="-mt-5 h-0" aria-hidden="true" />
       {!!iconCrop && (
@@ -1059,7 +1094,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
           {form.kind === 'group' && renderGroupFields()}
 
           <div className="space-y-3 pt-1">
-            {!draftSave && <button type="button" onClick={submit} disabled={!isReady(form)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            {!draftSave && <button type="button" onClick={() => submit()} disabled={!isReady(form)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
               {editing ? 'تطبيق التعديل' : 'إضافة إلى الصفحة'}
             </button>}
             {editing && (
