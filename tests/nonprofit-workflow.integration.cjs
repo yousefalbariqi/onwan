@@ -19,6 +19,8 @@ test('nonprofit requests: ownership, snapshot, concurrency, email failure/retry 
    create table if not exists subscriptions(user_id uuid primary key,status text);
    create or replace function media_check_references(data jsonb) returns void language plpgsql as $$ begin if data::text like '%data:image%' then raise exception 'inline'; end if; end $$;`);
   await pool.query(fs.readFileSync('database/phase25-nonprofit-requests.sql','utf8'));
+  await pool.query(fs.readFileSync('database/phase20-drafts-and-save-limit.sql','utf8'));
+  await pool.query(fs.readFileSync('database/phase30-page-revisions.sql','utf8'));
   await pool.query('truncate nonprofit_quote_requests,users,pages,subscriptions cascade');
   await pool.query("insert into users(id,email,phone,account_kind) values($1,'a@example.invalid','0500000000','nonprofit'),($2,'b@example.invalid','0500000001','nonprofit'),($3,'standard@example.invalid','0500000002','standard')",[a,b,standard]);
   await pool.query('insert into pages(user_id) values($1),($2),($3)',[a,b,standard]);
@@ -45,5 +47,7 @@ test('nonprofit requests: ownership, snapshot, concurrency, email failure/retry 
   await pool.query("update pages set status='published' where user_id=$1",[standard]);
   assert.equal((await pool.query('select status from pages where user_id=$1',[a])).rows[0].status,'draft');
   await pool.query(fs.readFileSync('database/phase25-nonprofit-requests.sql','utf8'));
+  await pool.query(fs.readFileSync('database/phase20-drafts-and-save-limit.sql','utf8'));
+  await pool.query(fs.readFileSync('database/phase30-page-revisions.sql','utf8'));
  } finally{await pool.end();}
 });

@@ -1,0 +1,22 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+test('unfinished file forms upload once and retain no inline binaries in their server snapshot', async () => {
+  const module = { exports: {} };
+  let uploads = 0;
+  const stored = '/media/files/owner/file.pdf';
+  const fetchMedia = async url => url.startsWith('data:') ? new Response(new Blob(['%PDF-test'], { type: 'application/pdf' })) : (uploads++, new Response(JSON.stringify({ url: stored }), { headers: { 'Content-Type': 'application/json' } }));
+  const code = ts.transpileModule(fs.readFileSync('src/app/lib/mediaUpload.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function('require', 'module', 'exports', 'fetch', code)(() => ({ getSessionToken: () => 'token' }), module, module.exports, fetchMedia);
+  const inline = 'data:application/pdf;base64,JVBERi10ZXN0';
+  const form = { kind: 'file', url: inline, display: {} };
+  const page = { links: [], wallpaper: { type: 'color', value: '#fff' }, editorForm: { form, start: JSON.stringify(form), rawLink: inline } };
+  const prepared = await module.exports.moveInlineMedia(page);
+  assert.equal(uploads, 1);
+  assert.equal(prepared.editorForm.form.url, stored);
+  assert.equal(prepared.editorForm.rawLink, stored);
+  assert.equal(JSON.parse(prepared.editorForm.start).url, stored);
+  assert.ok(!JSON.stringify(prepared).includes('data:application/pdf'));
+  assert.equal(page.editorForm.form.url, inline, 'local form is preserved');
+});

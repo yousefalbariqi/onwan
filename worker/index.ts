@@ -1,4 +1,5 @@
 import nonprofit from '../api/nonprofit.js';
+import googleWallet from '../api/google-wallet.js';
 import walletPass from '../api/wallet-pass.js';
 import { retryNonprofitNotifications } from '../api/_lib/nonprofit.js';
 import signup from '../api/auth/signup.js';
@@ -39,6 +40,7 @@ export const routes: Record<string, (req: any, res: any) => Promise<void>> = {
   '/api/partner': partner,
   '/api/nonprofit': nonprofit,
   '/api/wallet-pass': walletPass,
+  '/api/google-wallet': googleWallet,
   '/api/video-upload': videoUpload,
   '/api/media-upload': mediaUpload,
   '/api/stream-video': streamVideo,

@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { nonprofitPath } from '../lib/nonprofit';
 import { useEffect, useState } from 'react';
-import { ArrowUpLeft, BadgeCheck, History, Link2, QrCode, UserPlus, Wallet } from 'lucide-react';
+import { ArrowUpLeft, BadgeCheck, History, Link2, QrCode, UserPlus, Wallet, Images, Megaphone } from 'lucide-react';
 import { SUPPORT_WHATSAPP } from '../lib/site';
 import { OnwanLogo } from '../components/OnwanLogo';
 import { NonprofitFooter } from '../components/NonprofitFooter';
@@ -10,11 +10,12 @@ import { onboardingPending } from '../lib/nonprofitOnboarding';
 
 
 // Note 31: colours are the «عنوان» brand tokens (onwan-brand.html).
-// Note 06: two real screens take turns in the same spot — the association's
-// page, its card in Apple Wallet, then the saved contact — with a slow crossfade and a slight
+// The association page, media, Apple Wallet and saved contact rotate
+// in the same spot with a slow crossfade and a slight
 // settle, never moving the frame itself. Each has its own two captions.
 const SLIDES = [
   { src: '/nonprofit/phone-page.webp', alt: 'صفحة جمعية على «عنوان» في الجوال: الشعار والتعريف وأزرار التواصل والوثائق', top: { icon: BadgeCheck, text: 'وثائقكم الرسمية\nفي صفحتكم' }, bottom: { icon: Link2, text: 'رابط واحد\nلكل شيء' } },
+  { src: '/nonprofit/phone-media-transparent.png', alt: 'صفحة عنوان تعرض مقاطع الفيديو والصور وروابط المبادرات', top: { icon: Images, text: 'مقاطعكم وصوركم\nفي صفحة واحدة' }, bottom: { icon: Megaphone, text: 'عرّفوا بمبادراتكم\nوقرّبوا أثركم' } },
   { src: '/nonprofit/phone-wallet.webp', alt: 'بطاقة الجمعية في محفظة Apple Wallet مع رمز QR يفتح الصفحة', top: { icon: Wallet, text: 'في كل وقت معك\nمعلومات الجمعية' }, bottom: { icon: QrCode, text: 'رمز QR\nيفتح صفحتكم' } },
   { src: '/nonprofit/phone-contact.webp', alt: 'زر حفظ جهة الاتصال في صفحة الجمعية، وبطاقة الجمعية محفوظة في جهات اتصال الآيفون بالجوال والبريد والرابط', top: { icon: UserPlus, text: 'حفظ جهة الاتصال\nبضغطة واحدة' }, bottom: { icon: History, text: 'بياناتكم في جوالهم\nلسنوات' } },
 ];
@@ -92,7 +93,15 @@ export default function NonprofitLanding() {
             <p className="mt-6 border-t border-[#E7E7E7] pt-4 text-sm text-[#737373]">لديكم حساب؟ <Link to={nonprofitPath('login')} className="inline-flex min-h-11 items-center font-bold text-[#111111] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4">دخول بوابة الجمعية</Link></p>
           )}
         </div>
-        <Scene />
+        <div className="flex flex-col items-center gap-6 pb-4">
+          <Scene />
+          <div className="relative isolate mx-6 w-[calc(100%_-_3rem)] max-w-[25rem] py-3">
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-8 inset-y-1 -z-10 rounded-full bg-[#FF6B2C]/[0.08] blur-xl" />
+            <p className="whitespace-nowrap text-center text-[clamp(10px,2.65vw,14px)] font-medium leading-8 text-[#111111]">
+              عام من الحضور وأثر يصل أبعد بقيمة <span className="relative inline-block font-bold text-[#FF6B2C] after:absolute after:inset-x-0 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-[#FF6B2C]/25">243 ريال</span> في السنة
+            </p>
+          </div>
+        </div>
       </main>
       <NonprofitFooter />
     </div>

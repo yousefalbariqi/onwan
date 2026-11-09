@@ -1,6 +1,6 @@
 import '../../styles/nonprofit-quote.css';
 import { useEffect, useRef, useState } from 'react';
-import { Link, Navigate } from 'react-router';
+import { Link, Navigate, useNavigate } from 'react-router';
 import AuthModal from '../components/AuthModal';
 import { EmailVerifyChip } from '../components/EmailVerifyChip';
 import { NonprofitBuilderPage } from './NonprofitBuilder';
@@ -65,7 +65,8 @@ export function NonprofitBuilder() {
   return <NonprofitBuilderPage gate={NonprofitGate} />;
 }
 export function NonprofitQuote() {
-  const { pageData, account, save, saving } = usePageContext();
+  const navigate = useNavigate();
+  const { pageData, account, save, saving, getRevision, hasPendingChanges } = usePageContext();
   const [request, setRequest] = useState<any>(null);
   const [checking, setChecking] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -91,8 +92,10 @@ export function NonprofitQuote() {
     sending.current = true; setBusy(true); setError('');
     try {
       await save();
-      const r = await nonprofitCall({ action: 'submit', ...form, customDomain: wantsDomain ? domain.trim() : '' });
+      if (hasPendingChanges()) throw new Error('لديك تعديلات أحدث؛ احفظها قبل إرسال الطلب.');
+      const r = await nonprofitCall({ action: 'submit', revision: getRevision(), ...form, customDomain: wantsDomain ? domain.trim() : '' });
       setRequest(r.request);
+      navigate(nonprofitPath('builder'), { replace: true, state: { quoteReceived: { requestNumber: r.request?.request_number } } });
     } catch (e) { setError(e instanceof Error ? e.message : 'تعذر إرسال الطلب.'); }
     finally { sending.current = false; setBusy(false); }
   };

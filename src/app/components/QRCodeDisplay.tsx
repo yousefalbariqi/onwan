@@ -1,30 +1,29 @@
 import { useEffect, useState } from 'react';
-import { Copy, Download, Share2, WalletCards, ContactRound } from 'lucide-react';
+import { Copy, Download, Share2, WalletCards, ContactRound, QrCode } from 'lucide-react';
 import QRCode from 'qrcode';
 import { usePageContext } from '../context/PageContext';
 import { pageUrl, pageHost } from '../lib/site';
 import { downloadVCard } from '../lib/vcard';
-import { requestWalletPassLink } from '../lib/api';
-import { prepareWalletArtwork, renderWalletBanner } from '../lib/walletArtwork';
-import { walletPaletteFromHex } from '../../../shared/walletPalette';
-import { OnwanLogo } from './OnwanLogo';
+import { requestWalletPassLink, requestGoogleWalletLink } from '../lib/api';
+import { prepareWalletArtwork } from '../lib/walletArtwork';
+import { Group, SettingsRow } from './ios';
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from './ui/dialog';
 
 export function SharingPanel({ username }: { username: string }) {
   const { pageData, account } = usePageContext();
+  const [contactBusy, setContactBusy] = useState(false);
   const [color, setColor] = useState('#111111');
   const [transparent, setTransparent] = useState(false);
   const [cardColor, setCardColor] = useState(() => pageData.extractedColors?.find(color => /^#[0-9a-f]{6}$/i.test(color)) || (/^#[0-9a-f]{6}$/i.test(pageData.theme.buttonColor) ? pageData.theme.buttonColor : '#ff6b2c'));
-  const [shortName, setShortName] = useState('');
-  const [logoOverride, setLogoOverride] = useState<string | null>(null);
-  const cardName = shortName.trim() || pageData.name || username;
-  const cardLogo = logoOverride ?? pageData.profileImage;
+  const cardName = pageData.name || username;
+  const cardLogo = pageData.profileImage;
   const [qr, setQr] = useState('');
-  const [cardQr, setCardQr] = useState('');
   const [walletUrl, setWalletUrl] = useState('');
   const [walletError, setWalletError] = useState('');
   const [preparing, setPreparing] = useState(false);
-  const [bannerImage, setBannerImage] = useState('');
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleError, setGoogleError] = useState('');
+  const [googleUrl, setGoogleUrl] = useState('');
   const [notice, setNotice] = useState('');
   const url = pageUrl(username);
   const published = account?.pageStatus === 'published';
@@ -36,18 +35,7 @@ export function SharingPanel({ username }: { username: string }) {
       .then(value => { if (alive) setQr(value); }).catch(() => { if (alive) setNotice('تعذر إنشاء الباركود. حاول مجددًا.'); });
     return () => { alive = false; };
   }, [url, color, transparent]);
-  useEffect(() => {
-    let alive = true;
-    QRCode.toDataURL(url, { width: 240, margin: 4 }).then(value => { if (alive) setCardQr(value); }).catch(() => {});
-    return () => { alive = false; };
-  }, [url]);
-  useEffect(() => {
-    setWalletUrl(''); setWalletError('');
-    let alive = true;
-    setBannerImage('');
-    renderWalletBanner(cardName, cardColor).then(value => { if (alive) setBannerImage(value); }).catch(() => {});
-    return () => { alive = false; };
-  }, [cardColor, cardName, cardLogo, username]);
+  useEffect(() => { setWalletUrl(''); setWalletError(''); }, [cardColor, cardName, cardLogo, username]);
   const prepareCard = async () => {
     setPreparing(true); setWalletError('');
     try {
@@ -63,50 +51,69 @@ export function SharingPanel({ username }: { username: string }) {
     try { await navigator.clipboard.writeText(url); setNotice('تم نسخ الرابط'); }
     catch { setNotice('تعذر النسخ؛ يمكنك نسخ الرابط من الحقل.'); }
   };
-  const palette = walletPaletteFromHex(cardColor);
-  return <div dir="rtl" className="space-y-5 p-5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-    {!published && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">الرابط والباركود يعملان للزوار بعد نشر الصفحة.</p>}
-    <section className="space-y-3 rounded-2xl bg-white p-4">
-      <h3 className="font-bold">رابط الصفحة</h3>
-      <input aria-label="رابط الصفحة" readOnly value={url} dir="ltr" onFocus={event => event.target.select()} className="min-h-11 w-full rounded-xl border border-gray-200 px-3 text-sm" />
-      <div className="flex flex-wrap gap-2"><button type="button" onClick={copy} className={action}><Copy size={16} />نسخ الرابط</button>
-      {typeof navigator.share === 'function' && <button type="button" className={action} onClick={() => navigator.share({ title: pageData.name, url }).catch(error => { if (error.name !== 'AbortError') setNotice('تعذرت المشاركة. انسخ الرابط وحاول مجددًا.'); })}><Share2 size={16} />مشاركة الرابط</button>}</div>
-    </section>
-    <section className="space-y-4 rounded-2xl bg-white p-4">
-      <h3 className="font-bold">الباركود</h3>
-      <div className="mx-auto flex h-52 w-52 items-center justify-center rounded-xl border border-gray-100 bg-[#f5f5f7]">{qr && <img src={qr} alt={`باركود ${pageHost(username)}`} className="h-48 w-48" />}</div>
-      <label className="flex items-center justify-between gap-3 text-sm">لون الباركود<input type="color" aria-label="لون الباركود" value={color} onChange={event => setColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={transparent} onChange={event => setTransparent(event.target.checked)} />تحميل بدون خلفية</label>
-      <p className="text-xs text-gray-500">اختر لونًا داكنًا، وضع الباركود على خلفية فاتحة ليسهل مسحه.</p>
-      <a aria-disabled={!qr} href={qr || undefined} download={`onwan-${username}-qr${transparent ? '-transparent' : ''}.png`} className={`${action} ${!qr ? 'pointer-events-none opacity-40' : ''}`}><Download size={16} />تحميل الباركود PNG</a>
-    </section>
-    <section className="space-y-4 rounded-2xl bg-white p-4">
-      <h3 className="font-bold">بطاقة المحفظة</h3>
-      <p className="text-sm text-gray-500">اختر لون بطاقتك المميز، ثم أضفها إلى المحفظة.</p>
-      <div className="overflow-hidden rounded-[22px] border border-black/5 text-[#1c1e1d] shadow-[0_12px_30px_-16px_rgba(0,0,0,0.3)]" style={{ backgroundColor: palette.backgroundColor }}>
-        <div dir="ltr" className="flex items-center justify-between gap-3 px-4 py-3">{cardLogo ? <img src={cardLogo} alt="شعار الصفحة" className="h-12 w-28 object-contain" /> : <OnwanLogo className="shrink-0 scale-75 origin-left" />}<div className="min-w-0 text-left"><span className="block text-xs text-[#454d47]">الرابط</span><span dir="ltr" className="block break-all text-xs font-semibold">{pageHost(username)}</span></div></div>
-        {bannerImage ? <img src={bannerImage} alt={`بطاقة تعريفية — ${cardName}`} className="block w-full" /> : <div className="h-28" style={{ backgroundColor: palette.stripColor }} />}
-        <div className="flex flex-col items-center px-5 pb-5 pt-4">{cardQr && <img src={cardQr} alt="باركود البطاقة" className="aspect-square w-48 max-w-full" />}<p className="mt-2 text-xs text-[#454d47]">امسح لفتح الصفحة</p></div>
+  return <div dir="rtl" className="space-y-6 p-5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+    {!published && <p className="px-1 text-xs leading-6 text-[#737373]">يمكنك تجهيز أدوات المشاركة الآن. {account?.pageStatus === 'suspended' ? 'الصفحة موقوفة حاليًا.' : 'يفتح الرابط للزوار بعد تفعيل الصفحة.'}</p>}
+    <Group title="رابط الصفحة">
+      <div className="flex min-h-14 items-center gap-2 px-4 py-2">
+        <input aria-label="رابط الصفحة" readOnly value={url} dir="ltr" onFocus={event => event.target.select()} className="min-h-11 min-w-0 flex-1 bg-transparent text-left text-sm text-[#1d1d1f] focus:outline-none" />
+        {typeof navigator.share === 'function' && <button type="button" onClick={copy} aria-label="نسخ الرابط" title="نسخ الرابط" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#0a84ff] hover:bg-black/5"><Copy size={18} /></button>}
       </div>
-      <details className="rounded-xl border border-gray-200 p-3"><summary className="cursor-pointer text-sm font-bold">تخصيص الاسم والشعار</summary><div className="mt-4 space-y-4"><label className="block space-y-2 text-sm"><span>الاسم المختصر على البطاقة (اختياري)</span><input value={shortName} disabled={preparing} maxLength={160} placeholder={pageData.name} onChange={event => setShortName(event.target.value)} className="min-h-11 w-full rounded-xl border border-gray-200 px-3" /></label>
-      <label className="block space-y-2 text-sm"><span>شعار البطاقة</span><input type="file" disabled={preparing} accept="image/png,image/jpeg,image/webp,image/gif" className="block w-full text-xs" onChange={event => {
-        const file = event.target.files?.[0]; if (!file) return;
-        if (file.size > 5_000_000) { setWalletError('اختر شعارًا أصغر من 5MB.'); return; }
-        const reader = new FileReader();
-        reader.onload = () => { setLogoOverride(String(reader.result)); setWalletError(''); };
-        reader.onerror = () => setWalletError('تعذرت قراءة الشعار.');
-        reader.readAsDataURL(file);
-      }} /></label>
-      <p className="text-xs text-gray-500">اختر شعار الجمعية إن كانت صورة الصفحة شخصية. هذا الاختيار يخص البطاقة فقط.</p></div></details>
-      <label className="flex items-center justify-between text-sm">اللون المميز للبطاقة<input type="color" aria-label="لون البطاقة" disabled={preparing} value={cardColor} onChange={event => setCardColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
-      <p className="text-xs text-gray-500">معاينة تقريبية للبطاقة. اختر لون هويتك، ثم أضفها إلى المحفظة.</p>
-      {walletUrl ? <a href={walletUrl} className={action}><WalletCards size={18} />إضافة إلى Apple Wallet</a> : <button type="button" disabled={preparing} onClick={prepareCard} className={`w-full ${action}`}>{preparing ? 'جارٍ تجهيز بطاقتك…' : walletError ? 'إعادة المحاولة' : 'إضافة إلى Apple Wallet'}</button>}
-      {walletError && <p role="status" className="text-sm text-red-700">{walletError}</p>}
-      <button type="button" disabled className={`w-full ${action}`}>Google Wallet — قريبًا</button>
-      <p className="text-xs text-gray-500">الإضافة إلى Google Wallet غير متاحة حاليًا.</p>
-      <button type="button" onClick={() => downloadVCard(pageData)} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gray-200 text-sm font-bold"><ContactRound size={18} />حفظ جهة الاتصال</button>
-    </section>
-    <p role="status" aria-live="polite" className="text-sm text-gray-600">{notice}</p>
+      <div className="px-4 pb-4"><button type="button" className={`w-full ${action}`} onClick={() => {
+        if (typeof navigator.share !== 'function') { void copy(); return; }
+        navigator.share({ title: pageData.name, url }).catch(error => { if (error.name !== 'AbortError') setNotice('تعذرت المشاركة. انسخ الرابط وحاول مجددًا.'); });
+      }}>{typeof navigator.share === 'function' ? <><Share2 size={17} />مشاركة الرابط</> : <><Copy size={17} />نسخ الرابط</>}</button></div>
+    </Group>
+
+    <Group title="رمز QR">
+      <div className="flex items-center gap-4 px-4 py-3">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#ececec] bg-white">{qr ? <img src={qr} alt={`رمز QR لصفحة ${pageHost(username)}`} className="h-20 w-20" /> : <QrCode aria-hidden="true" size={32} className="text-[#c7c7cc]" />}</div>
+        <div className="min-w-0 flex-1"><p className="text-sm text-[#1d1d1f]">امسحه لفتح صفحتك</p><a aria-disabled={!qr} href={qr || undefined} download={`onwan-${username}-qr${transparent ? '-transparent' : ''}.png`} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-[#0a84ff] ${!qr ? 'pointer-events-none opacity-40' : ''}`}><Download size={16} />تحميل PNG</a></div>
+      </div>
+      <details className="px-4 py-3"><summary className="cursor-pointer text-sm text-[#6e6e73]">تخصيص رمز QR</summary><div className="mt-4 space-y-4">
+        <label className="flex items-center justify-between gap-3 text-sm">اللون<input type="color" aria-label="لون الباركود" value={color} onChange={event => setColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
+        <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={transparent} onChange={event => setTransparent(event.target.checked)} />تحميل بدون خلفية</label>
+        <p className="text-xs leading-6 text-[#737373]">استخدم لونًا داكنًا على خلفية فاتحة ليسهل مسحه.</p>
+      </div></details>
+    </Group>
+
+    <Group title="Apple Wallet">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[#111] text-white"><WalletCards size={18} /></span>
+        <div className="min-w-0 flex-1"><p className="text-sm text-[#1d1d1f]">بطاقتك على الجوال</p><p className="mt-0.5 text-xs text-[#737373]">أضفها من iPhone</p></div>
+        {walletUrl ? <a href={walletUrl} className="shrink-0 p-1.5" aria-label="إضافة إلى Apple Wallet"><img src="/apple-wallet-add-en.png" alt="Add to Apple Wallet" className="h-12 w-auto" /></a> : <button type="button" disabled={preparing} onClick={prepareCard} aria-label={walletError ? 'إعادة محاولة الإضافة إلى Apple Wallet' : 'إضافة إلى Apple Wallet'} aria-busy={preparing} className="shrink-0 p-1.5 disabled:cursor-wait"><img src="/apple-wallet-add-en.png" alt="Add to Apple Wallet" className="h-12 w-auto" /></button>}
+      </div>
+      {preparing && <p role="status" className="px-4 pb-3 text-sm text-[#737373]">جارٍ تجهيز البطاقة…</p>}
+      {walletError && <p role="alert" className="px-4 pb-3 text-sm text-red-700">{walletError}</p>}
+      <details className="px-4 py-3"><summary className="cursor-pointer text-sm text-[#6e6e73]">تخصيص البطاقة</summary>
+        <label className="mt-4 flex items-center justify-between text-sm">لون البطاقة<input type="color" aria-label="لون البطاقة" disabled={preparing} value={cardColor} onChange={event => setCardColor(event.target.value)} className="h-10 w-12 cursor-pointer" /></label>
+      </details>
+    </Group>
+
+    <Group title="Google Wallet">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[#f2f2f7] text-[#6e6e73]"><WalletCards size={18} /></span>
+        <div className="min-w-0 flex-1"><p className="text-sm text-[#1d1d1f]">بطاقتك على Android</p><p className="mt-0.5 text-xs text-[#737373]">متاحة الآن</p></div>
+        <button type="button" disabled={googleBusy} aria-label="إضافة إلى Google Wallet" className="shrink-0 p-2 disabled:opacity-40" onClick={async () => {
+          if (googleBusy) return;
+          setGoogleBusy(true); setGoogleError(''); setGoogleUrl('');
+          try { const link = await requestGoogleWalletLink(cardColor); setGoogleUrl(link); window.location.assign(link); }
+          catch (error) { setGoogleError(error instanceof Error ? error.message : 'تعذر تجهيز البطاقة.'); }
+          finally { setGoogleBusy(false); }
+        }}><img src="/google-wallet-add-ar.svg" alt="إضافة إلى Google Wallet" className="h-12 w-auto max-w-[180px]" /></button>
+      </div>
+    </Group>
+
+    {googleBusy && <p role="status" className="px-4 text-sm text-[#737373]">جارٍ تجهيز البطاقة…</p>}
+    {googleError && <p role="alert" className="px-4 text-sm text-red-700">{googleError}</p>}
+    {googleUrl && <a href={googleUrl} className="block px-4 text-sm text-[#0a84ff]">متابعة الإضافة إلى Google Wallet</a>}
+    <Group title="جهة الاتصال">
+      <SettingsRow icon={ContactRound} tone="bg-[#5856d6]" label={contactBusy ? 'جارٍ تجهيز جهة الاتصال…' : 'حفظ جهة الاتصال'} onClick={() => {
+        if (contactBusy) return;
+        setContactBusy(true);
+        void downloadVCard(pageData).catch(() => setNotice('تعذر حفظ جهة الاتصال. حاول مجددًا.')).finally(() => setContactBusy(false));
+      }} />
+    </Group>
+    {notice && <p role="status" aria-live="polite" className="px-1 text-sm text-[#6e6e73]">{notice}</p>}
   </div>;
 }
 

@@ -1,3 +1,4 @@
+import { FloatingWhatsApp } from './components/FloatingWhatsApp';
 import { NonprofitAuth, NonprofitBuilder, NonprofitQuote, NonprofitGate } from './pages/NonprofitPortal';
 import { NonprofitOnboarding } from './pages/NonprofitOnboarding';
 import PartnerOrderEditor from './partner/PartnerOrderEditor';
@@ -106,7 +107,7 @@ export const router = createBrowserRouter(isAdminHost() ? [
     { path: '*', element: <Navigate to="/" replace /> },
   ] },
 ] : isNonprofitHost() ? [
-  { path: '/', element: <PageProvider><Outlet /></PageProvider>, errorElement: <ErrorBoundary />, children: [
+  { path: '/', element: <PageProvider><Outlet /><FloatingWhatsApp /></PageProvider>, errorElement: <ErrorBoundary />, children: [
     { index: true, element: <NonprofitLanding /> },
     { path: 'signup', element: <NonprofitAuth mode="signup" /> },
     { path: 'login', element: <NonprofitAuth mode="login" /> },
@@ -130,6 +131,7 @@ export const router = createBrowserRouter(isAdminHost() ? [
     element: (
       <PageProvider>
         <Outlet />
+        <FloatingWhatsApp />
       </PageProvider>
     ),
     children: [

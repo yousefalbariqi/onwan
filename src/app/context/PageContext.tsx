@@ -1,3 +1,4 @@
+import { editTextFormat, type TextFormat } from '../../../shared/textFormatting';
 import { arrangeSections, moveSectionItem, reorderSectionItem, saveSectionItem } from '../../../shared/linkSections';
 import { expandPageData, slimPageData } from '../../../shared/pageTransfer';
 import { moveInlineMedia } from '../lib/mediaUpload';
@@ -5,9 +6,11 @@ import { withWallpaperTint } from '../lib/wallpaperTint';
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
 import { Account, ApiError, fetchMyPage, saveMyDraft, saveMyPage } from '../lib/api';
 import { DRAFT_STORAGE_KEY, HISTORY_STORAGE_PREFIX, SESSION_CLEARED_EVENT, clearLocalAccountData, clearSessionToken, getSessionToken, sessionOwner } from '../lib/session';
+import { readRecovery, writeRecovery } from '../lib/draftRecovery';
 import { MAX_LINKS } from '../lib/site';
 
 export interface LinkDisplay {
+  bodyFormat?: TextFormat;
   kind?: 'heading' | 'video' | 'text' | 'document';
   // Note 37: a video's own title and YouTube link, above or below it (unset = hidden).
   caption?: 'above' | 'below';
@@ -86,6 +89,7 @@ export const FONT_OPTIONS = [
 export type FontId = (typeof FONT_OPTIONS)[number]['id'];
 
 export interface PageData {
+  editorForm?: any;
   username: string;
   profileImage: string;
   name: string;
@@ -144,6 +148,7 @@ export interface PageData {
     zoom?: number;
   };
   typography?: {
+    bioFormat?: TextFormat;
     font?: FontId;
     size?: 'small' | 'medium' | 'large';
     nameSize?: 'small' | 'medium' | 'large';
@@ -192,6 +197,12 @@ interface PageContextType {
   // REQ-015: the unpublished draft kept on the server ('limit' = daily cap reached).
   draftState: 'idle' | 'saving' | 'saved' | 'error' | 'limit';
   save: () => Promise<void>;
+  saveDraft: () => Promise<void>;
+  conflict: boolean;
+  localBackupError: boolean;
+  getRevision: () => number | null;
+  hasPendingChanges: () => boolean;
+  recoverServerVersion: () => Promise<void>;
   logout: () => void;
   resetDesign: () => void;
   // Ready-made templates: the whole design at once; content is never touched.
@@ -539,10 +550,108 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   const [draftState, setDraftState] = useState<'idle' | 'saving' | 'saved' | 'error' | 'limit'>('idle');
   // Whose page is in memory: the guest, or the account it was loaded for.
   const draftOwner = useRef(source ? 'staff' : sessionOwner());
+  const hydratedOwner = useRef<string | null>(null);
+  const revision = useRef<number | null>(null);
+  const [revisionTick, setRevisionTick] = useState(0);
+  const [retryTick, setRetryTick] = useState(0);
+  const [hydrateTick, setHydrateTick] = useState(0);
+  const retryDelay = useRef(5000);
+  const recoveryKey = useRef('');
+  const previousRecoveryKey = useRef('');
+  const recoverySequence = useRef(0);
+  if (!recoveryKey.current && typeof window !== 'undefined') {
+    try {
+      // A duplicated tab inherits sessionStorage. Give this document a new
+      // backup key while retaining the previous key solely for restoration.
+      previousRecoveryKey.current = sessionStorage.getItem('onwan_editor_tab') || '';
+      const key = crypto.randomUUID(); sessionStorage.setItem('onwan_editor_tab', key); recoveryKey.current = key;
+      const sequence = Number(sessionStorage.getItem('onwan_editor_sequence'));
+      recoverySequence.current = Number.isSafeInteger(sequence) && sequence >= 0 ? sequence : 0;
+    } catch { recoveryKey.current = crypto.randomUUID(); }
+  }
+  const [conflict, setConflict] = useState(false);
+  const [localBackupError, setLocalBackupError] = useState(false);
+  const conflictRef = useRef(false);
+  const serverQueue = useRef<Promise<any>>(Promise.resolve());
+  const pendingRequest = useRef<{ draft: boolean; data: any; revision: number; id: string } | null>(null);
+  const publishedGeneration = useRef(0);
+  const lastDraft = useRef('');
+  const sendMutation = useCallback((draft: boolean, data: any, skip?: () => boolean) => {
+    const owner = sessionOwner();
+    const run = async () => {
+      if (owner !== sessionOwner()) throw new Error('تغير الحساب؛ لم يُرسل الطلب.');
+      if (skip?.()) return null;
+      if (revision.current === null && !conflictRef.current) {
+        const latest = await fetchMyPage();
+        if (JSON.stringify(mergeWithDefaults(latest.pageData)) !== JSON.stringify(savedRef.current)) { conflictRef.current = true; setConflict(true); }
+        else revision.current = latest.revision;
+      }
+      if (conflictRef.current || revision.current === null) throw new ApiError('توجد نسخة أحدث. راجع التعارض قبل الحفظ؛ تعديلاتك باقية محليًا.', 409, 'page_conflict');
+      const send = async (request: NonNullable<typeof pendingRequest.current>) => {
+        const response = request.draft
+          ? await saveMyDraft(request.data, request.revision, request.id)
+          : await saveMyPage(request.data, request.revision, request.id);
+        if (owner !== sessionOwner()) throw new Error('تغير الحساب أثناء الحفظ.');
+        revision.current = response.revision;
+        setRevisionTick((tick) => tick + 1);
+        pendingRequest.current = null;
+        return response;
+      };
+      try {
+        // A lost response must be retried with the same operation id first.
+        if (pendingRequest.current) {
+          const pending = pendingRequest.current;
+          const response = await send(pending);
+          if (pending.draft === draft && JSON.stringify(pending.data) === JSON.stringify(data)) return response;
+        }
+        const request = { draft, data, revision: revision.current!, id: crypto.randomUUID() };
+        pendingRequest.current = request;
+        return await send(request);
+      } catch (error) {
+        if (error instanceof ApiError && error.code === 'page_conflict') {
+          conflictRef.current = true; setConflict(true);
+        } else if (error instanceof ApiError) pendingRequest.current = null;
+        throw error;
+      }
+    };
+    const queued = serverQueue.current.catch(() => undefined).then(run);
+    serverQueue.current = queued;
+    return queued;
+  }, []);
+  useEffect(() => {
+    if (source || loadingPage || hydratedOwner.current !== sessionOwner() || draftOwner.current !== sessionOwner()) return;
+    let cancelled = false;
+    const sequence = ++recoverySequence.current;
+    try { sessionStorage.setItem('onwan_editor_sequence', String(sequence)); } catch { /* The IndexedDB sequence still protects ordered writes in this session. */ }
+    const record = { owner: sessionOwner(), data: pageData, revision: revision.current, savedAt: Date.now(), sequence, tabId: recoveryKey.current };
+    writeRecovery(record, `${record.owner}:${recoveryKey.current}`).then(() => { if (!cancelled) setLocalBackupError(false); }).catch(() => { if (!cancelled) setLocalBackupError(true); });
+    return () => { cancelled = true; };
+  }, [pageData, source, loadingPage, revisionTick]);
+  const recoverServerVersion = useCallback(async () => {
+    // Explicit user choice; retain a recoverable copy before accepting server data.
+    await writeRecovery({ owner: sessionOwner(), data: pageDataRef.current, revision: revision.current, savedAt: Date.now() }, `${sessionOwner()}:conflict:${Date.now()}`);
+    await serverQueue.current.catch(() => undefined);
+    const response = await fetchMyPage();
+    let recoveredRevision = response.revision;
+    if (response.draft?.conflict) {
+      await writeRecovery({ owner: sessionOwner(), data: response.draft.pageData, revision: response.revision, savedAt: Date.now() }, `${sessionOwner()}:server-conflict:${Date.now()}`);
+      const cleared = await saveMyDraft(null, response.revision, crypto.randomUUID());
+      recoveredRevision = cleared.revision;
+    }
+    revision.current = recoveredRevision;
+    pendingRequest.current = null;
+    conflictRef.current = false; setConflict(false);
+    const loaded = mergeWithDefaults(response.pageData);
+    const draft = response.draft?.pageData && !response.draft.conflict ? mergeWithDefaults(response.draft.pageData) : null;
+    setPageData(draft ?? loaded); setSavedPageData(loaded); setAccount(response.account);
+    setIsDirty(Boolean(draft)); setDraftState(draft ? 'saved' : 'idle');
+    lastDraft.current = JSON.stringify(draft);
+  }, []);
+
 
   useEffect(() => {
     // Someone else's page must never land in this browser's own draft.
-    if (typeof window === 'undefined' || source) {
+    if (typeof window === 'undefined' || source || loadingPage || hydratedOwner.current !== sessionOwner()) {
       return;
     }
 
@@ -552,9 +661,10 @@ export function PageProvider({ children, source }: { children: ReactNode; source
       // Never file one account's page under another session (or the guest).
       if (draftOwner.current !== sessionOwner()) return;
       try {
-        const record = JSON.stringify({ owner: draftOwner.current, data: pageData });
+        const record = JSON.stringify({ owner: draftOwner.current, data: pageData, revision: revision.current, savedAt: Date.now(), sequence: recoverySequence.current, tabId: recoveryKey.current });
         if (draftOwner.current === 'guest') sessionStorage.setItem(guestDraftKey(), record);
         else localStorage.setItem(LOCAL_STORAGE_KEY, record);
+        setLocalBackupError(false);
       } catch (error) {
         // Uploaded images can exceed the localStorage quota; the draft still
         // lives in memory until it is saved.
@@ -562,12 +672,13 @@ export function PageProvider({ children, source }: { children: ReactNode; source
       }
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [pageData, source]);
+  }, [pageData, source, loadingPage, revisionTick]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function hydrateFromApi() {
+      setLoadingPage(true);
       if (source) {
         try {
           const response = await source.load();
@@ -588,41 +699,56 @@ export function PageProvider({ children, source }: { children: ReactNode; source
       const token = getSessionToken();
 
       if (!token) {
+        hydratedOwner.current = 'guest';
         setLoadingPage(false);
         return;
       }
 
       try {
         const response = await fetchMyPage();
+        const recovery = await readRecovery(`${sessionOwner()}:${previousRecoveryKey.current || recoveryKey.current}`).catch(() => null);
 
         if (!cancelled && response.pageData) {
           draftOwner.current = sessionOwner();
+          hydratedOwner.current = sessionOwner();
           const loaded = mergeWithDefaults(response.pageData);
           // REQ-015: unpublished edits saved earlier (from any device) come back.
           // Critical note (4): if they never reached the server (offline, closed
           // within seconds, drafts not enabled yet), this browser's own copy of
           // the same account is used — edits are never replaced by the old page,
           // whether or not the email is confirmed yet.
-          const local = draftOwner.current === sessionOwner() && pageDataRef.current !== defaultPageData
+          let local = draftOwner.current === sessionOwner() && pageDataRef.current !== defaultPageData
             && JSON.stringify({ ...pageDataRef.current, username: '' }) !== JSON.stringify({ ...loaded, username: '' })
             ? mergeWithDefaults({ ...pageDataRef.current, username: loaded.username })
             : null;
-          const draft = response.draft?.pageData ? mergeWithDefaults({ ...response.draft.pageData, username: loaded.username }) : local;
+          let stored = (() => { try { return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || 'null'); } catch { return null; } })();
+          if (recovery?.owner === sessionOwner() && (stored?.tabId !== previousRecoveryKey.current || (recovery.sequence ?? 0) >= (stored?.sequence ?? 0))) { stored = recovery; local = mergeWithDefaults({ ...recovery.data, username: loaded.username }); }
+          const storedSequence = Number(stored?.sequence);
+          if (Number.isSafeInteger(storedSequence) && storedSequence >= 0) recoverySequence.current = Math.max(recoverySequence.current, storedSequence);
+          previousRecoveryKey.current = recoveryKey.current;
+          const serverDraft = response.draft?.pageData ? mergeWithDefaults({ ...response.draft.pageData, username: loaded.username }) : null;
+          if (!local && stored?.owner === sessionOwner() && stored?.revision === response.revision) local = mergeWithDefaults({ ...stored.data, username: loaded.username });
+          if (local && JSON.stringify(local) === JSON.stringify(loaded) && stored?.revision !== response.revision) local = null;
+          const differs = local && JSON.stringify(local) !== JSON.stringify(serverDraft ?? loaded);
+          const hasConflict = Boolean(response.draft?.conflict || (differs && stored?.revision !== response.revision));
+          revision.current = response.revision;
+          conflictRef.current = hasConflict; setConflict(hasConflict);
+          const draft = local && differs ? local : serverDraft;
+          lastDraft.current = JSON.stringify(serverDraft);
           setPageData(draft ?? loaded);
           setSavedPageData(loaded);
           setSavedHistory(readHistory(sessionOwner()));
           setAccount(response.account);
           setIsDirty(Boolean(draft));
-          setDraftState(draft ? 'saved' : 'idle');
+          setDraftState(draft && !differs ? 'saved' : 'idle');
           setIsAuthenticated(true);
         }
       } catch (error) {
         console.error('Failed to hydrate page data:', error);
-        clearSessionToken();
-
-        if (!cancelled) {
-          setIsAuthenticated(false);
-        }
+        if (error instanceof ApiError && (error.status === 401 || error.code === 'banned')) {
+          clearSessionToken();
+          if (!cancelled) setIsAuthenticated(false);
+        } else if (!cancelled) setDraftState('error');
       } finally {
         if (!cancelled) {
           setLoadingPage(false);
@@ -635,11 +761,11 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     return () => {
       cancelled = true;
     };
-  }, [source]);
+  }, [source, isAuthenticated, hydrateTick]);
 
   useEffect(() => {
     // A draft already on the server is safe; warn only for edits not yet kept.
-    if (!isDirty || draftState === 'saved') {
+    if (!isDirty || (draftState === 'saved' && !conflict)) {
       return;
     }
 
@@ -650,7 +776,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
 
     window.addEventListener('beforeunload', warnBeforeLeaving);
     return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
-  }, [isDirty, draftState]);
+  }, [isDirty, draftState, conflict]);
 
   // Every editor change goes through here so the draft is marked unsaved.
   // Undo / redo over editor changes. Saving does not clear it; loading a
@@ -678,7 +804,8 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   // A draft equals the server copy only when it is that very object.
   const show = useCallback((data: PageData) => {
     setPageData(data);
-    setIsDirty(data !== savedRef.current);
+    setIsDirty(JSON.stringify(data) !== JSON.stringify(savedRef.current));
+    setDraftState('idle');
   }, []);
 
   const undo = useCallback(() => {
@@ -704,6 +831,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     pushHistory();
     setPageData(updater);
     setIsDirty(true);
+    setDraftState(current => current === 'limit' ? 'limit' : 'idle');
   }, [pushHistory]);
 
   // Another account takes the screen (login, signup, set password): every
@@ -711,6 +839,10 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   // (note 74). The new account's own versions are read back.
   const replacePageData = useCallback((nextPageData: PageData) => {
     draftOwner.current = sessionOwner();
+    hydratedOwner.current = null;
+    setHydrateTick(tick => tick + 1);
+    setLoadingPage(true);
+    revision.current = null; pendingRequest.current = null; lastDraft.current = ''; conflictRef.current = false; setConflict(false);
     past.current = [];
     future.current = [];
     setHistoryTick((tick) => tick + 1);
@@ -736,10 +868,12 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   historyRef.current = savedHistory;
 
   const save = useCallback(() => {
-    if (inFlight.current) return inFlight.current;
+    if (inFlight.current) return inFlight.current.then(() => { if (pageDataRef.current !== savedRef.current) throw new Error('لديك تعديلات أحدث لم تشملها العملية السابقة. أعد النشر لاعتمادها.'); });
+    publishedGeneration.current++;
     const sent = pageDataRef.current;
+    if (sent.editorForm) return Promise.reject(new Error('أكمل العنصر واضغط تطبيقه، أو احتفظ به كمسودة قبل النشر.'));
     const previous = savedRef.current;
-    if (previous && sent === previous) return Promise.resolve();
+    if (previous && JSON.stringify(sent) === JSON.stringify(previous)) { setIsDirty(false); return Promise.resolve(); }
 
     const run = async () => {
       setSaving(true);
@@ -753,7 +887,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
           // unchanged since the last save are not sent again (note 28).
           const prepared = await moveInlineMedia(await withWallpaperTint(sent));
           const body = slimPageData(prepared, previous);
-          const response = await saveMyPage(body);
+          const response = await sendMutation(false, body) as { pageData: any; account: Account; revision: number };
           const expanded = expandPageData(response.pageData, prepared);
           savedData = mergeWithDefaults(expanded ?? (await fetchMyPage()).pageData);
           setAccount(response.account);
@@ -772,6 +906,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
 
         savedRef.current = savedData;
         setSavedPageData(savedData);
+        lastDraft.current = '';
         // Edits made while the save was running stay in the draft, unsaved.
         if (pageDataRef.current === sent) {
           setPageData(savedData);
@@ -780,6 +915,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         } else {
           setIsDirty(true);
         }
+      } catch (error) {
+        if (!source) setDraftState(error instanceof ApiError && error.code === 'save_limit' ? 'limit' : 'error');
+        throw error;
       } finally {
         setSaving(false);
         inFlight.current = null;
@@ -788,46 +926,93 @@ export function PageProvider({ children, source }: { children: ReactNode; source
 
     inFlight.current = run();
     return inFlight.current;
-  }, [source]);
+  }, [source, sendMutation]);
+
+  const saveDraft = useCallback(async () => {
+    if (source || !getSessionToken()) throw new Error('سجّل الدخول لحفظ المسودة.');
+    if (inFlight.current) await inFlight.current;
+    publishedGeneration.current++;
+    const sent = pageDataRef.current;
+    setSaving(true); setDraftState('saving');
+    try {
+      const prepared = await moveInlineMedia(sent);
+      const json = JSON.stringify(prepared);
+      if (json !== lastDraft.current || pendingRequest.current) {
+        await sendMutation(true, prepared);
+        lastDraft.current = json;
+      }
+      if (pageDataRef.current !== sent) throw new Error('لديك تغييرات أحدث؛ اضغط حفظ تعديلاتي لحفظها قبل الإغلاق.');
+      setDraftState('saved');
+    } catch (error) {
+      setDraftState(error instanceof ApiError && error.code === 'save_limit' ? 'limit' : 'error');
+      throw error;
+    } finally { setSaving(false); }
+  }, [source, sendMutation]);
+
+  useEffect(() => {
+    const online = () => { retryDelay.current = 5000; setRetryTick(tick => tick + 1); };
+    window.addEventListener('online', online);
+    return () => window.removeEventListener('online', online);
+  }, []);
+  useEffect(() => {
+    if (source || conflict || draftState !== 'error') return;
+    const timer = window.setTimeout(() => { retryDelay.current = Math.min(30000, retryDelay.current * 2); setRetryTick(tick => tick + 1); }, retryDelay.current);
+    return () => window.clearTimeout(timer);
+  }, [source, conflict, draftState, retryTick]);
 
   // REQ-015: unpublished edits are kept on the server by themselves, merged —
   // one save 2.5 s after the editing pauses, never one per change. They stay
   // invisible to visitors until «احفظ تعديلاتي» publishes them. Files go to
   // storage first so the draft stays small.
   useEffect(() => {
-    if (source || !isAuthenticated || !isDirty || draftState === 'limit') return;
+    if (source || loadingPage || conflict || !isAuthenticated || !isDirty || draftState === 'limit') return;
+    const generation = publishedGeneration.current;
     const timer = window.setTimeout(async () => {
       if (inFlight.current) return;
       const sent = pageDataRef.current;
       setDraftState('saving');
       try {
         const prepared = await moveInlineMedia(sent);
-        await saveMyDraft(prepared);
+        const json = JSON.stringify(prepared);
+        if (json !== lastDraft.current) {
+          const response = await sendMutation(true, prepared, () => generation !== publishedGeneration.current || pageDataRef.current !== sent);
+          if (!response) { if (!inFlight.current) setDraftState('idle'); return; }
+          lastDraft.current = json;
+        }
         // Stored files now travel as links; keep that unless the user moved on.
-        if (prepared !== sent && pageDataRef.current === sent) setPageData(prepared);
-        setDraftState('saved');
+        if (prepared !== sent && !sent.editorForm && pageDataRef.current === sent) setPageData(prepared);
+        if (pageDataRef.current === sent || pageDataRef.current === prepared) setDraftState('saved');
       } catch (error) {
         setDraftState(error instanceof ApiError && error.code === 'save_limit' ? 'limit' : 'error');
       }
     }, 2500);
     return () => window.clearTimeout(timer);
-  }, [pageData, isDirty, isAuthenticated, source, draftState === 'limit']); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pageData, isDirty, isAuthenticated, source, loadingPage, conflict, retryTick, draftState === 'limit', sendMutation]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isDirty && savedPageData && JSON.stringify(pageData) === JSON.stringify(savedPageData)) setIsDirty(false);
+  }, [pageData, savedPageData, isDirty]);
 
   // Edits undone back to the published version: the server draft goes too.
   useEffect(() => {
-    if (source || !isAuthenticated || isDirty || draftState !== 'saved') return;
-    saveMyDraft(null).then(() => setDraftState('idle')).catch(() => undefined);
-  }, [isDirty, draftState, isAuthenticated, source]);
+    if (source || loadingPage || conflict || !isAuthenticated || isDirty || !lastDraft.current || lastDraft.current === 'null') return;
+    sendMutation(true, null, () => JSON.stringify(pageDataRef.current) !== JSON.stringify(savedRef.current)).then((response) => {
+      if (response) { lastDraft.current = ''; setDraftState('idle'); }
+    }).catch(() => undefined);
+  }, [isDirty, draftState, isAuthenticated, source, loadingPage, conflict, sendMutation]);
 
   const restoreVersion = useCallback((data: PageData) => {
     pushHistory(true);
     setPageData(mergeWithDefaults(data));
     setIsDirty(true);
+    setDraftState(current => current === 'limit' ? 'limit' : 'idle');
   }, [pushHistory]);
 
   // Drops the account from memory: its page, saved copy, versions and undo steps.
   const forgetAccount = useCallback(() => {
     draftOwner.current = 'guest';
+    hydratedOwner.current = null;
+    revision.current = null; pendingRequest.current = null; conflictRef.current = false; setConflict(false); lastDraft.current = '';
     past.current = [];
     future.current = [];
     setHistoryTick((tick) => tick + 1);
@@ -866,22 +1051,30 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   // PAGE-08: restores the default look only. Content (name, description,
   // logo, contact details, buttons and files) is left untouched.
   const resetDesign = useCallback(() => {
-    edit((prev) => ({ ...prev, ...defaultDesign, customColors: undefined }));
+    edit((prev) => ({ ...prev, ...defaultDesign, typography: { ...defaultDesign.typography, bioFormat: prev.typography?.bioFormat }, customColors: undefined }));
   }, [edit]);
 
   // An uploaded font and banner stay with the page (unused) so nothing is lost.
   const applyDesign = useCallback<PageContextType['applyDesign']>((design) => {
     edit((prev) => mergeWithDefaults({
       ...prev,
-      ...design,
+      theme: design.theme,
+      wallpaper: design.wallpaper,
+      buttonStyle: design.buttonStyle,
       customColors: design.customColors,
       profileStyle: { ...design.profileStyle, bannerImage: prev.profileStyle.bannerImage },
-      typography: { ...design.typography, ...(prev.typography?.customFont ? { customFont: prev.typography.customFont, useCustomFont: false } : {}) },
+      typography: { ...design.typography, bioFormat: prev.typography?.bioFormat, ...(prev.typography?.customFont ? { customFont: prev.typography.customFont, useCustomFont: false } : {}) },
     }));
   }, [edit]);
 
   const updatePageData = useCallback((updates: Partial<PageData>) => {
-    edit((prev) => mergeWithDefaults({ ...prev, ...updates }));
+    edit((prev) => {
+      const next = { ...prev, ...updates };
+      if (updates.bio !== undefined && prev.typography?.bioFormat && !Object.prototype.hasOwnProperty.call(updates.typography ?? {}, 'bioFormat')) {
+        next.typography = { ...next.typography, bioFormat: editTextFormat(prev.bio, updates.bio, prev.typography.bioFormat) };
+      }
+      return mergeWithDefaults(next);
+    });
   }, [edit]);
 
   const updateTheme = useCallback((theme: Theme) => {
@@ -974,6 +1167,12 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         draftState,
         videoUploadToken: source?.uploadToken?.(),
         save,
+        saveDraft,
+        conflict,
+        localBackupError,
+        getRevision: () => revision.current,
+        hasPendingChanges: () => JSON.stringify(pageDataRef.current) !== JSON.stringify(savedRef.current),
+        recoverServerVersion,
         logout,
         resetDesign,
         applyDesign,

@@ -48,7 +48,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
   const [activeTab, setActiveTab] = useState<Tab>(editor?.sections?.[0] ?? 'header');
   const [mobilePanel, setMobilePanel] = useState<Tab | null>(null);
   const [designNotice, setDesignNotice] = useState('');
-  const { pageData, savedHistory, restoreVersion, restoreDraft, undo, redo, canUndo, canRedo, account, isAuthenticated, loadingPage, isDirty, saving, save, updateTheme, updateWallpaper, draftState } = usePageContext();
+  const { pageData, savedHistory, restoreVersion, restoreDraft, undo, redo, canUndo, canRedo, account, isAuthenticated, loadingPage, isDirty, saving, save, saveDraft, updateTheme, updateWallpaper, draftState, conflict, localBackupError, recoverServerVersion, hasPendingChanges } = usePageContext();
   // REQ-015: what has happened to unpublished edits, in a few words.
   const draftLabel = draftState === 'saving' ? 'يحفظ المسودة…' : draftState === 'saved' ? 'محفوظة كمسودة ✓ — غير منشورة' : draftState === 'limit' ? 'وصلت للحد اليومي للحفظ' : draftState === 'error' ? 'تعذر حفظ المسودة' : 'تعديلات غير منشورة';
   const [saveError, setSaveError] = useState('');
@@ -77,13 +77,17 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themesSeen, compactBar]);
   const openItem = (id: string) => { setActiveTab('links'); setFocusLinkId(id); };
-  const continueToNext = async () => { if (await handleSave()) staffEdit?.onContinue?.(); };
+  const continueToNext = async () => { if (pageData.editorForm || contentFormPending) { setSaveError('أكمل العنصر أو احتفظ به كمسودة قبل المتابعة.'); return; } if (await handleSave()) { if (hasPendingChanges()) { setSaveError('لديك تعديلات أحدث؛ احفظها قبل المتابعة.'); return; } staffEdit?.onContinue?.(); } };
   // The draft when a panel was opened, so «×» can put it back.
   const [panelStart, setPanelStart] = useState<{ data: PageData } | null>(null);
   // «×» on a window with changes asks once: save them, or leave without them.
   const [panelExitPrompt, setPanelExitPrompt] = useState(false);
   // An add / edit form in «المحتوى» with input not yet added to the page.
   const [contentFormPending, setContentFormPending] = useState(false);
+  const contentSaveAction = useRef<(() => Promise<void>) | null>(null);
+  const panelSaveBusy = useRef(false);
+  const [panelSaving, setPanelSaving] = useState(false);
+  const [panelSaveError, setPanelSaveError] = useState('');
   // Note 28: a green «تم الحفظ» once the server confirmed, or the error with a retry.
   const [saveToast, setSaveToast] = useState<null | { kind: 'saved' } | { kind: 'error'; message: string }>(null);
   // «صمّم لي» stays on offer while it can be ordered (note 40): a page not yet
@@ -223,10 +227,31 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
 
   // Undo and redo are one pair; the save sits apart with its own state, so the
   // two are never confused.
+  const saveDesktopEdits = async () => {
+    if (panelSaveBusy.current) return;
+    panelSaveBusy.current = true;
+    setPanelSaving(true);
+    setSaveError('');
+    try {
+      if (activeTab === 'links') {
+        if (!contentSaveAction.current) throw new Error('انتظر تجهيز نموذج المحتوى ثم حاول مجددًا.');
+        await contentSaveAction.current();
+      } else await saveDraft();
+      setSaveToast({ kind: 'saved' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'تعذر حفظ التعديلات.';
+      setSaveError(message);
+      setSaveToast({ kind: 'error', message });
+    } finally {
+      panelSaveBusy.current = false;
+      setPanelSaving(false);
+    }
+  };
+
   const renderEditActions = (horizontal = false) => {
-    const saveState = saving ? 'saving' : saveError ? 'error' : justSaved ? 'saved' : isDirty ? 'dirty' : 'clean';
+    const saveState = saving ? 'saving' : saveError ? 'error' : isDirty ? 'dirty' : justSaved ? 'saved' : 'clean';
     const round = 'flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.08)] transition-transform active:scale-90 disabled:opacity-35';
-    const saveLabel = saveState === 'saving' ? 'يحفظ…' : saveState === 'saved' ? 'تم الحفظ' : saveState === 'error' ? 'إعادة المحاولة' : saveState === 'dirty' ? 'حفظ' : 'محفوظ';
+    const saveLabel = compactBar ? (saving ? 'جارٍ الحفظ…' : isDirty ? (account?.pageStatus === 'published' ? 'نشر التعديلات' : 'حفظ المسودة') : account?.pageStatus === 'published' ? 'تم النشر' : 'محفوظة داخليًا') : saveState === 'saving' ? 'يحفظ…' : saveState === 'saved' ? 'تم الحفظ' : saveState === 'error' ? 'إعادة المحاولة' : saveState === 'dirty' ? 'حفظ' : 'محفوظ';
     const saveIcon = saveState === 'saving' ? <Loader2 className="h-5 w-5 animate-spin" /> : saveState === 'saved' ? <Check className="h-5 w-5" /> : saveState === 'error' ? <RotateCw className="h-5 w-5" /> : <Save className="h-5 w-5" />;
 
     // Note 59 (desktop bar): a wide green «حفظ» with its icon, and quieter undo / redo.
@@ -236,14 +261,14 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
         <div className="flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
           {!guestPreview && isAuthenticated && (
             <button
-              onClick={handleSave}
-              disabled={saveState === 'saving' || saveState === 'clean' || saveState === 'saved'}
+              onClick={compactBar ? () => void saveDesktopEdits() : handleSave}
+              disabled={compactBar ? saving || panelSaving || conflict : saveState === 'saving' || saveState === 'clean' || saveState === 'saved' || conflict || Boolean(pageData.editorForm)}
               className={`flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-full px-5 text-[15px] font-bold transition-all active:scale-[0.97] ${
-                saveState === 'error' ? 'bg-[#ff3b30] text-white' : saveState === 'dirty' || saveState === 'saving' ? 'bg-emerald-600 text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] hover:bg-emerald-700' : saveState === 'saved' ? 'bg-[#34c759] text-white' : 'bg-emerald-50 text-emerald-700/60'
+                compactBar ? 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50' : saveState === 'error' ? 'bg-[#ff3b30] text-white' : saveState === 'dirty' || saveState === 'saving' ? 'bg-emerald-600 text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] hover:bg-emerald-700' : saveState === 'saved' ? 'bg-[#34c759] text-white' : 'bg-emerald-50 text-emerald-700/60'
               }`}
             >
-              {saveIcon}
-              {saveLabel}
+              {compactBar ? (saving || panelSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />) : saveIcon}
+              {compactBar ? (saving || panelSaving ? 'جارٍ الحفظ…' : 'حفظ تعديلاتي') : saveLabel}
             </button>
           )}
           <span className="mx-1 h-6 w-px bg-[#e5e5ea]" aria-hidden="true" />
@@ -263,7 +288,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
           <div className="flex flex-col items-center gap-1.5">
             <button
               onClick={handleSave}
-              disabled={saveState === 'saving' || saveState === 'clean' || saveState === 'saved'}
+              disabled={saveState === 'saving' || saveState === 'clean' || saveState === 'saved' || conflict || Boolean(pageData.editorForm)}
               className={`flex h-12 w-12 items-center justify-center rounded-full text-white transition-all active:scale-90 ${
                 saveState === 'error' ? 'bg-[#ff3b30]' : saveState === 'dirty' ? 'bg-emerald-600 shadow-[0_6px_14px_rgba(5,150,105,0.35)]' : saveState === 'saved' ? 'bg-[#34c759]' : saveState === 'saving' ? 'bg-emerald-600' : 'bg-[#d1d1d6]'
               }`}
@@ -272,7 +297,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               {saveState === 'saving' ? <Loader2 className="h-5 w-5 animate-spin" /> : saveState === 'saved' ? <Check className="h-6 w-6" /> : saveState === 'error' ? <RotateCw className="h-5 w-5" /> : <Save className="h-5 w-5" />}
             </button>
             <span className={`text-[11px] font-bold ${saveState === 'error' ? 'text-[#ff3b30]' : saveState === 'saved' ? 'text-[#34c759]' : 'text-[#3a3a3c]'}`}>
-              {saveState === 'saving' ? 'يحفظ…' : saveState === 'saved' ? 'تم الحفظ' : saveState === 'error' ? 'إعادة المحاولة' : saveState === 'dirty' ? 'حفظ' : 'محفوظ'}
+              {saveLabel}
             </span>
           </div>
         )}
@@ -377,24 +402,40 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     setMobilePanel(null);
     setPanelStart(null);
     setPanelExitPrompt(false);
+    setPanelSaveError('');
   };
 
   const panelChanged = Boolean(panelStart && pageData !== panelStart.data);
 
   // «احفظ تعديلاتي»: the window closes at once and the save carries on; the
   // green confirmation (or the error with a retry) follows from the server.
-  const finishPanel = () => {
+  const finishPanel = async () => {
+    if (compactBar) {
+      if (panelSaveBusy.current) return;
+      panelSaveBusy.current = true; setPanelSaving(true); setPanelSaveError('');
+      try {
+        if (mobilePanel === 'links') {
+          if (!contentSaveAction.current) throw new Error('انتظر تجهيز نموذج المحتوى ثم حاول مجددًا.');
+          await contentSaveAction.current();
+        } else await saveDraft();
+        closePanel();
+      } catch (error) { setPanelSaveError(error instanceof Error ? error.message : 'تعذر حفظ المسودة. تعديلاتك باقية.'); }
+      finally { panelSaveBusy.current = false; setPanelSaving(false); }
+      return;
+    }
     if (contentFormPending && !panelExitPrompt) {
       setPanelExitPrompt(true);
       return;
     }
-    const needsSave = isDirty && !guestPreview && isAuthenticated && mobilePanel !== 'account';
+    const needsSave = !compactBar && isDirty && !guestPreview && isAuthenticated && mobilePanel !== 'account';
     closePanel();
     if (needsSave) void handleSave();
   };
 
   // «×»: closes straight away unless this window changed something.
   const cancelPanel = () => {
+    if (panelSaveBusy.current) return;
+    if (compactBar) { closePanel(); return; }
     if (panelChanged || contentFormPending) {
       setPanelExitPrompt(true);
       return;
@@ -431,7 +472,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     }
 
     if (activeTab === 'links') {
-      return <LinkEditor onPendingChange={setContentFormPending} focusId={focusLinkId} onFocused={() => setFocusLinkId(null)} />;
+      return <LinkEditor draftSave={compactBar} externalSave={compactBar} saveActionRef={contentSaveAction} onPendingChange={setContentFormPending} focusId={focusLinkId} onFocused={() => setFocusLinkId(null)} />;
     }
 
     if (activeTab === 'wallpaper') {
@@ -533,7 +574,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {staffEdit?.onContinue && <button type="button" onClick={continueToNext} disabled={saving || loadingPage} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{staffEdit.continueLabel ?? 'التالي'}</button>}
+          {staffEdit?.onContinue && <button type="button" onClick={continueToNext} disabled={saving || loadingPage || conflict || Boolean(pageData.editorForm)} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{staffEdit.continueLabel ?? 'التالي'}</button>}
           {account && !account.emailVerified && !guestPreview && !staffEdit ? (
             // Until the email is confirmed the confirmation takes the header's place.
             <EmailVerifyChip />
@@ -602,7 +643,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               <h2 className="shrink-0 text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>الشكل الحالي</h2>
               {/* Note 39: the step to review and publish, beside the design it concerns. */}
               {compactBar && staffEdit?.onContinue && (
-                <button type="button" onClick={continueToNext} disabled={saving || loadingPage} className="flex h-11 min-w-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-sm font-bold text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] transition-transform active:scale-[0.97] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <button type="button" onClick={continueToNext} disabled={saving || loadingPage || conflict || Boolean(pageData.editorForm)} className="flex h-11 min-w-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-sm font-bold text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] transition-transform active:scale-[0.97] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>
                   <span className="truncate">{staffEdit.continueLabel ?? 'التالي'}</span>
                   <ArrowLeft className="h-4 w-4 shrink-0" />
                 </button>
@@ -657,31 +698,38 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
         {mobilePanel && (
           // Closed only by «×» or «تم» — never by tapping outside or dragging.
           <div className="fixed inset-0 z-50 flex items-end bg-black/35">
-            <section className="h-[94dvh] max-h-[94dvh] w-full overflow-hidden rounded-t-[30px] bg-[#f7f7f8] shadow-[0_-12px_40px_rgba(0,0,0,0.2)]">
+            <section className="flex h-[94dvh] max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[30px] bg-[#f7f7f8] shadow-[0_-12px_40px_rgba(0,0,0,0.2)]">
               <div className="sticky top-0 z-10 border-b border-black/5 bg-[#f7f7f8]/95 px-5 py-3 backdrop-blur">
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                  <button onClick={cancelPanel} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[#55555b]" aria-label="إغلاق"><X className="h-5 w-5" /></button>
+                  <button onClick={cancelPanel} disabled={panelSaving} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[#55555b]" aria-label="إغلاق"><X className="h-5 w-5" /></button>
                   <h2 className="text-lg font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{mobilePanel === 'theme' ? (compactBar ? 'القوالب الجاهزة' : 'الخلفية') : mobilePanel === 'account' ? 'الإعدادات' : mobilePanel === 'history' ? 'السجل' : tabs.find((tab) => tab.id === mobilePanel)?.label}</h2>
                   {mobilePanel === 'account' || mobilePanel === 'sharing' || guestPreview || !isAuthenticated ? <span /> : (
-                    <button onClick={finishPanel} className={`justify-self-end rounded-full px-3.5 py-2 text-[13px] font-black transition-colors ${panelChanged ? 'bg-emerald-600 text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)]' : 'bg-emerald-50 text-emerald-700'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                      احفظ تعديلاتي
+                    <button onClick={() => void finishPanel()} disabled={panelSaving || conflict} className={`justify-self-end rounded-full px-3.5 py-2 text-[13px] font-black transition-colors ${panelChanged ? 'bg-emerald-600 text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)]' : 'bg-emerald-50 text-emerald-700'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      {panelSaving ? 'جارٍ الحفظ…' : 'حفظ تعديلاتي'}
                     </button>
                   )}
                 </div>
               </div>
-              <div className="h-[calc(94dvh-64px)] overflow-y-auto scroll-smooth bg-[#f2f2f7] pb-[env(safe-area-inset-bottom)]">{renderActivePanel()}</div>
+              {panelSaveError && <p role="alert" className="bg-red-50 px-5 py-3 text-sm text-red-700">{panelSaveError}</p>}
+              <div data-builder-panel-scroll className="min-h-0 flex-1 overflow-y-auto scroll-smooth bg-[#f2f2f7] pb-[env(safe-area-inset-bottom)]">{renderActivePanel()}</div>
             </section>
           </div>
         )}
 
       </div>
 
+      {localBackupError && <p role="alert" className="fixed inset-x-4 bottom-4 z-[80] rounded-xl bg-amber-50 p-3 text-center text-sm text-amber-900">تعذر إنشاء نسخة استرداد في الجهاز. أبقِ الصفحة مفتوحة حتى تأكيد حفظ أحدث مسودة على الخادم.</p>}
+      {conflict && <div role="alert" className="fixed inset-x-4 top-20 z-[80] mx-auto max-w-xl rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm shadow-lg">
+        <p className="font-bold">توجد نسخة أحدث من جهاز أو تبويب آخر</p>
+        <p className="mt-2">لم نستبدل تعديلاتك. نزّل نسخة منها للمقارنة، أو افتح نسخة الخادم. نحتفظ بنسخة استرداد محلية عند اختيار الخادم.</p>
+        <div className="mt-3 flex gap-4"><button onClick={() => { const url = URL.createObjectURL(new Blob([JSON.stringify(pageData, null, 2)], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = 'onwan-local-draft.json'; a.click(); URL.revokeObjectURL(url); }} className="font-bold underline">تنزيل تعديلاتي</button><button onClick={() => void recoverServerVersion().then(() => { setSaveError(''); setSaveToast(null); }).catch((error) => setSaveError(error.message))} className="font-bold underline">فتح نسخة الخادم</button></div>
+      </div>}
       {saveToast && (
         <div className="pointer-events-none fixed inset-x-0 top-4 z-[80] flex justify-center px-4" role={saveToast.kind === 'error' ? 'alert' : 'status'} style={{ fontFamily: 'Tajawal, sans-serif' }}>
           {saveToast.kind === 'saved' ? (
             <span className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.14)] ring-1 ring-black/5">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#34c759] text-white"><Check className="h-3.5 w-3.5" strokeWidth={3} /></span>
-              تم الحفظ
+              {isDirty ? 'تم حفظ النسخة المطلوبة؛ لديك تعديلات أحدث' : 'تم الحفظ'}
             </span>
           ) : (
             <span className="pointer-events-auto flex max-w-sm items-center gap-3 rounded-2xl bg-white py-2 pl-2 pr-4 text-sm text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.16)] ring-1 ring-[#ff3b30]/25">
@@ -702,7 +750,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               {contentFormPending ? (
                 <button onClick={() => setPanelExitPrompt(false)} className="block w-full rounded-xl bg-emerald-600 py-3 text-[15px] font-bold text-white">متابعة التعديل</button>
               ) : (
-                <button onClick={finishPanel} className="block w-full rounded-xl bg-emerald-600 py-3 text-[15px] font-bold text-white">احفظ تعديلاتي</button>
+                <button onClick={() => void finishPanel()} disabled={panelSaving || conflict} className="block w-full rounded-xl bg-emerald-600 py-3 text-[15px] font-bold text-white">احفظ تعديلاتي</button>
               )}
               <button onClick={discardPanel} className="block w-full rounded-xl bg-[#f2f2f7] py-3 text-[15px] font-bold text-[#ff3b30]">اخرج بدون حفظ</button>
             </div>
@@ -754,7 +802,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               </h2>
             </div>
             {/* Note 46: the whole computer view is drawn at 80 % (see above). */}
-            <div className="min-h-0 flex-1 overflow-y-auto">{renderActivePanel()}</div>
+            <div data-builder-panel-scroll className="min-h-0 flex-1 overflow-y-auto">{!mobilePanel && renderActivePanel()}</div>
           </aside>
 
           <section className="flex min-h-0 flex-col items-center gap-4">
@@ -770,13 +818,9 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
                     <button type="button" onClick={() => navigate('/preview')} className="flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-[#3a3a3c] transition-colors hover:bg-[#f2f2f7]" style={{ fontFamily: 'Cairo, sans-serif' }}>
                       <Eye className="h-4 w-4" />معاينة
                     </button>
-                    <span className="flex items-center gap-1.5 text-xs text-[#8e8e93]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${saving ? 'bg-[#8e8e93]' : isDirty ? 'bg-amber-500' : 'bg-[#34c759]'}`} />
-                      {saving ? 'يحفظ…' : isDirty ? 'غير محفوظ' : 'تم الحفظ'}
-                    </span>
                   </div>
                   {staffEdit?.onContinue && (
-                    <button type="button" onClick={continueToNext} disabled={saving || loadingPage} className="flex h-11 items-center gap-2 rounded-full bg-emerald-600 px-6 text-[15px] font-bold text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] transition-all hover:bg-emerald-700 active:scale-[0.97] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    <button type="button" onClick={continueToNext} disabled={saving || loadingPage || conflict || Boolean(pageData.editorForm)} className="flex h-11 items-center gap-2 rounded-full bg-emerald-600 px-6 text-[15px] font-bold text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] transition-all hover:bg-emerald-700 active:scale-[0.97] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>
                       {staffEdit.continueLabel ?? 'التالي'}
                       <ArrowLeft className="h-4 w-4" />
                     </button>

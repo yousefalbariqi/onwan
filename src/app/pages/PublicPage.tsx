@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Check, Copy, Flag, Share, UserPlus, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router';
 import { PageData, mergeWithDefaults, usePageContext } from '../context/PageContext';
+import { editorPreview } from '../lib/editorPreview';
 import { PageView } from '../components/PageView';
 import { fetchPublicPage, reportPage } from '../lib/api';
 import PartnerStorefront from '../partner/PartnerStorefront';
-import { ROOT_DOMAIN, getCustomHost, getSubdomainUsername, pageUrl } from '../lib/site';
+import { getCustomHost, getSubdomainUsername, pageUrl } from '../lib/site';
 import { downloadVCard } from '../lib/vcard';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from '../components/ui/dialog';
 
@@ -233,10 +234,6 @@ function VisitorActions({ page, lang, onSwitchLang, shareNotice, middle }: { pag
           <Flag className="h-3 w-3" />
           {t.report}
         </button>
-        {/* Note 75: the owner's way in — sign-in and the editor live on the main site. */}
-        <a href={`https://${ROOT_DOMAIN}/builder`} className="text-xs opacity-50 transition-opacity hover:opacity-100" style={{ color: textColor }}>
-          {lang === 'en' ? 'Manage my page' : 'إدارة صفحتي'}
-        </a>
       </div>
 
       {reporting && <ReportDialog username={page.username} lang={lang} onClose={() => setReporting(false)} />}
@@ -318,7 +315,7 @@ export default function PublicPage() {
   usePageMeta((username || customHost) && remote.status === 'ready' ? remote.pageData : null);
 
   // /preview: the editor's unsaved draft, never the published page (PAGE-07).
-  const previewPage: PageData = { ...pageData, contactPhone: account?.phone || undefined, contactEmail: account?.email || undefined };
+  const previewPage: PageData = { ...editorPreview(pageData), contactPhone: account?.phone || undefined, contactEmail: account?.email || undefined };
   const previewHasEnglish = Boolean(pageData.translations?.en?.name || pageData.translations?.en?.bio);
   const previewLang: Lang = previewHasEnglish ? chosenLang ?? (navigator.language.toLowerCase().startsWith('en') ? 'en' : 'ar') : 'ar';
   if (!username && !customHost) {
@@ -329,7 +326,7 @@ export default function PublicPage() {
       // does; sharing gives the public link, or says it needs publishing.
       // Only «العودة للتحرير» is extra, between the two top buttons.
       <>
-        <PageView data={previewPage} variant="public" lang={previewLang}>
+        <PageView data={previewPage} variant="public" lang={previewLang} showIncomplete>
           <VisitorActions
             page={previewPage}
             lang={previewLang}
@@ -354,8 +351,21 @@ export default function PublicPage() {
 
   if (remote.status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50" dir="rtl">
-        <div className="h-10 w-10 rounded-full border-4 border-emerald-100 border-t-emerald-500 animate-spin"></div>
+      <div className="min-h-screen bg-[#F8F8F6]" dir="rtl" role="status" aria-label="جارٍ تحميل الصفحة" aria-busy="true">
+        <div aria-hidden="true" className="mx-auto min-h-screen w-full max-w-[680px] bg-white px-6 pb-10 pt-5">
+          <div className="motion-safe:animate-pulse">
+            <div className="flex justify-between"><div className="h-10 w-10 rounded-full bg-[#eeeeec]" /><div className="h-10 w-10 rounded-full bg-[#eeeeec]" /></div>
+            <div className="mx-auto mt-8 flex max-w-sm flex-col items-center">
+              <div className="h-24 w-24 rounded-full bg-[#eeeeec]" />
+              <div className="mt-5 h-5 w-36 rounded-full bg-[#eeeeec]" />
+              <div className="mt-4 h-3 w-56 max-w-full rounded-full bg-[#f2f2f0]" />
+              <div className="mt-2 h-3 w-44 rounded-full bg-[#f2f2f0]" />
+              <div className="mt-8 w-full space-y-3">
+                {[0, 1, 2].map(item => <div key={item} className="flex h-14 items-center gap-3 rounded-2xl bg-[#f2f2f0] px-4"><div className="h-7 w-7 rounded-lg bg-[#e8e8e5]" /><div className="mx-auto h-3 w-28 rounded-full bg-[#e8e8e5]" /><div className="w-7" /></div>)}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

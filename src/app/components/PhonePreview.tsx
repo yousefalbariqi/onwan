@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PageData, usePageContext } from '../context/PageContext';
+import { editorPreview } from '../lib/editorPreview';
 import { PageView } from './PageView';
 
 const WIDTH = 390;
@@ -82,7 +83,7 @@ export function PhonePreview({ data, interactive = true, onItemClick }: { data?:
   return <div className="mx-auto w-full max-w-[280px] rounded-2xl border border-gray-200 bg-white p-1 shadow-lg">
     <div ref={frame} aria-busy={!ready} className="relative w-full overflow-hidden rounded-xl bg-[#f5f5f3]" style={{ aspectRatio: `${WIDTH} / ${HEIGHT}` }}>
       <iframe title="نافذة مصغرة على الصفحة الفعلية" srcDoc={FRAME_HTML} width={WIDTH} height={HEIGHT} onLoad={event => setFrameDocument(event.currentTarget.contentDocument)} tabIndex={interactive ? 0 : -1} className={`absolute left-0 top-0 origin-top-left border-0 ${interactive ? '' : 'pointer-events-none'}`} style={{ width: WIDTH, height: HEIGHT, transform: `scale(${scale ?? 0})`, visibility: ready ? 'visible' : 'hidden' }} />
-      {frameDocument && createPortal(<div onClickCapture={event => { if ((event.target as Element).closest('a')) event.preventDefault(); }}><PageView data={data ?? pageData} variant="public" showIncomplete onItemClick={onItemClick} /></div>, frameDocument.body)}
+      {frameDocument && createPortal(<div onClickCapture={event => { if ((event.target as Element).closest('a')) event.preventDefault(); }}><PageView data={data ?? editorPreview(pageData)} variant="public" showIncomplete onItemClick={onItemClick} /></div>, frameDocument.body)}
     </div>
   </div>;
 }

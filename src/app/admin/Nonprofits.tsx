@@ -15,7 +15,7 @@ const stages = ['pending', 'contacted', 'quoted', 'paid', 'active'];
 const stepTitle: Record<string, string> = { pending: 'طلب جديد', agreed: 'طلب جديد', contacted: 'تم التواصل — أرسل عرض السعر', quoted: 'تم إرسال العرض — بانتظار الدفع', paid: 'تم الدفع — انشر الصفحة', active: 'الصفحة منشورة' };
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
 const actions: Record<string, string> = { content: 'عدّل محتوى صفحة الجمعية', assign: 'استلم متابعة الطلب', update: 'حدّث المتابعة', quote: 'حفظ عرض السعر', sent: 'سجّل إرسال العرض', sendQuote: 'أرسل عرض السعر', payment: 'أكد التحويل', activate: 'فعّل الصفحة', suspend: 'أوقف الصفحة', reactivate: 'أعاد تشغيل الصفحة' };
-const defaultQuote: Quote = { amount: 430, months: 36, includes: 'رابط صفحة الجمعية، استضافة، محرر الصفحة، رمز QR، Apple Wallet، التواصل والدعم', notes: '' };
+const defaultQuote: Quote = { amount: 243, months: 12, includes: 'رابط صفحة الجمعية، استضافة، محرر الصفحة، رمز QR، Apple Wallet، التواصل والدعم', notes: '' };
 const money = (value: unknown) => new Intl.NumberFormat('ar-SA-u-nu-latn', { style: 'currency', currency: 'SAR' }).format(Number(value ?? 0));
 const tone = (stage: string) => stage === 'active' ? 'green' : stage === 'cancelled' ? 'red' : stage === 'paid' || stage === 'quoted' ? 'amber' : 'gray';
 function Status({ stage }: { stage: string }) { return <Badge tone={tone(stage)}>{quoteStatus[stage] || stage}</Badge>; }
@@ -110,7 +110,7 @@ export function Nonprofits() {
     try { await navigator.clipboard.writeText(value); setSuccess('تم النسخ.'); }
     catch { setError('تعذّر النسخ. يمكنك تحديد النص ونسخه يدويًا.'); }
   };
-  const quoteText = (saved: any) => `عرض سعر — ${record.organization_name}\nالقيمة: ${money(saved.amount)}\nالاستضافة: ${saved.months} شهرًا\nيشمل: ${saved.includes}${saved.notes ? '\n' + saved.notes : ''}\nالتفعيل بعد تأكيد التحويل.`;
+  const quoteText = (saved: any) => `عرض سعر — ${record.organization_name}\nالقيمة: ${money(saved.amount)} — دفعة واحدة\nمدة الاشتراك: ${Number(saved.months) === 12 ? 'سنة كاملة (12 شهرًا)' : `${saved.months} شهرًا`}\nيشمل: ${saved.includes}${saved.notes ? '\n' + saved.notes : ''}\nالتفعيل بعد تأكيد التحويل.`;
   const quoteFields = <fieldset disabled={busy} className="np-fields">
     <div className="np-two"><label className="np-field">القيمة بالريال<input type="number" min="0" max="1000000" step="0.01" value={quote.amount} onChange={e => setQuote({ ...quote, amount: e.target.value })} /></label><label className="np-field">مدة الاستضافة بالأشهر<input type="number" min="1" max="120" step="1" value={quote.months} onChange={e => setQuote({ ...quote, months: e.target.value })} /></label></div>
     <details className="np-disclosure"><summary>الخدمات المشمولة والملاحظات</summary>

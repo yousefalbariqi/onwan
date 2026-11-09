@@ -1,5 +1,8 @@
+import { contentBack, type ContentScreen } from '../../../shared/contentNavigation';
+import { FormattingTextarea } from './FormattingTextarea';
 import { parseYouTubeVideoSource } from '../../../shared/videoSources';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type MutableRefObject } from 'react';
+import { flushSync } from 'react-dom';
 import { Link, LinkDisplay, usePageContext } from '../context/PageContext';
 import {
   AlertCircle,
@@ -66,7 +69,7 @@ type FormState = {
   noName: boolean;
 };
 
-type Screen = { name: 'list' } | { name: 'choose' } | { name: 'form'; id?: string };
+type Screen = ContentScreen;
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 // FILE-01: صور وPDF فقط — must match ALLOWED_FILE_MIME_TYPES in api/_lib/page.ts.
@@ -337,17 +340,19 @@ function Advanced({ children }: { children: ReactNode }) {
 // `onPendingChange`: the editor window is told while a form holds unadded
 // input, so closing it never drops that input silently.
 // `focusId` (note 22): an item tapped in the preview opens here for completing.
-export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingChange?: (pending: boolean) => void; focusId?: string | null; onFocused?: () => void } = {}) {
-  const { pageData, addLink, removeLink, updateLink, moveLink, reorderLink } = usePageContext();
+export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef, externalSave = false, draftSave = false }: { saveActionRef?: MutableRefObject<(() => Promise<void>) | null>; externalSave?: boolean; draftSave?: boolean; onPendingChange?: (pending: boolean) => void; focusId?: string | null; onFocused?: () => void } = {}) {
+  const { pageData, saveDraft, saving, draftState, conflict, updatePageData, addLink, removeLink, updateLink, moveLink, reorderLink } = usePageContext();
   const links = pageData.links;
   const limitReached = links.length >= MAX_LINKS;
   // The English fields appear once the page has an English version.
   const hasEnglish = Boolean(pageData.translations?.en?.name || pageData.translations?.en?.bio);
   const groups = links.filter((item) => item.display?.kind === 'heading' && item.display.sectionId);
 
-  const [screen, setScreen] = useState<Screen>({ name: 'list' });
-  const [form, setForm] = useState<FormState>(() => emptyForm('link'));
-  const formStart = useRef('');
+  const [saveError, setSaveError] = useState('');
+  const [screen, setScreen] = useState<Screen>(() => pageData.editorForm?.screen ?? { name: 'list' });
+  const [form, setForm] = useState<FormState>(() => pageData.editorForm?.form ?? emptyForm('link'));
+  const formStart = useRef(pageData.editorForm?.start ?? '');
+  const [rawLink, setRawLink] = useState(pageData.editorForm?.rawLink ?? '');
   const [fileError, setFileError] = useState('');
   const [iconError, setIconError] = useState('');
   const [iconsOpen, setIconsOpen] = useState(false);
@@ -358,12 +363,14 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
+  const autoFocusFields = typeof window !== 'undefined' && !window.matchMedia('(min-width: 1024px)').matches;
 
   // Each new screen starts at its top (not on first opening the panel).
   const firstScreen = useRef(true);
   useEffect(() => {
     if (firstScreen.current) { firstScreen.current = false; return; }
-    topRef.current?.scrollIntoView({ block: 'start' });
+    // Scroll only the editor panel; scrollIntoView also moves the outer desktop.
+    topRef.current?.closest('[data-builder-panel-scroll]')?.scrollTo({ top: 0 });
   }, [screen]);
 
   const openForm = (next: FormState, id?: string) => {
@@ -399,11 +406,18 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId]);
 
-  const formChanged = screen.name === 'form' && JSON.stringify(form) !== formStart.current;
+  const formChanged = screen.name === 'form' && (JSON.stringify(form) !== formStart.current || rawLink !== rawFromUrl(JSON.parse(formStart.current || '{}').url || ''));
+  useEffect(() => {
+    if (!formChanged || (draftState === 'saved' && !conflict)) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [formChanged, draftState, conflict]);
   useEffect(() => onPendingChange?.(formChanged), [formChanged, onPendingChange]);
   useEffect(() => () => onPendingChange?.(false), [onPendingChange]);
-  const backToList = () => setScreen({ name: 'list' });
-  const leaveForm = () => (formChanged ? setConfirm({ kind: 'leave' }) : backToList());
+  const backToList = () => { updatePageData({ editorForm: undefined }); setScreen({ name: 'list' }); };
+  const backFromForm = () => { updatePageData({ editorForm: undefined }); setScreen(contentBack(screen).target); };
+  const leaveForm = () => (contentBack(screen, formChanged).confirmDiscard ? setConfirm({ kind: 'leave' }) : backFromForm());
 
   const update = (changes: Partial<FormState>) => setForm((prev) => {
     const next = { ...prev, ...changes };
@@ -416,8 +430,17 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
   const pickPlatform = (id: string) => setForm((prev) => ({ ...prev, platform: id, mode: id === 'website' ? 'url' : 'social', customIcon: '', platformTouched: true }));
 
   // Note 34: what was typed in «الرابط», read on every change.
-  const [rawLink, setRawLink] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => {
+    if (screen.name !== 'form') return;
+    if (!formChanged) {
+      if (pageData.editorForm) updatePageData({ editorForm: undefined });
+      return;
+    }
+    const snapshot = { form, screen, start: formStart.current, rawLink };
+    if (JSON.stringify(snapshot) !== JSON.stringify(pageData.editorForm)) updatePageData({ editorForm: snapshot });
+  }, [form, screen, rawLink, formChanged, pageData.editorForm, updatePageData]);
+
   // Note B: «عرض المزيد» reveals the whole icon library beyond the suggestions.
   const [iconsExpanded, setIconsExpanded] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -438,7 +461,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
       : isHeading
         ? { kind: 'heading' }
         : form.kind === 'text'
-          ? { kind: 'text', body: form.display.body, bodyEn: form.display.bodyEn, sectionId: form.display.sectionId }
+          ? { kind: 'text', body: form.display.body, bodyFormat: form.display.bodyFormat, bodyEn: form.display.bodyEn, sectionId: form.display.sectionId }
           : form.display;
     const isFile = form.kind === 'file';
     const values: Omit<Link, 'id'> = {
@@ -463,6 +486,20 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
     else addLink(values, members);
     backToList();
   };
+
+  const saveElementDraft = async () => {
+    if (screen.name === 'form') {
+      if (!isReady(form)) throw new Error('أكمل البيانات المطلوبة: العنوان والرابط أو الملف، ثم احفظ تعديلك.');
+      // Commit to the shared draft before capturing the server snapshot.
+      flushSync(() => submit());
+    }
+    await saveDraft();
+  };
+  useEffect(() => {
+    if (!saveActionRef) return;
+    saveActionRef.current = saveElementDraft;
+    return () => { saveActionRef.current = null; };
+  });
 
   const pickFile = async (file: File) => {
     if (!ALLOWED_FILE_TYPES.includes(file.type)) { setFileError('اختر صورة (PNG أو JPG أو WebP أو GIF) أو ملف PDF.'); return; }
@@ -650,7 +687,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
             <input
               dir="ltr"
               inputMode="url"
-              autoFocus={!form.url}
+              autoFocus={autoFocusFields && !form.url}
               aria-label="الرابط"
               aria-invalid={Boolean(linkError)}
               value={rawLink}
@@ -708,7 +745,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
         {!!form.url && (
           <Group title="العنوان">
             {editingTitle || !form.title.trim() ? (
-              <div className="px-4 py-1"><input aria-label="عنوان الزر" autoFocus={editingTitle} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="عنوان الزر" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+              <div className="px-4 py-1"><input aria-label="عنوان الزر" autoFocus={autoFocusFields && editingTitle} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="عنوان الزر" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
             ) : (
               <div className="flex min-h-[48px] items-center justify-between gap-3 px-4">
                 <span className="min-w-0 truncate text-[16px] font-bold text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{form.title}</span>
@@ -772,12 +809,12 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
       <Segmented options={[{ id: 'body', label: 'نبذة' }, { id: 'heading', label: 'عنوان' }] as const} value={form.textStyle} onChange={(textStyle) => update({ textStyle })} />
       {form.textStyle === 'heading' ? (
         <Group title="العنوان" footer="عنوان يفصل بين أجزاء صفحتك.">
-          <div className="px-4 py-1"><input aria-label="نص العنوان" autoFocus maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+          <div className="px-4 py-1"><input aria-label="نص العنوان" autoFocus={autoFocusFields} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
         </Group>
       ) : (
         <Group title="النبذة">
           <div className="px-4 py-3">
-            <textarea aria-label="نص النبذة" autoFocus rows={5} maxLength={2000} value={form.display.body ?? ''} onChange={(event) => update({ display: { ...form.display, kind: 'text', body: event.target.value } })} placeholder="اكتب نبذة أو إعلانًا أو شرحًا يظهر في صفحتك…" className="w-full resize-y bg-transparent text-[16px] leading-relaxed text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
+            <FormattingTextarea format={form.display.bodyFormat} aria-label="نص النبذة" autoFocus={autoFocusFields} rows={5} maxLength={2000} value={form.display.body ?? ''} onChange={(body, bodyFormat) => update({ display: { ...form.display, kind: 'text', body, bodyFormat: bodyFormat.length ? bodyFormat : undefined } })} placeholder="اكتب نبذة أو إعلانًا أو شرحًا يظهر في صفحتك…" className="w-full resize-y bg-transparent text-[16px] leading-relaxed text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
             <span className="block text-left text-xs text-[#8e8e93]" dir="ltr">{form.display.body?.length ?? 0}/2000</span>
           </div>
         </Group>
@@ -805,7 +842,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
       <>
         <Group title="اسم المجموعة">
           {!form.noName && (
-            <div className="px-4 py-1"><input aria-label="اسم المجموعة" autoFocus={!form.title} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+            <div className="px-4 py-1"><input aria-label="اسم المجموعة" autoFocus={autoFocusFields && !form.title} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
           )}
           {/* P: «بدون اسم» — the group is saved with no title, and its items show
               directly on the page with no empty title bar above them. */}
@@ -876,6 +913,8 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
 
   return (
     <Panel>
+      {draftSave && !externalSave && <div className="sticky top-0 z-10 flex justify-end bg-[#f2f2f7] py-2"><button type="button" disabled={saving || conflict} onClick={() => { setSaveError(''); void saveElementDraft().catch(error => setSaveError(error.message)); }} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? 'جارٍ الحفظ…' : 'حفظ تعديلاتي'}</button></div>}
+      {saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
       <div ref={topRef} className="-mt-5 h-0" aria-hidden="true" />
       {!!iconCrop && (
         // Square and small: an icon only needs 128 px.
@@ -1020,9 +1059,9 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
           {form.kind === 'group' && renderGroupFields()}
 
           <div className="space-y-3 pt-1">
-            <button type="button" onClick={submit} disabled={!isReady(form)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            {!draftSave && <button type="button" onClick={submit} disabled={!isReady(form)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
               {editing ? 'تطبيق التعديل' : 'إضافة إلى الصفحة'}
-            </button>
+            </button>}
             {editing && (
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => updateLink(editing.id, { hidden: !editing.hidden })} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white text-sm font-bold text-[#1d1d1f]">
@@ -1036,7 +1075,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused }: { onPendingC
       )}
 
       {confirm?.kind === 'leave' && (
-        <ConfirmSheet title="تجاهل ما كتبته؟" message="لم تُضف هذه التعديلات بعد." confirmLabel="تجاهل والرجوع" cancelLabel="متابعة التعديل" onConfirm={() => { setConfirm(null); backToList(); const next = pendingFocus.current; pendingFocus.current = null; if (next) focusItem(next); }} onCancel={() => { pendingFocus.current = null; setConfirm(null); }} />
+        <ConfirmSheet title="تجاهل ما كتبته؟" message="لم تُضف هذه التعديلات بعد." confirmLabel="تجاهل والرجوع" cancelLabel="متابعة التعديل" onConfirm={() => { setConfirm(null); const next = pendingFocus.current; pendingFocus.current = null; if (next) { updatePageData({ editorForm: undefined }); focusItem(next); } else backFromForm(); }} onCancel={() => { pendingFocus.current = null; setConfirm(null); }} />
       )}
       {confirm?.kind === 'deleteGroup' && (
         <ConfirmSheet

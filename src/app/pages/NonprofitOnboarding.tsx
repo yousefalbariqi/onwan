@@ -1,10 +1,12 @@
-import { useEffect, useId, useState } from 'react';
+import { onboardingItems, type OnboardingChoice as Choice } from '../lib/nonprofitSelection';
+import { useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { Check, ChevronRight, FileText, Image as ImageIcon, Play, Plus, User } from 'lucide-react';
+import { OnwanLogo } from '../components/OnwanLogo';
 import { ImageProblem, compressImage } from '../lib/compressImage';
 import { extractColorsFromImage } from '../utils/colorExtractor';
-import { usePageContext, type Link } from '../context/PageContext';
+import { usePageContext } from '../context/PageContext';
 import { SOCIAL_PLATFORMS, SocialIcon, brandColor } from '../components/SocialIcons';
 import { nonprofitPath } from '../lib/nonprofit';
 import { preloadMedia } from '../lib/mediaUpload';
@@ -19,10 +21,6 @@ import { finishOnboarding, onboardingPending, onboardingProgress, saveOnboarding
 // Note 13: content tiles (a clip, a picture, a file) sit between the platforms,
 // and the four official documents close the grid. Each chosen one becomes a
 // hidden item waiting in the editor, like a platform without its link.
-type Choice =
-  | { id: string; name: string; kind: 'platform' }
-  | { id: 'video' | 'image' | 'file'; name: string; kind: 'content' }
-  | { id: string; name: string; kind: 'document'; docType: string };
 const social = (id: string): Choice => ({ id, name: SOCIAL_PLATFORMS.find((p) => p.id === id)!.name, kind: 'platform' });
 const doc = (id: string): Choice => {
   const item = OFFICIAL_DOCUMENTS.find((d) => d.id === id)!;
@@ -48,7 +46,8 @@ const CHOICES: Choice[] = [
   doc('fundraising'),
   doc('governance'),
 ];
-const BIO_LIMIT = 150;
+const VISIBLE_CHOICES = CHOICES.slice(0, 12);
+const BIO_LIMIT = 300;
 const STEPS = 2;
 
 // Note 19 (update): each logo as its owner shows it. Official Simple Icons
@@ -101,35 +100,22 @@ export function NonprofitOnboarding() {
   const [step, setStep] = useState<1 | 2>(() => onboardingProgress()?.step ?? 1);
   const [imageError, setImageError] = useState('');
   const uploadId = useId();
-  const [chosen, setChosen] = useState<string[]>(() => onboardingProgress()?.chosen ?? []);
+  const [chosen, setChosen] = useState<string[]>(() => (onboardingProgress()?.chosen ?? []).filter(id => VISIBLE_CHOICES.some(choice => choice.id === id)));
   // Only an open setup is remembered; opening this page again after it was
   // finished does not lock the editor.
   useEffect(() => { if (onboardingPending()) saveOnboarding({ step, chosen }); }, [step, chosen]);
   const [error, setError] = useState('');
+  const finishing = useRef(false);
   const toEditor = () => navigate(nonprofitPath('builder'), { replace: true });
 
   const toggle = (id: string) => setChosen((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
 
   const finish = async () => {
+    if (finishing.current) return;
+    finishing.current = true;
     setError('');
-    // No placeholder links: an empty link, hidden, marked «يرجى إكمال الرابط» in the editor.
-    const existing = new Set(pageData.links.map((link) => link.platform));
-    const existingDocs = new Set(pageData.links.map((link) => link.display?.kind === 'document' && link.display.docType));
-    // Note 16: added synchronously, so the save right below already carries
-    // every chosen item (and the name, bio and logo) to the account.
-    flushSync(() => CHOICES.filter((choice) => chosen.includes(choice.id)).forEach((choice) => {
-      const base = { url: '', iconStyle: 'color' as const, textPosition: 'center' as const, hidden: true };
-      if (choice.kind === 'platform') {
-        if (!existing.has(choice.id as Link['platform'])) addLink({ ...base, title: choice.name, platform: choice.id as Link['platform'], linkType: 'url' });
-      } else if (choice.kind === 'document') {
-        if (!existingDocs.has(choice.docType)) addLink({ ...base, title: choice.name, platform: 'file', linkType: 'file', fileCategory: 'other', display: { kind: 'document', docType: choice.docType } });
-      } else if (choice.id === 'video') {
-        // Note 24: a clip is a button like any other link (no embedded player).
-        addLink({ ...base, title: 'مقطع', platform: 'youtube', linkType: 'url' });
-      } else {
-        addLink({ ...base, title: choice.id === 'image' ? 'صورة' : 'ملف', platform: 'file', linkType: 'file', fileCategory: 'other' });
-      }
-    }));
+    const additions = onboardingItems(VISIBLE_CHOICES, chosen, pageData.links);
+    flushSync(() => additions.forEach(addLinkItem => addLink(addLinkItem)));
     // Note 18: the editor opens at once; the save goes on in the background
     // (the editor shows it). Everything is already in the draft, so a failed
     // save loses nothing: it stays unsaved and the draft keeps retrying.
@@ -157,21 +143,41 @@ export function NonprofitOnboarding() {
   const canContinue = step === 1 ? chosen.length > 0 : Boolean(pageData.name.trim()) && !saving;
 
   return (
-    <div dir="rtl" className="flex min-h-[100dvh] flex-col bg-white text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+    <div dir="rtl" className="relative isolate flex min-h-[100dvh] flex-col bg-[#F8F8F6] text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>
       <header className="mx-auto flex w-full max-w-2xl items-center gap-4 px-5 pt-6">
         <button type="button" onClick={back} aria-label="رجوع" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#ecebe6] text-[#1d1d1f] transition-transform active:scale-95"><ChevronRight className="h-6 w-6" /></button>
         <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#e8e8e3]" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS} aria-valuenow={step} aria-label="خطوات الإعداد">
-          <div className="h-full rounded-full bg-[#6c9464] transition-all duration-300" style={{ width: `${(step / (STEPS + 1)) * 100}%` }} />
+          <div className="h-full rounded-full bg-[#FF6B2C] transition-all duration-300" style={{ width: `${(step / (STEPS + 1)) * 100}%` }} />
         </div>
         <span className="w-12" />
       </header>
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-52 pt-8">
+      {step === 1 && <>
+        <aside aria-label="مثال على صفحة الجمعية المنشورة" className="pointer-events-none fixed left-[max(2rem,calc((100vw-1320px)/2))] top-40 hidden w-56 text-center xl:block">
+          <img src="/nonprofit/phone-page.webp" alt="مثال لصفحة عنوان على الجوال، تضم التعريف بالجمعية وروابط التواصل والوثائق" className="mx-auto w-48 opacity-80" />
+          <p className="mt-5 text-sm font-bold">هنا تظهر اختياراتك</p>
+          <p className="mt-1 text-xs leading-6 text-[#737373]">في صفحة واحدة يفتحها زوّار جمعيتك.</p>
+        </aside>
+        <aside aria-label="أمثلة للمحتوى الذي يمكنك إضافته" className="fixed right-[max(2rem,calc((100vw-1320px)/2))] top-60 hidden w-52 xl:block">
+          <p className="mb-4 text-sm font-bold">مساحة لكل ما يعرّف بكم</p>
+          <div className="space-y-3">
+            {[{ Icon: Play, title: 'مقطع تعريفي', detail: 'عرّف برسالتكم وأثركم' }, { Icon: ImageIcon, title: 'صورة', detail: 'شارك لحظة من أنشطتكم' }, { Icon: FileText, title: 'ملف أو وثيقة', detail: 'قرّب تقاريركم من الداعمين' }].map(({ Icon, title, detail }) => <div key={title} className="flex items-center gap-3 rounded-2xl border border-[#E7E7E7] bg-white px-4 py-4"><Icon size={21} className="shrink-0 text-[#FF6B2C]" /><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-[11px] leading-5 text-[#737373]">{detail}</p></div></div>)}
+          </div>
+          <p className="mt-4 text-xs leading-6 text-[#737373]">تختار الآن، وتضيف التفاصيل في المحرر.</p>
+        </aside>
+      </>}
+      <main className="relative mx-auto w-full max-w-2xl flex-1 px-5 pb-52 pt-8">
         {step === 1 ? (
           <>
-            <h1 className="text-center text-[28px] font-black leading-tight sm:text-[34px]">أضف روابط وملفات لصفحتك</h1>
-            <div className="mt-8 grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4">
-              {CHOICES.map((p) => {
+            <div className="mb-6 flex justify-center"><OnwanLogo /></div>
+            <h1 className="text-center text-[26px] font-bold leading-relaxed sm:text-[32px]">أضف روابط وملفات <span className="text-[#FF6B2C]">لصفحتك</span></h1>
+            <p className="mx-auto mt-3 max-w-lg text-center text-sm leading-7 text-[#737373] sm:text-base">اختر ما تود البدء به ليظهر في صفحة جمعيتك.<br />ويمكنك إضافة المزيد وتعديل اختياراتك لاحقًا من المحرر.</p>
+            <div className="mt-5 flex items-center gap-4 rounded-2xl border border-[#E7E7E7] bg-white px-4 py-3 xl:hidden">
+              <img src="/nonprofit/phone-page.webp" alt="مثال لصفحة الجمعية على الجوال" className="h-24 w-auto shrink-0" />
+              <div><p className="text-sm font-bold">اختياراتك، في صفحة واحدة</p><p className="mt-1 text-xs leading-6 text-[#737373]">روابط التواصل، المقاطع، الصور والوثائق.<br />اختر الآن وأكمل التفاصيل في المحرر.</p></div>
+            </div>
+            <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4">
+              {VISIBLE_CHOICES.map((p) => {
                 const active = chosen.includes(p.id);
                 return (
                   <button
@@ -180,16 +186,21 @@ export function NonprofitOnboarding() {
                     aria-pressed={active}
                     onClick={() => toggle(p.id)}
                     // The border is always 2px — only its colour changes, so nothing shifts.
-                    className={`relative flex aspect-square flex-col items-center justify-center gap-2.5 rounded-[22px] border-2 bg-white transition-colors ${active ? 'border-[#173c36]' : 'border-[#ececec] hover:border-[#d4d4d4]'}`}
+                    className={`relative flex aspect-square flex-col items-center justify-center gap-2.5 rounded-[22px] border-2 bg-white transition-colors ${active ? 'border-[#FF6B2C] ring-2 ring-[#FF6B2C]/10' : 'border-[#ececec] hover:border-[#d4d4d4]'}`}
                   >
-                    {active && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#173c36] text-white"><Check className="h-3 w-3" strokeWidth={3} /></span>}
+                    {active && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#FF6B2C] text-white"><Check className="h-3 w-3" strokeWidth={3} /></span>}
                     <ChoiceTile choice={p} />
                     <span className="px-1 text-center text-[13px] font-bold leading-tight sm:text-[15px]">{p.name}</span>
                   </button>
                 );
               })}
+              <div className="flex aspect-square flex-col items-center justify-center gap-1 rounded-[22px] border-2 border-[#FF6B2C]/20 bg-[#FFF0E8] px-2 text-center">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#FF6B2C] sm:h-14 sm:w-14"><Plus size={28} strokeWidth={1.75} aria-hidden="true" /></span>
+                <span className="text-[13px] font-bold sm:text-[15px]">والمزيد</span>
+                <span className="text-[10px] leading-[1.4] text-[#737373] sm:text-xs">أضف أي رابط أو محتوى<br />لاحقًا من المحرر</span>
+              </div>
             </div>
-            <p className="mt-5 text-center text-[15px] text-[#6e6e73] sm:text-base">يمكنك لاحقًا إضافة المحتوى وتعديله أو حذفه من محرر الصفحة.</p>
+            <p className="mt-4 text-center text-xs leading-6 text-[#737373]">ما لقيت منصتك؟ تابع، ويمكنك إضافة رابطها أو صور وملفات ومقاطع لاحقًا من محرر الصفحة.</p>
           </>
         ) : (
           <>
@@ -201,16 +212,16 @@ export function NonprofitOnboarding() {
                 <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-[#a9aaa3]">
                   {pageData.profileImage ? <img src={pageData.profileImage} alt="" className="h-full w-full bg-white object-contain" /> : <User className="h-20 w-20 text-[#f5f5f2]" fill="currentColor" strokeWidth={0} />}
                 </span>
-                <span className="absolute bottom-1 left-1 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-[#173c36] text-white"><Plus className="h-6 w-6" /></span>
+                <span className="absolute bottom-1 left-1 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-[#FF6B2C] text-white"><Plus className="h-6 w-6" /></span>
               </label>
               {imageError && <p role="alert" className="mt-3 text-center text-sm text-red-700">{imageError}</p>}
               <label className="mt-7 block">
                 <span className="text-[16px] font-bold">اسم الجمعية</span>
-                <input value={pageData.name} onChange={(e) => updatePageData({ name: e.target.value })} maxLength={80} className="mt-2 w-full rounded-2xl border-2 border-[#e2e2de] bg-white px-5 py-4 text-[17px] focus:border-[#173c36] focus:outline-none" />
+                <input value={pageData.name} onChange={(e) => updatePageData({ name: e.target.value })} maxLength={80} className="mt-2 w-full rounded-2xl border-2 border-[#e2e2de] bg-white px-5 py-4 text-[17px] focus:border-[#FF6B2C] focus:outline-none" />
               </label>
               <label className="mt-5 block">
                 <span className="text-[16px] font-bold">نبذة عن الجمعية</span>
-                <span className="mt-2 block rounded-2xl border-2 border-[#e2e2de] bg-white px-5 pb-3 pt-4 focus-within:border-[#173c36]">
+                <span className="mt-2 block rounded-2xl border-2 border-[#e2e2de] bg-white px-5 pb-3 pt-4 focus-within:border-[#FF6B2C]">
                   <textarea value={pageData.bio} onChange={(e) => updatePageData({ bio: e.target.value.slice(0, BIO_LIMIT) })} maxLength={BIO_LIMIT} rows={4} placeholder="سطر أو سطران عن رسالة الجمعية وخدماتها" className="block w-full resize-none bg-transparent text-[17px] placeholder:text-[#8e8e93] focus:outline-none" />
                   <span className="mt-1 block text-[14px] text-[#6e6e73]" dir="ltr" style={{ textAlign: 'right' }}>{pageData.bio.length}/{BIO_LIMIT}</span>
                 </span>
@@ -222,22 +233,22 @@ export function NonprofitOnboarding() {
       </main>
 
       {/* Fixed actions, faded over the grid as in the reference. */}
-      <footer className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-white via-white to-white/0 pt-8">
+      <footer className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-[#F8F8F6] via-[#F8F8F6] to-[#F8F8F6]/0 pt-8">
         <div className="mx-auto w-full max-w-2xl px-5 pb-6">
           {step === 2 && (
             <p className="mb-3 text-center text-[13px] leading-6 text-[#6e6e73]">
-              بالمتابعة توافق على <a href={nonprofitPath('terms')} className="font-bold text-[#173c36] underline underline-offset-2">الشروط والأحكام</a>. «عنوان» مخصّص للجمعيات والمنظمات.
+              بالمتابعة توافق على <a href={nonprofitPath('terms')} className="font-bold text-[#FF6B2C] underline underline-offset-2">الشروط والأحكام</a>. «عنوان» مخصّص للجمعيات والمنظمات.
             </p>
           )}
           <button
             type="button"
             disabled={!canContinue}
             onClick={next}
-            className="flex min-h-[56px] w-full items-center justify-center rounded-full bg-[#173c36] text-[17px] font-bold text-white transition-colors disabled:bg-[#e8e8e3] disabled:text-[#a3a39e]"
+            className="flex min-h-[56px] w-full items-center justify-center rounded-full bg-[#FF6B2C] text-[17px] font-bold text-white transition-colors disabled:bg-[#e8e8e3] disabled:text-[#a3a39e]"
           >
             {saving ? 'جارٍ الحفظ…' : step === 2 ? 'أنشئ صفحتك' : 'متابعة'}
           </button>
-          {step === 1 && <button type="button" onClick={() => setStep(2)} className="mt-3 block w-full py-2 text-center text-[15px] font-bold text-[#6e6e73]">تخطي</button>}
+          {step === 1 && <button type="button" onClick={() => { setChosen([]); setStep(2); saveOnboarding({ step: 2, chosen: [] }); }} className="mt-3 block w-full py-2 text-center text-[15px] font-bold text-[#6e6e73]">تخطي</button>}
         </div>
       </footer>
     </div>

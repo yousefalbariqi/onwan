@@ -79,6 +79,13 @@ async function storeOnce(dataUrl: string, token: string) {
 export async function moveInlineMedia(page: PageData, token = getSessionToken()): Promise<PageData> {
   const values = new Set<string>();
   const collect = (value: unknown) => { if (isInline(value)) values.add(value); };
+  let formStart: any;
+  try { formStart = JSON.parse(page.editorForm?.start || 'null'); } catch { formStart = null; }
+  collect(formStart?.url); collect(formStart?.customIcon); collect(formStart?.display?.image);
+  collect(page.editorForm?.rawLink);
+  collect(page.editorForm?.form?.url);
+  collect(page.editorForm?.form?.customIcon);
+  collect(page.editorForm?.form?.display?.image);
   collect(page.profileImage);
   collect(page.profileStyle?.bannerImage);
   if (page.wallpaper.type === 'image') { collect(page.wallpaper.value); collect(page.wallpaper.preview); }
@@ -99,6 +106,12 @@ export async function moveInlineMedia(page: PageData, token = getSessionToken())
 
   return {
     ...page,
+    editorForm: page.editorForm ? {
+      ...page.editorForm,
+      rawLink: swap(page.editorForm.rawLink),
+      start: formStart ? JSON.stringify({ ...formStart, url: swap(formStart.url), customIcon: swap(formStart.customIcon), display: formStart.display ? { ...formStart.display, image: swap(formStart.display.image) } : formStart.display }) : page.editorForm.start,
+      form: { ...page.editorForm.form, url: swap(page.editorForm.form.url), customIcon: swap(page.editorForm.form.customIcon), display: { ...page.editorForm.form.display, image: swap(page.editorForm.form.display?.image) } },
+    } : undefined,
     profileImage: swap(page.profileImage),
     profileStyle: page.profileStyle?.bannerImage ? { ...page.profileStyle, bannerImage: swap(page.profileStyle.bannerImage) } : page.profileStyle,
     wallpaper: { ...page.wallpaper, value: page.wallpaper.type === 'image' ? swap(page.wallpaper.value) : page.wallpaper.value, poster: swap(page.wallpaper.poster), preview: page.wallpaper.type === 'image' ? swap(page.wallpaper.preview) : undefined },

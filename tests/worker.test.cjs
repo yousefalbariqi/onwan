@@ -368,18 +368,22 @@ test('a wrong email code keeps the session: 400 with a clear message, not 401', 
 test('daily save limit refuses the 201st save; a draft is stored without publishing', async () => {
   const bearer = withRuntime({ env }, () => createSessionToken('user-a', 'a@example.org'));
   let saves = 199;
+  let revision = 0;
   const seen = [];
   query = async (sql, values = []) => {
     seen.push(sql.replace(/\s+/g, ' '));
     if (/from users/i.test(sql)) return { rows: [{ id: 'user-a', email: 'a@example.org', phone: '0500000000', status: 'active', email_verified_at: new Date() }], rowCount: 1 };
+    if (/select edit_revision,last_edit_operation/.test(sql)) return { rows: [{ edit_revision: revision, draft_json: null }], rowCount: 1 };
+    if (/select edit_revision from pages/.test(sql)) return { rows: [{ edit_revision: revision }], rowCount: 1 };
+    if (/is not distinct from/.test(sql)) return { rows: [{ equal: false }], rowCount: 1 };
     if (/insert into page_save_counts/.test(sql)) { saves += 1; return { rows: [{ saves }], rowCount: 1 }; }
-    if (/update pages set draft_json/.test(sql)) return { rows: [{ draft_saved_at: '2026-10-25T00:00:00Z' }], rowCount: 1 };
+    if (/update pages set draft_json/.test(sql)) { revision++; return { rows: [], rowCount: 1 }; }
     return { rows: [], rowCount: 0 };
   };
-  const draft = await call('/api/page/me', { method: 'PATCH', bearer, body: { draft: true, pageData: { name: 'x', links: [] } } });
+  const draft = await call('/api/page/me', { method: 'PATCH', bearer, body: { revision: 0, operationId: 'draft-one', draft: true, pageData: { name: 'x', links: [] } } });
   assert.equal(draft.status, 200);
   assert.ok(!seen.some((sql) => /update pages set display_name|delete from page_links/.test(sql)), 'a draft does not publish');
-  const over = await call('/api/page/me', { method: 'PATCH', bearer, body: { draft: true, pageData: { name: 'y', links: [] } } });
+  const over = await call('/api/page/me', { method: 'PATCH', bearer, body: { revision: 1, operationId: 'draft-two', draft: true, pageData: { name: 'y', links: [] } } });
   assert.equal(over.status, 429);
   assert.equal((await over.json()).code, 'save_limit');
 });

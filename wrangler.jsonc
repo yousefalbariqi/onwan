@@ -14,6 +14,8 @@
   },
   "vars": {
     "ROOT_DOMAIN": "onwan.link",
+    "GOOGLE_WALLET_ISSUER_ID": "3388000000023219826",
+    "GOOGLE_WALLET_CLASS_ID": "3388000000023219826.3388000000023219826.onwan_digital_card",
     // REQ-023 Cloudflare Stream (public values; STREAM_API_TOKEN is a secret).
     "CF_ACCOUNT_ID": "0deb932b2d2480c378d564be44a39990",
     "STREAM_CUSTOMER_HOST": "customer-izh2gxj70gpyopwe.cloudflarestream.com",

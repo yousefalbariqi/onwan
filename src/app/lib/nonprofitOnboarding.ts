@@ -28,6 +28,6 @@ function write(progress: OnboardingProgress | null) {
 
 export const onboardingProgress = read;
 export const onboardingPending = () => read() !== null;
-export const startOnboarding = () => { if (!read()) write({ step: 1, chosen: [] }); };
+export const startOnboarding = (fresh = false) => { if (fresh || !read()) write({ step: 1, chosen: [] }); };
 export const saveOnboarding = (progress: OnboardingProgress) => write(progress);
 export const finishOnboarding = () => write(null);

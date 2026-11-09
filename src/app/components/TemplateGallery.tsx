@@ -22,6 +22,8 @@ export function TemplateGallery({ initialCategory = '' }: { initialCategory?: st
   const [failed, setFailed] = useState(false);
   const [applied, setApplied] = useState<{ id: string; used: boolean } | null>(null);
   const request = useRef(0);
+  const rail = useRef<HTMLDivElement>(null);
+  useEffect(() => { rail.current?.scrollTo({ left: 0 }); }, [query, category]);
 
   const load = (offset: number) => {
     const id = ++request.current;
@@ -67,18 +69,17 @@ export function TemplateGallery({ initialCategory = '' }: { initialCategory?: st
           ))}
         </div>
       )}
-      {!result && loading && <div className="grid grid-cols-3 gap-3">{Array.from({ length: 6 }, (_, i) => <div key={i} className="aspect-[9/13] animate-pulse rounded-2xl bg-[#f2f2f7]" />)}</div>}
+      {!result && loading && <div className="-mx-5 flex gap-3 overflow-hidden px-5">{Array.from({ length: 6 }, (_, i) => <div key={i} className="aspect-[390/844] w-28 shrink-0 animate-pulse rounded-xl bg-[#f2f2f7]" />)}</div>}
       {result && result.templates.length === 0 && <p className="py-6 text-center text-sm text-[#8e8e93]">لا توجد قوالب مطابقة.</p>}
-      <div className="grid grid-cols-3 gap-3">
+      <div ref={rail} role="region" aria-label="استعراض القوالب" tabIndex={0} className="-mx-5 flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain px-5 pb-3 pt-1 [scroll-padding-inline:1.25rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {result?.templates.map((template) => {
           const active = applied?.id === template.id;
           return (
-            <div key={template.id} className="space-y-1.5">
+            <div key={template.id} className="w-28 shrink-0 snap-start space-y-2 sm:w-[124px]">
               <button type="button" onClick={() => tryTemplate(template)} aria-pressed={active} aria-label={`تجربة قالب ${template.name}`} className={`relative block w-full rounded-2xl outline-offset-2 ${active ? 'outline-2 outline-[#FF6B2C] [outline-style:solid]' : ''}`}>
-                <TemplatePreview design={template.design} />
-                {active && <span className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[#FF6B2C] text-white"><Check className="h-4 w-4" /></span>}
+                <TemplatePreview design={template.design} phone />
               </button>
-              <p className="truncate text-center text-xs font-bold text-[#111111]">{template.name}</p>
+              <p className="flex items-center justify-center gap-1 text-xs font-bold text-[#111111]">{active && <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-[#FF6B2C]" />}<span className="truncate">{template.name}</span></p>
               {active && (
                 <button type="button" disabled={applied.used} onClick={() => { track(template.id, 'used'); setApplied({ id: template.id, used: true }); }} className="w-full rounded-full bg-[#FF6B2C] py-1 text-xs font-bold text-white disabled:bg-[#FFF0E8] disabled:text-[#F25A18]">
                   {applied.used ? 'معتمد — احفظ' : 'اعتماد'}
@@ -123,7 +124,7 @@ export function TemplateShelves({ desktop, onShowAll }: { desktop: boolean; onSh
 
   if (failed) return <TemplatesUnavailable onRetry={load} />;
   if (!shelves || !shelves.length) return null;
-  const card = desktop ? 'w-[132px]' : 'w-[31%]';
+  const card = desktop ? 'w-[124px]' : 'w-28';
   return (
     <>
       {shelves.map((shelf) => (
@@ -132,7 +133,7 @@ export function TemplateShelves({ desktop, onShowAll }: { desktop: boolean; onSh
             <h2 className="text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{shelf.category || 'قوالب أخرى'}</h2>
             <button type="button" onClick={() => onShowAll(shelf.category)} className="text-sm font-bold text-emerald-700">عرض الكل</button>
           </div>
-          <div className={desktop ? 'flex snap-x gap-4 overflow-x-auto pb-3' : '-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'}>
+          <div role="region" aria-label={`قوالب ${shelf.category || 'أخرى'}`} tabIndex={0} className={desktop ? 'flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain px-1 pb-3 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : '-mx-4 flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 pt-1 [scroll-padding-inline:1rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'}>
             {shelf.templates.map((template) => (
               <button
                 key={template.id}
@@ -147,10 +148,9 @@ export function TemplateShelves({ desktop, onShowAll }: { desktop: boolean; onSh
                 className={`${card} shrink-0 snap-start text-right transition-transform active:scale-[0.97]`}
               >
                 <span className={`relative block rounded-2xl ${tried === template.id ? 'ring-2 ring-emerald-400/70 ring-offset-2' : ''}`}>
-                  <TemplatePreview design={template.design} />
-                  {tried === template.id && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow"><Check className="h-3.5 w-3.5" /></span>}
+                  <TemplatePreview design={template.design} phone />
                 </span>
-                <span className="mt-2 block truncate text-center text-xs font-bold text-[#3a3a3c]">{template.name}</span>
+                <span className="mt-2 flex items-center justify-center gap-1 text-xs font-bold text-[#3a3a3c]">{tried === template.id && <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-emerald-600" />}<span className="truncate">{template.name}</span></span>
               </button>
             ))}
           </div>

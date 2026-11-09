@@ -1,3 +1,4 @@
+import { FormattingTextarea } from './FormattingTextarea';
 import { useId, useState } from 'react';
 import { usePageContext } from '../context/PageContext';
 import { Camera } from 'lucide-react';
@@ -175,15 +176,16 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
 
       <Group title="الوصف" footer="بطاقة جهة الاتصال التي ينزّلها زوارك تأخذ جوال حسابك وبريده تلقائيًا. الخط والألوان في «الأسلوب».">
         <div className="px-4 py-3">
-          <textarea
+          <FormattingTextarea
             value={pageData.bio}
-            onChange={(e) => updatePageData({ bio: e.target.value })}
+            format={pageData.typography?.bioFormat}
+            onChange={(bio, bioFormat) => updatePageData({ bio, typography: { ...pageData.typography, bioFormat: bioFormat.length ? bioFormat : undefined } })}
             placeholder="نبذة مختصرة"
-            maxLength={150}
+            maxLength={300}
             rows={3}
             className="w-full resize-none bg-transparent text-[15px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none"
           />
-          <span className="block text-left text-xs text-[#8e8e93]" dir="ltr">{pageData.bio.length}/150</span>
+          <span className="block text-left text-xs text-[#8e8e93]" dir="ltr">{pageData.bio.length}/300</span>
         </div>
       </Group>
 

@@ -19,10 +19,24 @@ export default function StaffPageEditor() {
   } else back.set('customer', userId || '');
 
   const source = useMemo<PageSource>(
-    () => ({
-      load: () => adminCall('content.getPage', { userId }),
-      save: (pageData) => adminCall('content.save', { userId, pageData }),
-    }),
+    () => {
+      let revision: number | null = null;
+      let pending: { pageData: any; revision: number; operationId: string } | null = null;
+      return {
+        load: async () => { const result = await adminCall<any>('content.getPage', { userId }); revision = result.revision; return result; },
+        save: async (pageData) => {
+          if (pending) {
+            const request = pending;
+            const result = await adminCall<any>('content.save', { userId, ...request });
+            revision = result.revision; pending = null;
+            if (JSON.stringify(pageData) === JSON.stringify(request.pageData)) return result;
+          }
+          pending = { pageData, revision: revision!, operationId: crypto.randomUUID() };
+          const result = await adminCall<any>('content.save', { userId, ...pending });
+          revision = result.revision; pending = null; return result;
+        },
+      };
+    },
     [userId],
   );
 

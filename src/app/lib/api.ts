@@ -173,25 +173,25 @@ export function verifyEmailCode(code: string) {
 }
 
 export function fetchMyPage() {
-  return request<{ pageData: any; account: Account; draft?: { pageData: any; savedAt: string } | null }>('/api/page/me', {
+  return request<{ pageData: any; account: Account; revision: number; draft?: { pageData: any; savedAt: string; conflict?: boolean } | null }>('/api/page/me', {
     authenticated: true,
   });
 }
 
 // REQ-015: the unpublished draft, kept on the server for the owner only.
-export function saveMyDraft(pageData: any | null) {
-  return request<{ savedAt: string | null }>('/api/page/me', {
+export function saveMyDraft(pageData: any | null, revision: number, operationId: string) {
+  return request<{ savedAt: string | null; revision: number }>('/api/page/me', {
     method: 'PATCH',
     authenticated: true,
-    body: { draft: true, pageData },
+    body: { draft: true, pageData, revision, operationId },
   });
 }
 
-export function saveMyPage(pageData: any) {
-  return request<{ pageData: any; account: Account }>('/api/page/me', {
+export function saveMyPage(pageData: any, revision: number, operationId: string) {
+  return request<{ pageData: any; account: Account; revision: number }>('/api/page/me', {
     method: 'PATCH',
     authenticated: true,
-    body: { pageData, slim: true },
+    body: { pageData, slim: true, revision, operationId },
   });
 }
 
@@ -221,4 +221,9 @@ export function sendSupportRequest(type: RequestType, message: string) {
 
 export function nonprofitCall<T = any>(body?: Record<string, unknown>) {
   return request<T>('/api/nonprofit', { method: body ? 'POST' : 'GET', authenticated: true, body });
+}
+
+export async function requestGoogleWalletLink(color: string): Promise<string> {
+  const result = await request<{ url: string }>('/api/google-wallet', { method: 'POST', body: { color } });
+  return result.url;
 }

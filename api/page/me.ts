@@ -1,8 +1,10 @@
 import { getAccountSummary } from '../_lib/account.js';
-import { ensurePageForUser, getPageDataByUserId, savePageData } from '../_lib/page.js';
-import { clearDraft, countSave, loadDraft, saveDraft } from '../_lib/pageDraft.js';
+import { ensurePageForUser, getPageDataByUserId } from '../_lib/page.js';
+import { loadDraft } from '../_lib/pageDraft.js';
 import { purgePublicPage } from '../_lib/publicCache.js';
-import { allowMethods, handleApiError, readJsonBody, sendJson } from '../_lib/http.js';
+import { HttpError, allowMethods, handleApiError, readJsonBody, sendJson } from '../_lib/http.js';
+import { pool } from '../_lib/db.js';
+import { mutatePage } from '../_lib/pageMutation.js';
 import { requireUser } from '../_lib/session.js';
 
 export default async function handler(req: any, res: any) {
@@ -19,38 +21,31 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'GET') {
       await ensurePageForUser(user.id);
-      const [pageData, account, draft] = await Promise.all([getPageDataByUserId(user.id), getAccountSummary(user.id), loadDraft(user.id)]);
-      sendJson(res, 200, { pageData, account, draft });
+      const account = await getAccountSummary(user.id);
+      const client = await pool.connect();
+      try {
+        await client.query('begin isolation level repeatable read');
+        const pageData = await getPageDataByUserId(user.id, client);
+        const draft = await loadDraft(user.id, client);
+        const revision = Number((await client.query('select edit_revision from pages where user_id=$1', [user.id])).rows[0]?.edit_revision);
+        await client.query('commit');
+        sendJson(res, 200, { pageData, draft, revision, account });
+      } catch (error) { await client.query('rollback'); throw error; }
+      finally { client.release(); }
       return;
     }
 
     const body = await readJsonBody(req);
 
-    // Back to the published version: the draft is dropped (not a save).
-    if (body.draft === true && body.pageData === null) {
-      await clearDraft(user.id);
-      sendJson(res, 200, { savedAt: null });
-      return;
-    }
-
-    // REQ-015: every save — draft or publish — counts toward the daily limit.
-    await countSave(user.id);
-
-    // A draft is kept for the owner only; the public page is unchanged.
-    if (body.draft === true) {
-      sendJson(res, 200, await saveDraft(user.id, body.pageData));
-      return;
-    }
-
-    // The account summary does not depend on the page content, so it is read
-    // alongside the save instead of after it.
-    const [pageData, account] = await Promise.all([savePageData(user.id, body.pageData ?? {}, { slimResponse: body.slim === true }), getAccountSummary(user.id)]);
-    await clearDraft(user.id);
-    // REQ-021: visitors see the published version at once.
-    await purgePublicPage(pageData?.username);
-
-    sendJson(res, 200, { pageData, account });
+    const account = await getAccountSummary(user.id);
+    const result = await mutatePage(user.id, body);
+    if (!body.draft) await purgePublicPage(result.pageData?.username).catch(() => undefined);
+    sendJson(res, 200, { ...result, account });
   } catch (error) {
+    if ((error as any)?.code === '42703' && String((error as any)?.message).includes('edit_revision')) {
+      handleApiError(res, new HttpError(503, 'يلزم تشغيل ترحيل قاعدة البيانات phase30-page-revisions.sql قبل استخدام هذا الإصدار.', 'schema_upgrade_required'));
+      return;
+    }
     handleApiError(res, error);
   }
 }

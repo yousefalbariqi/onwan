@@ -53,6 +53,7 @@ function api() {
     name = name.replace(/\.js$/, '');
     if (name === '../../shared/videoSources') return loadVideos();
     if (name === '../../shared/linkSections') return loadSections();
+    if (name === '../../shared/textFormatting') return loadShared('shared/textFormatting.ts');
     if (name === '../../shared/pageTransfer') return loadShared('shared/pageTransfer.ts');
     if (name === '../../shared/fileSignatures') return loadShared('shared/fileSignatures.ts');
     if (name === './stream') return { streamUidFromUrl: () => null, verifyStreamVideo: async () => null };
@@ -528,4 +529,10 @@ test('background preview survives save/load with framing and rejects unsafe imag
   await assert.rejects(() => service.savePageData('owner', { wallpaper: { ...wallpaper, preview: 'javascript:alert(1)' } }), { status: 400 });
   assert.throws(() => service.validatePartnerPageDraft({ wallpaper: { ...wallpaper, preview: ['invalid'] } }), { status: 400 });
   assert.equal((await service.savePageData('owner', { wallpaper: { type: 'color', value: '#fff', preview } })).wallpaper.preview, undefined);
+});
+
+test('selected text formatting survives normalization without arbitrary CSS or HTML', () => {
+  const [link] = api().testNormalize([{ title: 'نص', display: { kind: 'text', body: '  مرحبا بالعالم', bodyFormat: [{ start: 2, end: 7, bold: true, color: 'red', html: '<script>' }] } }]);
+  assert.equal(link.display.body, '  مرحبا بالعالم');
+  assert.deepEqual(link.display.bodyFormat, [{ start: 2, end: 7, bold: true }]);
 });

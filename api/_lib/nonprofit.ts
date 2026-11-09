@@ -47,8 +47,9 @@ export async function submitNonprofit(userId: string, input: any) {
       if (notes.length > 4000) throw new HttpError(400, 'الملاحظات أطول من الحد المسموح.');
       // Preserve the domain request in admin details and email without provisioning it.
       const requestNotes = [domain ? `طلب ربط نطاق الجمعية الخاص: ${domain} (للمراجعة ضمن عرض السعر؛ لم يتم الربط أو الحجز)` : '', notes].filter(Boolean).join('\n\n');
-      await client.query('select id from pages where user_id=$1 for update', [userId]);
-      const page = await getPageDataByUserId(userId);
+      const locked = await client.query('select id,edit_revision from pages where user_id=$1 for update', [userId]);
+      if (input.revision !== undefined && Number(locked.rows[0]?.edit_revision) !== input.revision) throw new HttpError(409, 'تغير التصميم من جهاز آخر. راجع النسخة قبل إرسال الطلب.', 'page_conflict');
+      const page = await getPageDataByUserId(userId, client);
       // Explicit editor save validates the design; autosaved drafts are not the submitted version.
       const snapshot = page;
       if (!snapshot || !snapshot.name?.trim()) throw new HttpError(400, 'أضف اسم الجمعية في التصميم واحفظه أولًا.');

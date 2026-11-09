@@ -1,3 +1,4 @@
+import { FormattedText } from './FormattedText';
 import { sectionBlocks, visibleSectionItems } from '../../../shared/linkSections';
 import { ReactNode, useEffect, useRef } from 'react';
 import { FONT_OPTIONS, Link, PageData } from '../context/PageContext';
@@ -112,7 +113,6 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
   const { buttonStyle, theme, wallpaper } = data;
   const design = pageDesign(data);
   // PAGE-06: hidden buttons stay in the editor list but are not rendered.
-  // Note 25: a platform still waiting for its link is not drawn, even in the preview.
   // Incomplete items are kept hidden from visitors; the editor preview un-hides them.
   const shownLinks = showIncomplete ? data.links.map((link) => (isIncompleteItem(link) ? { ...link, hidden: false } : link)) : data.links;
   const blocks = sectionBlocks(visibleSectionItems(shownLinks.filter((link) => link.url || link.linkType === 'file' || ['heading', 'text'].includes(link.display?.kind ?? '') || (showIncomplete && isIncompleteItem(link)))));
@@ -164,7 +164,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
     return (
       <div key={link.id} role={open ? 'button' : undefined} tabIndex={open ? 0 : undefined} title={open ? 'اضغط للتعديل' : undefined}
         className={`relative [&>a]:h-full ${incomplete ? 'opacity-55' : ''} ${open ? 'cursor-pointer rounded-xl outline-2 outline-offset-2 outline-transparent transition-[outline-color,opacity] hover:outline-[#0a84ff]/50 [outline-style:solid]' : ''}`}
-        onClickCapture={open ? (event) => { event.preventDefault(); event.stopPropagation(); open(); } : undefined}
+        onClickCapture={open || incomplete ? (event) => { event.preventDefault(); event.stopPropagation(); open?.(); } : undefined}
         onKeyDown={open ? (event) => { if (event.key === 'Enter') open(); } : undefined}>
         {inner}
         {/* A playing video would swallow the tap; in the editor it opens the item instead. */}
@@ -175,7 +175,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
   };
 
   const renderLink = (link: Link) => {
-    if (link.display?.kind === 'text') return <p key={link.id} className={`whitespace-pre-wrap break-words text-start ${design.paragraph} leading-relaxed`} style={{ color: paragraphColor }}>{(lang === 'en' && link.display.bodyEn) || link.display.body}</p>;
+    if (link.display?.kind === 'text') return <p key={link.id} className={`whitespace-pre-wrap break-words text-start ${design.paragraph} leading-relaxed`} style={{ color: paragraphColor }}><FormattedText text={(lang === 'en' && link.display.bodyEn) || link.display.body || ''} format={lang === 'en' && link.display.bodyEn ? undefined : link.display.bodyFormat} /></p>;
     if (link.display?.kind === 'video') return <VideoBlock key={`${link.id}:${link.url}`} url={link.url} title={(lang === 'en' && link.titleEn) || link.title} caption={link.display.caption} textColor={paragraphColor} radiusClass={design.mediaRadius} />;
     // Note 38: a group's title already sits after the page's 16 px gap, so it
     // adds only a little; a standalone heading keeps its larger lead.
@@ -317,7 +317,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
               className={`${BIO_SIZES.public[bioSize]} opacity-90 mb-4 text-center max-w-sm whitespace-pre-line`}
               style={{ color: data.customColors?.bioColor || theme.textColor, fontSize: data.typography?.bioPx ? `${data.typography.bioPx}px` : undefined }}
             >
-              {bio || 'أضف تعريفًا قصيرًا بالجهة ونشاطها'}
+              <FormattedText text={bio || 'أضف تعريفًا قصيرًا بالجهة ونشاطها'} format={english?.bio ? undefined : data.typography?.bioFormat} />
             </p>
           )}
 

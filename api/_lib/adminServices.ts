@@ -1,3 +1,4 @@
+import { mutatePage } from './pageMutation.js';
 import { completeCart } from './cartPayment.js';
 import { getEnv, requestRuntime } from './runtime.js';
 import type { Handler } from './admin.js';
@@ -254,7 +255,15 @@ export const serviceAdminHandlers: Record<string, Handler> = {
     access: 'staff',
     run: async (params) => {
       const target = await customer(String(params.userId ?? ''));
-      return { pageData: await getPageDataByUserId(target!.id), label: target!.label };
+      const client = await pool.connect();
+      try {
+        await client.query('begin isolation level repeatable read');
+        const pageData = await getPageDataByUserId(target!.id, client);
+        const revision = Number((await client.query('select edit_revision from pages where user_id=$1', [target!.id])).rows[0]?.edit_revision);
+        await client.query('commit');
+        return { pageData, revision, label: target!.label };
+      } catch (error) { await client.query('rollback'); throw error; }
+      finally { client.release(); }
     },
   },
 
@@ -264,11 +273,12 @@ export const serviceAdminHandlers: Record<string, Handler> = {
     access: 'staff',
     run: async (params, staff) => {
       const target = await customer(String(params.userId ?? ''));
-      const pageData = await savePageData(target!.id, params.pageData ?? {}, { staffName: staff.name });
-      await purgePublicPage(pageData?.username);
+      const result = await mutatePage(target!.id, params, { staffName: staff.name });
+      const pageData = result.pageData;
+      await purgePublicPage(pageData?.username).catch(() => undefined);
 
       await audit(staff, 'content.save', target);
-      return { pageData };
+      return { ...result, pageData };
     },
   },
 

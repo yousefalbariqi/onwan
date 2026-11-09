@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Check,
   ChevronRight,
-  ContactRound,
   CreditCard,
   Globe,
   KeyRound,
@@ -20,12 +19,10 @@ import {
   Smartphone,
   Sparkles,
   UserRound,
-  WalletCards,
 } from 'lucide-react';
 import { usePageContext } from '../context/PageContext';
 import { RequestType, accountCall, resendWait, sendEmailCode, sendSupportRequest, verifyEmailCode } from '../lib/api';
 import { ROOT_DOMAIN, SUPPORT_WHATSAPP, USERNAME_PATTERN, pageHost } from '../lib/site';
-import { downloadVCard } from '../lib/vcard';
 import { AccountSecurity, CHANGE_LABELS, DOMAIN_STATUS, DesignServicePage, DomainPage, NfcPage, VisitsPage, useOverview, type Change } from './AccountServices';
 import { ConfirmSheet, Group, Notice, PrimaryButton, SettingsRow } from './ios';
 
@@ -52,10 +49,10 @@ const PLAN_NAMES = { monthly: 'شهري', annual: 'سنوي' };
 const SUBSCRIPTION_STATUS = { pending_payment: 'بانتظار الدفع', active: 'فعّال', expired: 'منتهٍ' };
 const PAGE_STATUS = { published: 'منشورة', suspended: 'موقوفة', draft: 'غير منشورة' } as const;
 
-type Page = 'root' | 'page' | 'subscription' | 'card' | 'account' | 'visits' | 'design' | 'domain' | 'nfc' | 'support' | `change-${Change}`;
+type Page = 'root' | 'page' | 'subscription' | 'account' | 'visits' | 'design' | 'domain' | 'nfc' | 'support' | `change-${Change}`;
 
 const TITLES: Record<string, string> = {
-  page: 'الصفحة', subscription: 'الاشتراك', card: 'بطاقتك الرقمية', account: 'الحساب', visits: 'زيارات الصفحة',
+  page: 'الصفحة', subscription: 'الاشتراك', account: 'الحساب', visits: 'زيارات الصفحة',
   design: 'خدمة «صمّم لي»', domain: 'دومين خاص', nfc: 'قطع NFC', support: 'التواصل مع الإدارة',
   'change-password': 'كلمة المرور', 'change-phone': 'رقم الجوال', 'change-email': 'البريد الإلكتروني',
 };
@@ -96,7 +93,6 @@ export function AccountPanel() {
   const [requestMessage, setRequestMessage] = useState('');
   const [requestNotice, setRequestNotice] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [requestBusy, setRequestBusy] = useState(false);
-  const [walletNotice, setWalletNotice] = useState('');
   const topRef = useRef<HTMLDivElement>(null);
   const firstPage = useRef(true);
 
@@ -218,20 +214,6 @@ export function AccountPanel() {
           </>
         );
 
-      case 'card':
-        return (
-          <>
-            <p className="px-4 text-[13px] leading-6 text-[#6e6e73]">احتفظ ببيانات جهتك على جوالك، وشاركها بسهولة مع العملاء والزوار.</p>
-            <PrimaryButton onClick={() => downloadVCard(pageData)}><ContactRound className="h-5 w-5" />حفظ جهة الاتصال</PrimaryButton>
-            <p className="-mt-3 px-4 text-xs leading-5 text-[#8e8e93]">ملف VCF يعمل على iPhone وAndroid، فيه الاسم والشعار والجوال والبريد والرابط.</p>
-            <Group title="المحفظة" footer={account.pageStatus !== 'published' ? 'تتفعّل بطاقة المحفظة بعد نشر الصفحة.' : undefined}>
-              <SettingsRow icon={WalletCards} tone="bg-[#1d1d1f]" label="Apple Wallet" value="معاينة" onClick={() => setWalletNotice('معاينة Apple Wallet جاهزة. لإضافة البطاقة فعليًا نحتاج إعداد شهادة Apple لتوقيع ملف البطاقة عند الإطلاق.')} />
-              <SettingsRow icon={Smartphone} tone="bg-[#0a84ff]" label="Google Wallet" value="معاينة" onClick={() => setWalletNotice('معاينة Google Wallet جاهزة. الإضافة الفعلية تتطلب ربط حساب Google Wallet Issuer لخدمة عنوان.')} />
-            </Group>
-            {walletNotice && <Notice>{walletNotice}</Notice>}
-          </>
-        );
-
       case 'account':
         return (
           <>
@@ -349,7 +331,6 @@ export function AccountPanel() {
           <Group title="صفحتك">
             <SettingsRow icon={Link2} tone="bg-[#0a84ff]" label="الصفحة" value={PAGE_STATUS[account.pageStatus]} onClick={() => go('page')} />
             <SettingsRow icon={CreditCard} tone="bg-[#34c759]" label="الاشتراك" value={subscriptionValue} onClick={() => go('subscription')} />
-            <SettingsRow icon={ContactRound} tone="bg-[#5856d6]" label="بطاقتك الرقمية" onClick={() => go('card')} />
             <SettingsRow icon={BarChart3} tone="bg-[#ff9500]" label="زيارات الصفحة" value={overview ? `${overview.stats.last30.toLocaleString('ar-u-nu-latn')} هذا الشهر` : undefined} onClick={() => go('visits')} />
           </Group>
 

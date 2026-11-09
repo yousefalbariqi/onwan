@@ -1,3 +1,4 @@
+import { normalizeTextFormat, type TextFormat } from '../../shared/textFormatting.js';
 import { getBinding } from './runtime.js';
 import { streamUidFromUrl, verifyStreamVideo } from './stream.js';
 import { contentMatchesType, dataUrlHead } from '../../shared/fileSignatures.js';
@@ -168,8 +169,8 @@ export async function ensurePageForUser(userId: string, client?: PoolClient) {
   );
 }
 
-async function loadLinks(pageId: string, includeHidden: boolean) {
-  const linksResult = await pool.query<LinkRecord>(
+async function loadLinks(pageId: string, includeHidden: boolean, client?: PoolClient) {
+  const linksResult = await (client ?? pool).query<LinkRecord>(
     `
       select ${LINK_COLUMNS}
       from page_links
@@ -183,8 +184,8 @@ async function loadLinks(pageId: string, includeHidden: boolean) {
 }
 
 // Owner view: includes hidden buttons.
-export async function getPageDataByUserId(userId: string) {
-  const pageResult = await pool.query<PageRecord>(
+export async function getPageDataByUserId(userId: string, client?: PoolClient) {
+  const pageResult = await (client ?? pool).query<PageRecord>(
     `
       select ${PAGE_COLUMNS.replace('u.username', "coalesce(u.username, case when owner.account_kind = 'nonprofit' then p.suggested_username end) as username")}
       from pages p
@@ -202,7 +203,7 @@ export async function getPageDataByUserId(userId: string) {
     return null;
   }
 
-  return mapPage(page, await loadLinks(page.id, true));
+  return mapPage(page, await loadLinks(page.id, true, client));
 }
 
 export type PublicPageResult =
@@ -291,6 +292,10 @@ function normalizeTypography(value: any) {
     delete typography.useCustomFont;
   }
   for (const key of ['headingSize', 'paragraphSize']) if (!['small', 'medium', 'large'].includes(typography[key])) delete typography[key];
+  if (typography.bioFormat) {
+    typography.bioFormat = normalizeTextFormat(typography.bioFormat, 300);
+    if (!typography.bioFormat.length) delete typography.bioFormat;
+  }
   return typography;
 }
 
@@ -347,13 +352,13 @@ function normalizeCustomIcon(value: unknown, title: string) {
 
 const DOCUMENT_TYPES = ['registration', 'license', 'fundraising', 'governance'];
 
-function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | 'video' | 'text' | 'document'; docType?: string; caption?: 'above' | 'below'; body?: string; bodyEn?: string; sectionLayout?: 'list' | 'grid' | 'carousel'; sectionId?: string; layout?: 'card'; image?: string; imageFit?: 'cover' | 'contain'; positionX?: number; positionY?: number; zoom?: number } {
+function normalizeLinkDisplay(value: any, title: string): { kind?: 'heading' | 'video' | 'text' | 'document'; docType?: string; caption?: 'above' | 'below'; body?: string; bodyEn?: string; bodyFormat?: TextFormat; sectionLayout?: 'list' | 'grid' | 'carousel'; sectionId?: string; layout?: 'card'; image?: string; imageFit?: 'cover' | 'contain'; positionX?: number; positionY?: number; zoom?: number } {
   const sectionId = typeof value?.sectionId === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(value.sectionId) ? value.sectionId : undefined;
   if (value?.kind === 'text') {
-    const body = String(value.body ?? '').trim();
+    const body = value.bodyFormat ? String(value.body ?? '') : String(value.body ?? '').trim();
     const bodyEn = String(value.bodyEn ?? '').trim();
-    if (!body || body.length > 2000 || bodyEn.length > 2000) throw new HttpError(400, 'اكتب نص الفقرة بما لا يتجاوز 2000 حرف لكل لغة.');
-    return { kind: 'text', body, ...(bodyEn ? { bodyEn } : {}), ...(sectionId ? { sectionId } : {}) };
+    if (!body.trim() || body.length > 2000 || bodyEn.length > 2000) throw new HttpError(400, 'اكتب نص الفقرة بما لا يتجاوز 2000 حرف لكل لغة.');
+    return { kind: 'text', body, ...(normalizeTextFormat(value.bodyFormat, body.length).length ? { bodyFormat: normalizeTextFormat(value.bodyFormat, body.length) } : {}), ...(bodyEn ? { bodyEn } : {}), ...(sectionId ? { sectionId } : {}) };
   }
   // Note 37: a video may show its title and YouTube link above or below it.
   if (value?.kind === 'video') return { kind: 'video', ...(value.caption === 'above' || value.caption === 'below' ? { caption: value.caption } : {}), ...(sectionId ? { sectionId } : {}) };
@@ -523,15 +528,15 @@ export async function archiveLinks(client: PoolClient | typeof pool, pageId: str
 // employee on the customer's behalf (PERM-01) is recorded as already reviewed.
 // What is stored now: the source of values sent as KEPT, and of the uploaded
 // video already verified by an earlier save.
-async function loadStoredForSave(userId: string, withLinks: boolean) {
-  const page = await pool.query<{ id: string; profile_image_url: string | null; wallpaper_json: Record<string, any> | null }>(
+async function loadStoredForSave(userId: string, withLinks: boolean, client?: PoolClient) {
+  const page = await (client ?? pool).query<{ id: string; profile_image_url: string | null; wallpaper_json: Record<string, any> | null }>(
     'select id, profile_image_url, wallpaper_json from pages where user_id = $1 limit 1',
     [userId],
   );
   const row = page.rows[0];
   if (!row) return null;
   const links = withLinks
-    ? (await pool.query<{ id: string; url: string; custom_icon: string | null; display_json: Record<string, any> | null }>(
+    ? (await (client ?? pool).query<{ id: string; url: string; custom_icon: string | null; display_json: Record<string, any> | null }>(
         'select id, url, custom_icon, display_json from page_links where page_id = $1',
         [row.id],
       )).rows
@@ -599,7 +604,7 @@ export function validatePartnerPageDraft(input: any, partnerId?: string) {
 
 export async function savePageData(userId: string, sentPageData: any, options: { staffName?: string; slimResponse?: boolean; client?: PoolClient; mediaOwnerId?: string } = {}) {
   const sentKept = hasKept(sentPageData ?? {});
-  const stored = sentKept || sentPageData?.wallpaper?.uploaded ? await loadStoredForSave(userId, sentKept) : null;
+  const stored = sentKept || sentPageData?.wallpaper?.uploaded ? await loadStoredForSave(userId, sentKept, options.client) : null;
   const pageData = sentKept ? expandPageData(sentPageData, stored) : sentPageData;
   if (!pageData) throw new HttpError(409, 'تغيّرت صفحتك من مكان آخر. أعد تحميل المحرر ثم احفظ مرة أخرى.');
   rejectInlineFiles(pageData);
@@ -667,7 +672,7 @@ export async function savePageData(userId: string, sentPageData: any, options: {
       [
         userId,
         String(pageData.name ?? '').trim(),
-        String(pageData.bio ?? '').trim(),
+        pageData.typography?.bioFormat?.length ? String(pageData.bio ?? '') : String(pageData.bio ?? '').trim(),
         profileImage,
         JSON.stringify(pageData.theme ?? DEFAULT_PAGE_DATA.theme),
         JSON.stringify(wallpaper),
@@ -686,68 +691,81 @@ export async function savePageData(userId: string, sentPageData: any, options: {
       throw new Error('Page not found');
     }
 
-    // Buttons the editor no longer sends were deleted by this save. Ids are
-    // kept across saves (the editor matches unchanged files by id); anything
-    // else, or a repeated id, gets a new one.
-    const seenIds = new Set<string>();
-    const rowIds = links.map((link) => {
-      const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(link.id) && !seenIds.has(link.id.toLowerCase()) ? link.id.toLowerCase() : null;
-      if (id) seenIds.add(id);
-      return id;
-    });
-    const keptIds = rowIds.filter((id): id is string => Boolean(id));
-    const removed = await client.query<{ id: string }>(
-      'select id from page_links where page_id = $1 and not (id = any($2::uuid[]))',
-      [pageId, keptIds],
-    );
-
-    if (removed.rowCount) {
-      await archiveLinks(client, pageId, removed.rows.map((row) => row.id), options.staffName ?? 'العميل');
-    }
-
-    await client.query('delete from page_links where page_id = $1', [pageId]);
-
-    // One round trip for every button (instead of one per button): a saved
-    // page has up to MAX_LINKS of them and each trip to the database adds latency.
-    if (links.length) {
-      await client.query(
-        `
-          insert into page_links (
-            id, page_id, title, url, link_type, file_category, file_name, file_mime_type, file_size,
-            platform, sort_order, icon_style, text_position, is_hidden, title_en, custom_icon, display_json
-          )
-          select coalesce(r.id, gen_random_uuid()), $1, r.title, r.url, r.link_type, r.file_category, r.file_name, r.file_mime_type, r.file_size,
-                 r.platform, r.sort_order, r.icon_style, r.text_position, r.is_hidden, r.title_en, r.custom_icon, r.display_json
-          from jsonb_to_recordset($2::jsonb) as r(
-            id uuid, title text, url text, link_type text, file_category text, file_name text, file_mime_type text,
-            file_size integer, platform text, sort_order integer, icon_style text, text_position text,
-            is_hidden boolean, title_en text, custom_icon text, display_json jsonb
-          )
-        `,
-        [
-          pageId,
-          JSON.stringify(
-            links.map((link, index) => ({
-              id: rowIds[index],
-              title: link.title,
-              url: link.url,
-              link_type: link.linkType,
-              file_category: link.fileCategory,
-              file_name: link.fileName,
-              file_mime_type: link.fileMimeType,
-              file_size: link.fileSize,
-              platform: link.platform,
-              sort_order: index,
-              icon_style: link.iconStyle,
-              text_position: link.textPosition,
-              is_hidden: link.hidden,
-              title_en: link.titleEn,
-              custom_icon: link.customIcon,
-              display_json: link.display ?? null,
-            })),
-          ),
-        ],
+    const currentLinks = normalizeLinks((await getPageDataByUserId(userId, client))?.links ?? []);
+    if (JSON.stringify(currentLinks) !== JSON.stringify(links)) {
+      // Buttons the editor no longer sends were deleted by this save. Ids are
+      // kept across saves (the editor matches unchanged files by id); anything
+      // else, or a repeated id, gets a new one.
+      const seenIds = new Set<string>();
+      const rowIds = links.map((link) => {
+        const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(link.id) && !seenIds.has(link.id.toLowerCase()) ? link.id.toLowerCase() : null;
+        if (id) seenIds.add(id);
+        return id;
+      });
+      const keptIds = rowIds.filter((id): id is string => Boolean(id));
+      const removed = await client.query<{ id: string }>(
+        'select id from page_links where page_id = $1 and not (id = any($2::uuid[]))',
+        [pageId, keptIds],
       );
+
+      if (removed.rowCount) {
+        await archiveLinks(client, pageId, removed.rows.map((row) => row.id), options.staffName ?? 'العميل');
+      }
+
+      if (keptIds.length) {
+        const foreign = await client.query('select id from page_links where id=any($1::uuid[]) and page_id<>$2', [keptIds, pageId]);
+        if (foreign.rowCount) throw new HttpError(409, 'يوجد تعارض في معرفات المحتوى. أعد تحميل النسخة قبل الحفظ.');
+      }
+      await client.query('delete from page_links where page_id = $1 and not (id = any($2::uuid[]))', [pageId, keptIds]);
+
+      // One round trip for every button (instead of one per button): a saved
+      // page has up to MAX_LINKS of them and each trip to the database adds latency.
+      if (links.length) {
+        await client.query(
+          `
+            insert into page_links (
+              id, page_id, title, url, link_type, file_category, file_name, file_mime_type, file_size,
+              platform, sort_order, icon_style, text_position, is_hidden, title_en, custom_icon, display_json
+            )
+            select coalesce(r.id, gen_random_uuid()), $1, r.title, r.url, r.link_type, r.file_category, r.file_name, r.file_mime_type, r.file_size,
+                   r.platform, r.sort_order, r.icon_style, r.text_position, r.is_hidden, r.title_en, r.custom_icon, r.display_json
+            from jsonb_to_recordset($2::jsonb) as r(
+              id uuid, title text, url text, link_type text, file_category text, file_name text, file_mime_type text,
+              file_size integer, platform text, sort_order integer, icon_style text, text_position text,
+              is_hidden boolean, title_en text, custom_icon text, display_json jsonb
+            )
+            on conflict (id) do update set
+              title=excluded.title, url=excluded.url, link_type=excluded.link_type, file_category=excluded.file_category, file_name=excluded.file_name, file_mime_type=excluded.file_mime_type, file_size=excluded.file_size, platform=excluded.platform, sort_order=excluded.sort_order, icon_style=excluded.icon_style, text_position=excluded.text_position, is_hidden=excluded.is_hidden, title_en=excluded.title_en, custom_icon=excluded.custom_icon, display_json=excluded.display_json
+            where page_links.page_id=excluded.page_id and
+              (page_links.title, page_links.url, page_links.link_type, page_links.file_category, page_links.file_name, page_links.file_mime_type, page_links.file_size, page_links.platform, page_links.sort_order, page_links.icon_style, page_links.text_position, page_links.is_hidden, page_links.title_en, page_links.custom_icon, page_links.display_json)
+              is distinct from (excluded.title, excluded.url, excluded.link_type, excluded.file_category, excluded.file_name, excluded.file_mime_type, excluded.file_size, excluded.platform, excluded.sort_order, excluded.icon_style, excluded.text_position, excluded.is_hidden, excluded.title_en, excluded.custom_icon, excluded.display_json)
+          `,
+          [
+            pageId,
+            JSON.stringify(
+              links.map((link, index) => ({
+                id: rowIds[index],
+                title: link.title,
+                url: link.url,
+                link_type: link.linkType,
+                file_category: link.fileCategory,
+                file_name: link.fileName,
+                file_mime_type: link.fileMimeType,
+                file_size: link.fileSize,
+                platform: link.platform,
+                sort_order: index,
+                icon_style: link.iconStyle,
+                text_position: link.textPosition,
+                is_hidden: link.hidden,
+                title_en: link.titleEn,
+                custom_icon: link.customIcon,
+                display_json: link.display ?? null,
+              })),
+            ),
+          ],
+        );
+      }
+
     }
 
     await client.query(

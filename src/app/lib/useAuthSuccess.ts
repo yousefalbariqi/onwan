@@ -10,14 +10,15 @@ import { onboardingPending, startOnboarding } from './nonprofitOnboarding';
 // `keepDraft`: a guest who designed before signing up keeps that design as an
 // unsaved draft on the new account (the signup itself does not carry it).
 // Only a new signup by a guest carries it: logging in to an existing account
-// never takes over what is on screen (note 42).
+// never takes over what is on screen (note 42). New nonprofits always start
+// with their own server page, never the guest design or its content.
 export function useAuthSuccess(options: { keepDraft?: boolean } = {}) {
   const navigate = useNavigate();
   const { pageData, replacePageData, restoreDraft, setAccount, setAuthenticated } = usePageContext();
 
   return (response: AuthResponse, call: { keepDraft?: boolean; newNonprofit?: boolean } = {}) => {
     const draft = pageData;
-    const keepDraft = (call.keepDraft ?? options.keepDraft) && sessionOwner() === 'guest';
+    const keepDraft = !call.newNonprofit && response.account?.kind !== 'nonprofit' && (call.keepDraft ?? options.keepDraft) && sessionOwner() === 'guest';
     setSessionToken(response.token);
     replacePageData(response.pageData);
     if (keepDraft) restoreDraft({ ...draft, username: response.pageData.username ?? draft.username });
@@ -25,7 +26,7 @@ export function useAuthSuccess(options: { keepDraft?: boolean } = {}) {
     setAuthenticated(true);
     // Note 19: a nonprofit that has just signed up picks its platforms first.
     // Note 14: an association that left its setup unfinished comes back to it.
-    if (call.newNonprofit) startOnboarding();
+    if (call.newNonprofit) startOnboarding(true);
     if (call.newNonprofit || (response.account?.kind === 'nonprofit' && onboardingPending())) { navigate(isNonprofitHost() ? '/onboarding' : '/nonprofit/onboarding', { replace: true }); return; }
     navigate(isNonprofitHost() ? '/builder' : response.account?.kind === 'nonprofit' ? '/nonprofit/builder' : '/builder', { replace: true });
   };

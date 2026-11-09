@@ -5,7 +5,7 @@ node_modules/
 .env
 .env.local
 .env*.local
-
+secrets/
 # build output
 dist/
 

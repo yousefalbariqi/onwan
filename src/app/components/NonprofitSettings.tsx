@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, ChevronRight, KeyRound, Link2, LogOut, Mail, MessageCircle, Palette, Smartphone, WalletCards } from 'lucide-react';
+import { BarChart3, ChevronRight, KeyRound, Link2, LogOut, Mail, MessageCircle, Palette, Smartphone } from 'lucide-react';
 import { usePageContext } from '../context/PageContext';
-import { accountCall, nonprofitCall, requestWalletPassLink, sendSupportRequest } from '../lib/api';
+import { accountCall, nonprofitCall, sendSupportRequest } from '../lib/api';
 import { pageHost } from '../lib/site';
 import { quoteStatus } from '../lib/nonprofit';
 import { AccountSecurity, CHANGE_LABELS, VisitsPage, useOverview, type Change } from './AccountServices';
 import { EmailVerifyChip } from './EmailVerifyChip';
-import { QRCodeDisplay } from './QRCodeDisplay';
 import { ConfirmSheet, Group, Notice, PrimaryButton, SettingsRow } from './ios';
 
-// Note 48: «الإعدادات» of the association's editor — its page and link, sharing
-// (after activation), sign-in details, visits, contact with the administration
+// Note 48: «الإعدادات» of the association's editor — its page and link,
+// sign-in details, visits, contact with the administration
 // and the design reset. The screens are the general editor's own, reused; plans,
 // «صمّم لي» and NFC are left out on purpose (activation goes through the quote).
 
@@ -31,42 +30,9 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
-  // The Apple Wallet pass link is fetched ahead of time so the button is a real
-  // anchor: on iOS the add must happen inside the tap, not after an await.
-  const [walletUrl, setWalletUrl] = useState('');
-  // Visible on-device diagnostic: Safari's «can't download» is not a JS error,
-  // so this shows what the pass request actually returns on the phone.
-  const [walletDiag, setWalletDiag] = useState('');
-
   useEffect(() => { nonprofitCall().then((r) => setQuote(r.request ?? null)).catch(() => undefined); }, []);
-  // Prepare the Apple Wallet link up front so the button taps straight through.
-  useEffect(() => {
-    if (!pageData.username) return;
-    let alive = true;
-    requestWalletPassLink()
-      .then((url) => { if (alive) setWalletUrl(url); })
-      .catch((e) => { if (alive) setWalletDiag('تعذّر تجهيز الرابط: ' + (e instanceof Error ? e.message : String(e))); });
-    return () => { alive = false; };
-  }, [pageData.username]);
-
-  // Fetch the pass with JS (bypasses Safari's download handling) and report what
-  // came back, so a failure that shows no console error is still visible.
-  const checkWallet = async () => {
-    setWalletDiag('جارٍ الفحص…');
-    try {
-      const url = walletUrl || (await requestWalletPassLink());
-      const started = Date.now();
-      const res = await fetch(url, { cache: 'no-store' });
-      const type = res.headers.get('content-type') || '—';
-      const bytes = (await res.arrayBuffer()).byteLength;
-      setWalletDiag(`الحالة ${res.status} · النوع ${type} · ${bytes} بايت · ${Date.now() - started}ms`);
-    } catch (e) {
-      setWalletDiag('خطأ: ' + (e instanceof Error ? e.message : String(e)));
-    }
-  };
   useEffect(() => { if (!toast) return; const t = window.setTimeout(() => setToast(''), 2200); return () => window.clearTimeout(t); }, [toast]);
   if (!account) return null;
-  const published = account.pageStatus === 'published';
 
   const back = (
     <button type="button" onClick={() => setPage('root')} className="flex h-10 items-center gap-1 text-[15px] text-[#0a84ff]"><ChevronRight className="h-5 w-5" />الإعدادات</button>
@@ -95,8 +61,6 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
     );
   }
 
-  // The owner's own Apple Wallet card, built and signed on the server even
-  // before activation, so it can be added and tested now (iPhone opens it).
   const changeLink = async () => {
     setLinkBusy(true); setLinkMsg('');
     try { const r = await accountCall('name.change', { username: linkName }); setAccount(r.account); updatePageData({ username: r.username }); setLinkName(''); setLinkMsg('تم تغيير الرابط.'); }
@@ -126,19 +90,6 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
             {linkMsg && <p role="status" className="text-xs text-[#3a3a3c]">{linkMsg}</p>}
           </div>
         )}
-      </Group>
-
-      {/* QR follows activation; the Wallet card can be added any time. */}
-      <Group title="المشاركة" footer={published ? undefined : 'رمز QR للصفحة يعمل بعد تفعيلها.'}>
-        {published && <div className="flex items-center justify-between gap-3 px-4 py-3 text-[15px]"><span>رمز QR للصفحة</span><QRCodeDisplay username={pageData.username} /></div>}
-        <div className="space-y-2 px-4 py-3">
-          <a href={walletUrl || undefined} aria-disabled={!walletUrl} onClick={(e) => { if (!walletUrl) e.preventDefault(); }} className={`flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#111111] text-[15px] font-bold text-white transition active:scale-[0.98] ${walletUrl ? '' : 'pointer-events-none opacity-50'}`}>
-            <WalletCards className="h-5 w-5" />{walletUrl ? 'إضافة إلى Apple Wallet' : 'جارٍ التجهيز…'}
-          </a>
-          <p className="text-xs text-[#6e6e73]">بطاقة تعريف فيها اسم الجهة وشعار «عنوان» ورمز QR لصفحتها. افتحها من آيفون لإضافتها إلى المحفظة.</p>
-          <button type="button" onClick={checkWallet} className="text-[11px] text-[#0a84ff] underline underline-offset-2">فحص الاتصال (تشخيص)</button>
-          {walletDiag && <p dir="ltr" className="break-all rounded-lg bg-[#f2f2f7] px-2 py-1 text-[11px] text-[#3a3a3c]">{walletDiag}</p>}
-        </div>
       </Group>
 
       <Group title="الحساب" footer="أي تغيير يحتاج رمزًا نرسله إلى بريدك المسجل.">

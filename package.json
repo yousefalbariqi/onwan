@@ -10,11 +10,15 @@
     "deploy:worker": "npm run build && wrangler deploy",
     "check:worker": "tsc -p worker/tsconfig.json --noEmit",
     "test:content": "node --test tests/page-content.test.cjs",
+    "test:text-formatting": "node --test tests/text-formatting.test.cjs tests/page-content.test.cjs",
     "test:worker": "wrangler deploy --dry-run --outdir .worker-build && node --test tests/worker.test.cjs tests/worker-runtime.test.cjs tests/nonprofit-request.test.cjs",
     "build:worker": "npm run build && wrangler deploy --dry-run --outdir .worker-build",
     "dev:local": "sh scripts/dev-local.sh",
     "dev:lan": "sh scripts/dev-local.sh --ip 0.0.0.0",
-    "test:nonprofit-admin": "node --test tests/nonprofit-request.test.cjs tests/nonprofit-admin.integration.cjs"
+    "test:nonprofit-selection": "node --test tests/nonprofit-selection.test.cjs",
+    "test:nonprofit-admin": "node --test tests/nonprofit-request.test.cjs tests/nonprofit-admin.integration.cjs",
+    "test:editor-persistence": "node --test tests/editor-persistence.test.cjs tests/editor-preview.test.cjs tests/editor-media.test.cjs tests/content-navigation.test.cjs",
+    "test:page-revisions": "node --test tests/page-revisions.integration.cjs"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
