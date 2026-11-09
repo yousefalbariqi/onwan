@@ -1,3 +1,4 @@
+import { walletPosterPixel } from '../../../shared/walletGeometry.js';
 import { zlibSync } from 'fflate';
 // The strip is a quiet accent behind Wallet's native name field.
 // The QR is supplied through pass.json, never baked into this image.
@@ -56,7 +57,7 @@ export function cardStripImages(background: Rgb) {
 export function posterArtworkImages(accent: Rgb, body: Rgb = [248, 248, 246]) {
   const files: Record<string, Uint8Array> = {};
   for (const scale of [1, 2, 3]) {
-    files[scale === 1 ? 'artwork.png' : `artwork@${scale}x.png`] = png(358 * scale, 448 * scale, (_x, y) => y >= 60 * scale && y < 200 * scale ? accent : body);
+    files[scale === 1 ? 'artwork.png' : `artwork@${scale}x.png`] = png(358 * scale, 448 * scale, (x, y) => walletPosterPixel(x / scale, y / scale, accent, body));
   }
   return files;
 }

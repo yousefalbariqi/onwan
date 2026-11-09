@@ -270,7 +270,6 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
           <button onClick={undo} disabled={!canUndo} className={round} aria-label="تراجع" title="تراجع عن آخر تعديل"><Undo2 className="h-5 w-5" /></button>
           <button onClick={redo} disabled={!canRedo} className={round} aria-label="إعادة" title="إعادة التعديل"><Redo2 className="h-5 w-5" /></button>
         </div>
-        {compactBar && <AutoSaveStatus />}
         {!guestPreview && isAuthenticated && !compactBar && (
           <div className="flex flex-col items-center gap-1.5">
             <button
@@ -524,7 +523,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
   }
 
   return (
-    <div data-nonprofit-builder={compactBar || undefined} className="flex h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col bg-gray-50" dir="rtl">
+    <div data-nonprofit-builder={compactBar || undefined} className="flex h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-w-0 max-w-full flex-col overflow-hidden bg-gray-50" dir="rtl">
       {/* Note 18: in the association's editor this bar is for the phone only;
           on a computer its actions live in the one toolbar above the preview. */}
       {/* Note 39: the association's editor has no top bar on any screen —
@@ -601,7 +600,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
       )}
 
       <div className="lg:hidden flex-1 min-h-0 overflow-y-auto scroll-smooth bg-[#f5f5f7]" style={{ fontFamily: 'Tajawal, sans-serif', ...(compactBar ? brandBackdrop : {}) }}>
-        <main className="mx-auto max-w-md space-y-7 px-4 pb-10 pt-5">
+        <main className="mx-auto w-full min-w-0 max-w-md space-y-7 px-4 pb-10 pt-5">
           {/* Apple-style row of round shortcuts, scrolls sideways */}
           <section data-builder-shortcuts className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
@@ -626,7 +625,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
           </section>
 
           <section>
-            <div className="mb-3 flex items-center justify-between gap-3 px-1">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1">
               <h2 className="shrink-0 text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>الشكل الحالي</h2>
               {/* Note 39: the step to review and publish, beside the design it concerns. */}
               {compactBar && staffEdit?.onContinue && (
@@ -636,15 +635,15 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
                 </button>
               )}
             </div>
-            <div className="flex items-stretch gap-2.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              <button onClick={() => ((staffEdit && !compactBar) || guestPreview ? openPanel('header') : navigate('/preview'))} className="w-[40%] shrink-0 text-right transition-transform active:scale-[0.98]">
+            <div className="grid grid-cols-[minmax(0,4fr)_minmax(44px,3fr)_minmax(0,3fr)] items-start gap-2.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <button onClick={() => ((staffEdit && !compactBar) || guestPreview ? openPanel('header') : navigate('/preview'))} className="min-w-0 w-full text-right transition-transform active:scale-[0.98]">
                 <PhonePreview interactive={false} />
                 <span className="mt-2 block text-center text-xs font-bold text-[#3a3a3c]">{isDirty ? `الحالي · ${draftLabel}` : 'الحالي'}</span>
               </button>
 
-              <div className="flex flex-1 flex-col items-center justify-center">{renderEditActions()}</div>
+              <div className="flex min-w-0 flex-col items-center justify-center self-center">{renderEditActions()}</div>
 
-              <div className="w-[30%] shrink-0 self-center">
+              <div className="min-w-0 w-full self-center">
                 {savedHistory[0] ? (
                   renderVersion(savedHistory[0], true)
                 ) : (
@@ -660,6 +659,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
                 )}
               </div>
             </div>
+            {compactBar && <div className="flex justify-center"><AutoSaveStatus /></div>}
           </section>
 
           {renderGalleries(false)}

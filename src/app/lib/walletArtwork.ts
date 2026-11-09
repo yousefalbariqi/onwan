@@ -1,3 +1,4 @@
+import { walletPosterPixel } from '../../../shared/walletGeometry';
 import { walletPaletteFromHex } from '../../../shared/walletPalette';
 import { storeInlineMedia } from './mediaUpload';
 
@@ -34,30 +35,17 @@ export async function renderWalletBanner(name: string, color: string) {
 }
 
 // Poster artwork is decorative; the name, link and QR remain native fields.
-export async function renderWalletPoster(color: string, background?: string) {
+export async function renderWalletPoster(color: string) {
   const palette = walletPaletteFromHex(color);
-  const poster = canvas(1074, 1344); // 358 × 448 pt at 3x, per Apple HIG.
-  poster.context.fillStyle = palette.backgroundColor;
-  poster.context.fillRect(0, 0, 1074, 1344);
-  if (background) {
-    const image = new Image(); image.crossOrigin = 'anonymous'; image.src = background;
-    await image.decode();
-    const scale = Math.max(1074 / image.naturalWidth, 1344 / image.naturalHeight);
-    const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
-    poster.context.drawImage(image, (1074 - width) / 2, (1344 - height) / 2, width, height);
-    // Quiet light surfaces preserve contrast under the system header/footer.
-    const wash = poster.context.createLinearGradient(0, 0, 0, 1344);
-    wash.addColorStop(0, 'rgba(248,248,246,.96)');
-    wash.addColorStop(.2, 'rgba(248,248,246,.12)');
-    wash.addColorStop(.5, 'rgba(248,248,246,.12)');
-    wash.addColorStop(.72, 'rgba(248,248,246,.96)');
-    wash.addColorStop(1, '#f8f8f6');
-    poster.context.fillStyle = wash;
-    poster.context.fillRect(0, 0, 1074, 1344);
-  } else {
-    poster.context.fillStyle = palette.stripColor;
-    poster.context.fillRect(0, 180, 1074, 420);
+  const poster = canvas(1074, 1344);
+  const pixels = poster.context.createImageData(1074, 1344);
+  for (let y = 0, i = 0; y < 1344; y++) {
+    for (let x = 0; x < 1074; x++, i += 4) {
+      const rgb = walletPosterPixel(x / 3, y / 3, palette.strip, palette.body);
+      pixels.data[i] = rgb[0]; pixels.data[i + 1] = rgb[1]; pixels.data[i + 2] = rgb[2]; pixels.data[i + 3] = 255;
+    }
   }
+  poster.context.putImageData(pixels, 0, 0);
   let png = poster.element.toDataURL('image/png');
   if (png.length * .75 > 900_000) {
     // Keep PNG and Apple's exact pixel dimensions. The generic uploader would
@@ -77,9 +65,9 @@ export async function renderWalletPoster(color: string, background?: string) {
   return png;
 }
 
-export async function prepareWalletArtwork(name: string, profileImage: string, color: string, background?: string) {
+export async function prepareWalletArtwork(name: string, profileImage: string, color: string) {
   const bannerImage = await renderWalletBanner(name, color);
-  const posterImage = await renderWalletPoster(color, background);
+  const posterImage = await renderWalletPoster(color);
   let logo: string | undefined;
   let primaryLogo: string | undefined;
   if (profileImage) {

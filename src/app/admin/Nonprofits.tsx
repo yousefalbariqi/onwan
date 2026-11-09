@@ -4,7 +4,7 @@ import { ArrowRight, Check, ChevronLeft, ChevronRight, Clock3, Copy, ExternalLin
 import { adminCall } from './adminApi';
 import { PageView } from '../components/PageView';
 import { mergeWithDefaults } from '../context/PageContext';
-import { quoteStatus } from '../lib/nonprofit';
+import { NONPROFIT_ANNUAL_PRICE_SAR, quoteStatus } from '../lib/nonprofit';
 import { adminLink, pageHost, pageUrl } from '../lib/site';
 import { Badge, formatDate, PAGE_STATUS } from './ui';
 import { NonprofitSummaryAssets } from '../components/NonprofitSummaryAssets';
@@ -15,7 +15,7 @@ const stages = ['pending', 'contacted', 'quoted', 'paid', 'active'];
 const stepTitle: Record<string, string> = { pending: 'طلب جديد', agreed: 'طلب جديد', contacted: 'تم التواصل — أرسل عرض السعر', quoted: 'تم إرسال العرض — بانتظار الدفع', paid: 'تم الدفع — انشر الصفحة', active: 'الصفحة منشورة' };
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
 const actions: Record<string, string> = { content: 'عدّل محتوى صفحة الجمعية', assign: 'استلم متابعة الطلب', update: 'حدّث المتابعة', quote: 'حفظ عرض السعر', sent: 'سجّل إرسال العرض', sendQuote: 'أرسل عرض السعر', payment: 'أكد التحويل', activate: 'فعّل الصفحة', suspend: 'أوقف الصفحة', reactivate: 'أعاد تشغيل الصفحة' };
-const defaultQuote: Quote = { amount: 243, months: 12, includes: 'رابط صفحة الجمعية، استضافة، محرر الصفحة، رمز QR، Apple Wallet، التواصل والدعم', notes: '' };
+const defaultQuote: Quote = { amount: NONPROFIT_ANNUAL_PRICE_SAR, months: 12, includes: 'رابط صفحة الجمعية، استضافة، محرر الصفحة، رمز QR، Apple Wallet، التواصل والدعم', notes: '' };
 const money = (value: unknown) => new Intl.NumberFormat('ar-SA-u-nu-latn', { style: 'currency', currency: 'SAR' }).format(Number(value ?? 0));
 const tone = (stage: string) => stage === 'active' ? 'green' : stage === 'cancelled' ? 'red' : stage === 'paid' || stage === 'quoted' ? 'amber' : 'gray';
 function Status({ stage }: { stage: string }) { return <Badge tone={tone(stage)}>{quoteStatus[stage] || stage}</Badge>; }

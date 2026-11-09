@@ -29,7 +29,7 @@ function load(file) {
   new Function('require', 'module', 'exports', code)(name => {
     if (name === '../runtime.js') return { getEnv: key => env[key] };
     if (name === '../http.js') return { HttpError: Error };
-    if (name === '../../../shared/walletPalette.js') return load('shared/walletPalette.ts');
+    if (name.startsWith('../../../shared/')) return load('shared/' + name.split('/').pop().replace(/\.js$/, '.ts'));
     if (name.startsWith('./')) return load('api/_lib/wallet/' + name.slice(2).replace(/\.js$/, '.ts'));
     return require(name);
   }, module, module.exports);
@@ -165,4 +165,24 @@ test('poster references and custom names are owner-scoped and validated', () => 
   assert.throws(() => validateWalletArtwork({ strip, poster: strip.replace('/owner/', '/other/') }, 'owner'));
   assert.throws(() => validateWalletArtwork({ strip, primaryLogo: 'https://example.test/logo.png' }, 'owner'));
   assert.throws(() => validateWalletArtwork({ strip, displayName: 'x'.repeat(161) }, 'owner'));
+});
+
+
+test('agreed poster layout has right-aligned link, one association name and a short footer', () => {
+  const files = unzipSync(buildPkpass({ username: 'qmm', name: 'جمعية قمم لصيانة المساجد' }));
+  const pass = JSON.parse(Buffer.from(files['pass.json']).toString());
+  assert.equal(pass.logoText, undefined);
+  assert.equal(pass.posterGeneric.headerFields[0].textAlignment, 'PKTextAlignmentRight');
+  assert.equal(pass.posterGeneric.headerFields[0].value, 'qmm.example.test');
+  assert.equal(pass.posterGeneric.primaryFields.length, 1);
+  assert.equal(pass.posterGeneric.primaryFields[0].label, 'الجمعية');
+  assert.equal(pass.posterGeneric.primaryFields[0].value, 'جمعية قمم لصيانة المساجد');
+  assert.equal(pass.posterGeneric.footerFields[0].value, 'تعرّف علينا وابقَ على تواصل');
+});
+
+test('geometric artwork changes with the selected palette and keeps its center quiet', () => {
+  const { walletPosterPixel } = load('shared/walletGeometry.ts');
+  const body = [248, 248, 246];
+  assert.deepEqual(walletPosterPixel(179, 250, [230, 240, 230], body), body);
+  assert.notDeepEqual(walletPosterPixel(30, 120, [230, 240, 230], body), walletPosterPixel(30, 120, [250, 230, 220], body));
 });

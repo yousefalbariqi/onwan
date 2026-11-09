@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { nonprofitPath } from '../lib/nonprofit';
+import { NONPROFIT_ANNUAL_PRICE_SAR, nonprofitPath } from '../lib/nonprofit';
 import { useEffect, useState } from 'react';
 import { ArrowUpLeft, BadgeCheck, History, Link2, QrCode, UserPlus, Wallet, Images, Megaphone } from 'lucide-react';
 import { SUPPORT_WHATSAPP } from '../lib/site';
@@ -98,7 +98,7 @@ export default function NonprofitLanding() {
           <div className="relative isolate mx-6 w-[calc(100%_-_3rem)] max-w-[25rem] py-3">
             <div aria-hidden="true" className="pointer-events-none absolute inset-x-8 inset-y-1 -z-10 rounded-full bg-[#FF6B2C]/[0.08] blur-xl" />
             <p className="whitespace-nowrap text-center text-[clamp(10px,2.65vw,14px)] font-medium leading-8 text-[#111111]">
-              عام من الحضور وأثر يصل أبعد بقيمة <span className="relative inline-block font-bold text-[#FF6B2C] after:absolute after:inset-x-0 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-[#FF6B2C]/25">243 ريال</span> في السنة
+              عام من الحضور وأثر يصل أبعد بقيمة <span className="relative inline-block font-bold text-[#FF6B2C] after:absolute after:inset-x-0 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-[#FF6B2C]/25">{NONPROFIT_ANNUAL_PRICE_SAR} ريال</span> في السنة
             </p>
           </div>
         </div>

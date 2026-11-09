@@ -6,7 +6,7 @@ import { EmailVerifyChip } from '../components/EmailVerifyChip';
 import { NonprofitBuilderPage } from './NonprofitBuilder';
 import { usePageContext } from '../context/PageContext';
 import { nonprofitCall } from '../lib/api';
-import { nonprofitPath, quoteStatus } from '../lib/nonprofit';
+import { NONPROFIT_ANNUAL_PRICE_SAR, nonprofitPath, quoteStatus } from '../lib/nonprofit';
 import { clearLocalAccountData, clearSessionToken, getSessionToken } from '../lib/session';
 import { PhonePreview } from '../components/PhonePreview';
 import { ArrowRight, Check, ChevronDown, Loader2, LogOut, LockKeyhole, Pencil, Plus } from 'lucide-react';
@@ -137,7 +137,7 @@ export function NonprofitQuote() {
          
             <div className="quote-offer">
               <div className="quote-price-row">
-                <p className="quote-price"><strong>290</strong><span>ريال<small>قيمة الشراء لمدة سنة كاملة </small></span></p>
+                <p className="quote-price"><strong>{NONPROFIT_ANNUAL_PRICE_SAR}</strong><span>ريال<small>قيمة الشراء لمدة سنة كاملة </small></span></p>
               
               </div>
            

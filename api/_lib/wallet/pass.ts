@@ -115,7 +115,7 @@ export function buildPkpass({ username, name, design, style, artwork }: PassInpu
   const host = `${username}.${ROOT_DOMAIN()}`;
   const colours = walletCardAppearance(design);
   const fields = {
-    headerFields: [{ key: 'link', label: 'الرابط', value: host, textAlignment: 'PKTextAlignmentLeft' }],
+    headerFields: [{ key: 'link', label: 'الرابط', value: host, textAlignment: 'PKTextAlignmentRight' }],
     // A rendered banner gives us a predictable medium font and one-line fitting.
     ...(artwork?.strip && style !== 'generic' ? {} : { primaryFields: [{ key: 'name', label: 'بطاقة تعريفية', value: name || username, textAlignment: 'PKTextAlignmentCenter' }] }),
     backFields: [
@@ -131,7 +131,6 @@ export function buildPkpass({ username, name, design, style, artwork }: PassInpu
     serialNumber: `onwan-${username}`,
     organizationName: 'عنوان',
     description: `بطاقة ${name || 'عنوان'}`,
-    ...(artwork?.logo || artwork?.primaryLogo ? {} : { logoText: 'عنوان' }),
     backgroundColor: colours.backgroundColor,
     foregroundColor: colours.foregroundColor,
     labelColor: colours.labelColor,
@@ -141,9 +140,9 @@ export function buildPkpass({ username, name, design, style, artwork }: PassInpu
     // iOS/watchOS 27+ selects this style; earlier systems use the legacy
     // dictionary below. No user-agent sniffing or minimum OS version needed.
     posterGeneric: {
-      headerFields: [{ key: 'poster-link', label: 'الرابط', value: host }],
-      primaryFields: [{ key: 'poster-name', label: 'بطاقة تعريفية', value: artwork?.displayName || name || username }],
-      footerFields: [{ key: 'poster-instruction', value: 'امسح رمز QR لفتح الصفحة' }],
+      headerFields: [{ key: 'poster-link', label: 'الرابط', value: host, textAlignment: 'PKTextAlignmentRight' }],
+      primaryFields: [{ key: 'poster-name', label: 'الجمعية', value: artwork?.displayName || name || username, textAlignment: 'PKTextAlignmentRight' }],
+      footerFields: [{ key: 'poster-instruction', value: 'تعرّف علينا وابقَ على تواصل' }],
       backFields: fields.backFields,
     },
     footerBackgroundColor: colours.backgroundColor,
