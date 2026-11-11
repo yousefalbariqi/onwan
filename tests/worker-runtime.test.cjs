@@ -63,15 +63,24 @@ test('real dist assets serve landing and SPA routes while API navigation stays J
     for (const route of ['/', '/builder', '/admin', '/partner', '/df']) {
       const response = await mf.dispatchFetch(`https://onwan.link${route}`, navigate);
       const html = await response.text(); assert.equal(response.status, 200, `${route}: ${html}`); assert.match(html, /id="root"/, route);
+      assert.equal(response.headers.get('Cache-Control'), 'no-cache', route);
     }
     const nonprofit = await mf.dispatchFetch('https://nonprofit.onwan.link/', { ...navigate, redirect: 'manual' });
     assert.equal(nonprofit.status, 200, 'nonprofit root must not redirect index.html back to itself');
     assert.equal(nonprofit.headers.get('Location'), null);
+    assert.equal(nonprofit.headers.get('Cache-Control'), 'no-cache');
     assert.match(await nonprofit.text(), /id="root"/);
     const missing = await mf.dispatchFetch('https://onwan.link/api/nope', navigate);
     assert.equal(missing.status, 404); assert.match(missing.headers.get('Content-Type'), /json/);
     const js = fs.readdirSync('dist/assets').find(name => /^index-.*\.js$/.test(name));
     const asset = await mf.dispatchFetch(`https://onwan.link/assets/${js}`);
     assert.equal(asset.status, 200); assert.match(asset.headers.get('Content-Type'), /javascript/);
+    assert.equal(asset.headers.get('Cache-Control'), 'public, max-age=31536000, immutable');
+    assert.ok(asset.headers.get('ETag'));
+    const unchanged = await mf.dispatchFetch(`https://onwan.link/assets/${js}`, { headers: { 'If-None-Match': asset.headers.get('ETag') } });
+    assert.equal(unchanged.status, 304);
+    assert.equal(unchanged.headers.get('Cache-Control'), 'public, max-age=31536000, immutable');
+    const fallback = await mf.dispatchFetch('https://onwan.link/assets/missing-12345678.js', navigate);
+    assert.doesNotMatch(fallback.headers.get('Cache-Control'), /immutable/);
   } finally { await mf.dispose(); }
 });

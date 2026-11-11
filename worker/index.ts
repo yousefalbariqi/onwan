@@ -142,6 +142,21 @@ async function cachedPublic(request: Request, build: () => Promise<Response>) {
   return response;
 }
 
+async function serveStatic(request: Request, env: RuntimeEnv): Promise<Response> {
+  if (!env.ASSETS) return new Response('Static assets unavailable', { status: 503 });
+  const response = await env.ASSETS.fetch(request);
+  const headers = new Headers(response.headers);
+  const path = new URL(request.url).pathname;
+  const html = /text\/html/i.test(headers.get('Content-Type') ?? '');
+  // Only successful Vite content-hashed assets are safe to keep indefinitely.
+  // HTML (including SPA fallbacks) and stable filenames must revalidate via ETag.
+  const fingerprinted = /^\/assets\/.+-[\w-]{8,}\.[\w.]+$/.test(path);
+  headers.set('Cache-Control', !html && fingerprinted && (response.status === 200 || response.status === 304)
+    ? 'public, max-age=31536000, immutable'
+    : 'no-cache');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 async function dispatch(request: Request, env: RuntimeEnv): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '') || '/';
@@ -159,15 +174,13 @@ async function dispatch(request: Request, env: RuntimeEnv): Promise<Response> {
   const label = url.hostname.endsWith(suffix) ? url.hostname.slice(0, -suffix.length) : '';
   // Dedicated association landing bypasses public customer lookup and its cache.
   if (label === 'nonprofit' && path === '/') {
-    if (!env.ASSETS) return new Response('Static assets unavailable', { status: 503 });
-    return env.ASSETS.fetch(request);
+    return serveStatic(request, env);
   }
   if (path === '/' && label !== 'www' && label !== 'admin' && /^(?=.{1,30}$)(?!.*--)[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(label)) {
     // Override query values, just as the former host rewrite did.
     return cachedPublic(request, () => invokeHandler(request, publicPage, { render: 'html', username: label }));
   }
-  if (!env.ASSETS) return new Response('Static assets unavailable', { status: 503 });
-  return env.ASSETS.fetch(request);
+  return serveStatic(request, env);
 }
 
 export default {
