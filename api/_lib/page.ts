@@ -404,7 +404,9 @@ function normalizeLinks(rawLinks: unknown) {
       display: normalizeLinkDisplay(link.display, title),
     };
 
-    if (!title || title.length > 120) throw new HttpError(400, 'اكتب عنوانًا لا يتجاوز 120 حرفًا.');
+    // The editor supports unnamed groups; only a section heading may omit its title.
+    const isUnnamedGroup = common.display.kind === 'heading' && Boolean(common.display.sectionId);
+    if ((!title && !isUnnamedGroup) || title.length > 120) throw new HttpError(400, 'اكتب عنوانًا لا يتجاوز 120 حرفًا.');
     if (common.display.kind === 'heading' || common.display.kind === 'text') return {
       ...common, title, url: '', linkType: 'url', fileCategory: null, fileName: null, fileMimeType: null,
       fileSize: null, platform: 'custom', iconStyle: 'color', textPosition: 'right', hidden: Boolean(link.hidden), customIcon: null,

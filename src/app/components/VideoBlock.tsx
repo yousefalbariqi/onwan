@@ -18,7 +18,7 @@ export function VideoBlock({ url, title, caption, textColor, radiusClass = 'roun
   return <section aria-label={title} className="w-full space-y-2">
     {caption === 'above' && row}
     <div className={`relative aspect-video min-h-[200px] w-full overflow-hidden ${radiusClass} bg-black`}>
-      <iframe src={source.src} title={title} loading="lazy" allow="fullscreen; picture-in-picture; encrypted-media" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" className="absolute inset-0 h-full w-full border-0" />
+      <iframe src={source.src} title={title} loading="lazy" allow="fullscreen; picture-in-picture; encrypted-media" referrerPolicy="strict-origin-when-cross-origin" className="absolute inset-0 h-full w-full border-0" />
     </div>
     {caption === 'below' && row}
   </section>;

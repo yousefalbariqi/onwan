@@ -110,6 +110,24 @@ test('save/load preserves mixed content, ordering, translations and hidden state
   assert.deepEqual(resaved.links.map(link => link.display), saved.links.map(link => link.display));
 });
 
+test('unnamed groups survive save/load while other items still require titles', async () => {
+  const service = api();
+  const links = [
+    { id: 'group', title: '', display: { kind: 'heading', sectionId: 'social', sectionLayout: 'grid' } },
+    { title: 'سناب شات', url: 'https://snapchat.com', display: { sectionId: 'social' } },
+  ];
+  const saved = await service.savePageData('owner', { links });
+  assert.equal(saved.links[0].title, '');
+  const loaded = await service.getPageDataByUserId('owner');
+  assert.equal(loaded.links[0].title, '');
+  assert.equal(loaded.links[1].display.sectionId, 'social');
+  assert.equal(service.validatePartnerPageDraft({ links }).links[0].title, '');
+  for (const display of [undefined, { kind: 'heading' }, { kind: 'video', sectionId: 'social' }, { kind: 'heading', sectionId: 'invalid key' }]) {
+    assert.throws(() => service.testNormalize([{ title: '', url: 'https://example.com', display }]), { status: 400 });
+  }
+  assert.throws(() => service.testNormalize([{ title: 'x'.repeat(121), display: links[0].display }]), { status: 400 });
+});
+
 test('section membership survives new row ids, hiding sections removes children from public data', async () => {
   const service = api();
   const content = [
