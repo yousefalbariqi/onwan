@@ -49,21 +49,38 @@ export function buildVCard(page: PageData) {
 }
 
 // A logo stored as a link (note 53) is read back into the card as base64.
-async function inlinePhoto(page: PageData): Promise<PageData> {
-  if (!page.profileImage || page.profileImage.startsWith('data:')) return page;
-  try {
-    const blob = await (await fetch(page.profileImage)).blob();
-    if (!/^image\/(png|jpeg)$/.test(blob.type)) return page;
-    const dataUrl = await new Promise<string>((resolve, reject) => {
+export async function inlinePhoto(page: PageData): Promise<PageData> {
+  if (!page.profileImage) return page;
+  let dataUrl = page.profileImage;
+  if (!dataUrl.startsWith('data:')) {
+    const response = await fetch(dataUrl);
+    if (!response.ok) throw new Error('تعذر تحميل شعار جهة الاتصال.');
+    const blob = await response.blob();
+    if (!blob.type.startsWith('image/')) throw new Error('ملف الشعار ليس صورة.');
+    dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result));
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-    return { ...page, profileImage: dataUrl };
-  } catch {
-    return page;
   }
+  // Upload compression may produce WebP. Contacts need embedded PNG/JPEG,
+  // so convert other image formats locally, preserving the logo's transparency.
+  if (!/^data:image\/(png|jpeg);base64,/i.test(dataUrl)) {
+    const image = new Image();
+    image.src = dataUrl;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(1, 512 / Math.max(image.naturalWidth, image.naturalHeight));
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('تعذر تجهيز شعار جهة الاتصال.');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    dataUrl = canvas.toDataURL('image/png');
+  }
+  if (!/^data:image\/(png|jpeg);base64,.+/i.test(dataUrl)) throw new Error('تعذر تجهيز شعار جهة الاتصال.');
+  return { ...page, profileImage: dataUrl };
 }
 
 export async function downloadVCard(page: PageData) {
