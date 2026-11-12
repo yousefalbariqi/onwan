@@ -50,7 +50,7 @@ export async function sendOtpEmail(to: string, code: string, intro = 'رمز ا�
 
 // A plain notice to a beneficiary (e.g. MOD-04: why content was rejected).
 // Best-effort, like the admin copy below.
-export async function sendNoticeEmail(to: string, subject: string, lines: string[]): Promise<boolean> {
+export async function sendNoticeEmail(to: string, subject: string, lines: string[], idempotencyKey?: string): Promise<boolean> {
   try {
     const { error } = await getResend().emails.send({
       from: getFromEmail(),
@@ -59,7 +59,7 @@ export async function sendNoticeEmail(to: string, subject: string, lines: string
       html: `<div dir="rtl" style="font-family: Arial, sans-serif;">${lines
         .map((line) => `<p>${escapeHtml(line)}</p>`)
         .join('')}</div>`,
-    });
+    }, idempotencyKey ? { idempotencyKey } : undefined);
 
     if (error) {
       console.error('Failed to send notice email:', error.message);

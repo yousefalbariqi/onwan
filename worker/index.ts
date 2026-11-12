@@ -1,7 +1,7 @@
 import nonprofit from '../api/nonprofit.js';
 import googleWallet from '../api/google-wallet.js';
 import walletPass from '../api/wallet-pass.js';
-import { retryNonprofitNotifications } from '../api/_lib/nonprofit.js';
+import { retryNonprofitNotifications, retryCreationStartNotifications } from '../api/_lib/nonprofit.js';
 import signup from '../api/auth/signup.js';
 import login from '../api/auth/login.js';
 import resetPassword from '../api/auth/reset-password.js';
@@ -210,6 +210,8 @@ export default {
       try {
         await retryNonprofitNotifications();
       } catch (error) { console.error('[nonprofit-notifications] failed', error); }
+      try { await retryCreationStartNotifications(); }
+      catch (error) { console.error('[nonprofit-creation-notifications] failed', error); }
       try {
         console.log('[visit-rollup]', JSON.stringify(await rollUpOldVisits()));
       } catch (error) {

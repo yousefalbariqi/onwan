@@ -40,7 +40,7 @@ export function NonprofitBuilderPage({ gate: Gate }: { gate: React.ComponentType
     <Gate>
       <Builder
         editor={nonprofitEditorConfig}
-        staffEdit={{ title: account?.pageStatus === 'published' ? 'محرر صفحة الجمعية' : 'تصميم الجمعية — مسودة خاصة', onExit: () => navigate(nonprofitPath()), onContinue: () => { if (!account?.pageStatus || account.pageStatus === 'draft') navigate(nonprofitPath('quote')); }, continueLabel: account?.pageStatus === 'draft' ? 'التالي: طلب عرض السعر' : account?.pageStatus === 'suspended' ? 'حفظ التعديلات — الصفحة موقوفة' : 'نشر التعديلات', exitLabel: 'العودة إلى صفحة الجمعيات', exitAsLogout: signOut }}
+        staffEdit={{ title: account?.pageStatus === 'published' ? 'محرر صفحة الجمعية' : 'تصميم الجمعية — مسودة خاصة', onExit: () => navigate(nonprofitPath()), onContinue: () => { if (!account?.pageStatus || account.pageStatus === 'draft') navigate(nonprofitPath('quote')); }, continueLabel: account?.pageStatus === 'draft' ? 'التالي: طلب التفعيل' : account?.pageStatus === 'suspended' ? 'حفظ التعديلات — الصفحة موقوفة' : 'نشر التعديلات', exitLabel: 'العودة إلى صفحة الجمعيات', exitAsLogout: signOut }}
       />
       {receipt && <QuoteReceivedNotice requestNumber={receipt.requestNumber} onDismiss={() => setReceipt(null)} />}
     </Gate>

@@ -82,3 +82,38 @@ export async function retryNonprofitNotifications() {
   const rows = await pool.query("select id from nonprofit_quote_requests where email_status <> 'sent' and email_attempts < 5 order by created_at limit 10");
   for (const row of rows.rows) await notifyNonprofit(row.id);
 }
+
+export async function startNonprofitCreation(userId: string, input: any) {
+  await requireNonprofit(userId);
+  const organization = field(input.organizationName, 'اسم الجمعية', 160);
+  await pool.query(`insert into nonprofit_creation_starts(user_id,organization_name,contact_name,email,phone)
+    select id,$2,to_jsonb(users)->>'name',email,phone from users where id=$1
+    on conflict (user_id) do nothing`, [userId, organization]);
+  try { await notifyCreationStart(userId); }
+  catch (error) { console.error('[nonprofit-creation] notification deferred', error); }
+  return { started: true };
+}
+
+export async function notifyCreationStart(userId: string) {
+  const claimed = await pool.query(`update nonprofit_creation_starts
+    set email_status='sending',email_attempts=email_attempts+1,email_attempted_at=now()
+    where user_id=$1 and email_attempts < 5 and
+    (email_status in ('pending','failed') or (email_status='sending' and email_attempted_at < now()-interval '10 minutes')) returning *`, [userId]);
+  const row = claimed.rows[0];
+  if (!row) return;
+  const to = getEnv('ADMIN_EMAIL');
+  const startedAt = new Intl.DateTimeFormat('ar-SA', { dateStyle: 'full', timeStyle: 'long', timeZone: 'Asia/Riyadh', calendar: 'gregory' }).format(new Date(row.created_at));
+  const sent = Boolean(to) && await sendNoticeEmail(to!, 'بدء إنشاء صفحة جمعية — ' + row.organization_name, [
+    `اسم الجمعية: ${row.organization_name}`,
+    `اسم الشخص المسؤول: ${row.contact_name || 'غير متوفر'}`,
+    `البريد الإلكتروني المسجل: ${row.email}`,
+    `رقم التواصل: ${row.phone || 'غير متوفر'}`,
+    `تاريخ ووقت بدء إنشاء الصفحة (الرياض): ${startedAt}`,
+  ], `nonprofit-creation-${row.user_id}`);
+  await pool.query('update nonprofit_creation_starts set email_status=$2 where user_id=$1', [userId, sent ? 'sent' : 'failed']);
+}
+
+export async function retryCreationStartNotifications() {
+  const rows = await pool.query("select user_id from nonprofit_creation_starts where email_status <> 'sent' and email_attempts < 5 order by created_at limit 10");
+  for (const row of rows.rows) await notifyCreationStart(row.user_id);
+}

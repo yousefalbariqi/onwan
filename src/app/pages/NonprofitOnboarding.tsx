@@ -1,3 +1,4 @@
+import { nonprofitCall } from '../lib/api';
 import { onboardingItems, type OnboardingChoice as Choice } from '../lib/nonprofitSelection';
 import { useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
@@ -8,7 +9,7 @@ import { ImageProblem, compressImage } from '../lib/compressImage';
 import { extractColorsFromImage } from '../utils/colorExtractor';
 import { usePageContext } from '../context/PageContext';
 import { SOCIAL_PLATFORMS, SocialIcon, brandColor } from '../components/SocialIcons';
-import { nonprofitPath } from '../lib/nonprofit';
+import { NONPROFIT_ANNUAL_PRICE_LABEL, nonprofitPath } from '../lib/nonprofit';
 import { preloadMedia } from '../lib/mediaUpload';
 import { OFFICIAL_DOCUMENTS } from '../lib/officialDocuments';
 import { finishOnboarding, onboardingPending, onboardingProgress, saveOnboarding } from '../lib/nonprofitOnboarding';
@@ -48,7 +49,7 @@ const CHOICES: Choice[] = [
 ];
 const VISIBLE_CHOICES = CHOICES.slice(0, 12);
 const BIO_LIMIT = 300;
-const STEPS = 2;
+const STEPS = 3;
 
 // Note 19 (update): each logo as its owner shows it. Official Simple Icons
 // paths (SVG, sharp on Retina). Platforms whose mark is an app tile get their
@@ -97,7 +98,7 @@ export function NonprofitOnboarding() {
   const navigate = useNavigate();
   const { pageData, updatePageData, updateProfileStyle, addLink, save, saving } = usePageContext();
   // Note 14: the step and the chosen tiles survive leaving and coming back.
-  const [step, setStep] = useState<1 | 2>(() => onboardingProgress()?.step ?? 1);
+  const [step, setStep] = useState<1 | 2 | 3>(() => onboardingProgress()?.step ?? 1);
   const [imageError, setImageError] = useState('');
   const uploadId = useId();
   const [chosen, setChosen] = useState<string[]>(() => (onboardingProgress()?.chosen ?? []).filter(id => VISIBLE_CHOICES.some(choice => choice.id === id)));
@@ -106,6 +107,7 @@ export function NonprofitOnboarding() {
   useEffect(() => { if (onboardingPending()) saveOnboarding({ step, chosen }); }, [step, chosen]);
   const [error, setError] = useState('');
   const finishing = useRef(false);
+  const [starting, setStarting] = useState(false);
   const toEditor = () => navigate(nonprofitPath('builder'), { replace: true });
 
   const toggle = (id: string) => setChosen((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
@@ -114,14 +116,21 @@ export function NonprofitOnboarding() {
     if (finishing.current) return;
     finishing.current = true;
     setError('');
-    const additions = onboardingItems(VISIBLE_CHOICES, chosen, pageData.links);
-    flushSync(() => additions.forEach(addLinkItem => addLink(addLinkItem)));
-    // Note 18: the editor opens at once; the save goes on in the background
-    // (the editor shows it). Everything is already in the draft, so a failed
-    // save loses nothing: it stays unsaved and the draft keeps retrying.
-    finishOnboarding();
-    save().catch(() => undefined);
-    toEditor();
+    setStarting(true);
+    try {
+      const additions = onboardingItems(VISIBLE_CHOICES, chosen, pageData.links);
+      flushSync(() => additions.forEach(addLinkItem => addLink(addLinkItem)));
+      // Save the identity/logo before recording the server-side start event.
+      await save();
+      await nonprofitCall({ action: 'start-creation', organizationName: pageData.name });
+      finishOnboarding();
+      toEditor();
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : 'تعذر بدء إنشاء الصفحة. حاول مجددًا.');
+    } finally {
+      finishing.current = false;
+      setStarting(false);
+    }
   };
 
   // Name, bio and logo go straight into the page draft, so they survive going back and forth.
@@ -138,16 +147,16 @@ export function NonprofitOnboarding() {
       })
       .catch((problem) => setImageError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'));
   };
-  const back = () => (step === 1 ? navigate(nonprofitPath()) : setStep(1));
-  const next = () => (step === 2 ? finish() : setStep(2));
-  const canContinue = step === 1 ? chosen.length > 0 : Boolean(pageData.name.trim()) && !saving;
+  const back = () => { if (starting) return; if (step === 1) navigate(nonprofitPath()); else setStep(step === 3 ? 2 : 1); };
+  const next = () => { if (step === 3) void finish(); else setStep(step === 1 ? 2 : 3); };
+  const canContinue = step === 1 ? chosen.length > 0 : Boolean(pageData.name.trim()) && !saving && !starting;
 
   return (
     <div dir="rtl" className="relative isolate flex min-h-[100dvh] flex-col bg-[#F8F8F6] text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>
       <header className="mx-auto flex w-full max-w-2xl items-center gap-4 px-5 pt-6">
         <button type="button" onClick={back} aria-label="رجوع" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#ecebe6] text-[#1d1d1f] transition-transform active:scale-95"><ChevronRight className="h-6 w-6" /></button>
         <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#e8e8e3]" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS} aria-valuenow={step} aria-label="خطوات الإعداد">
-          <div className="h-full rounded-full bg-[#FF6B2C] transition-all duration-300" style={{ width: `${(step / (STEPS + 1)) * 100}%` }} />
+          <div className="h-full rounded-full bg-[#FF6B2C] transition-all duration-300" style={{ width: `${(step / STEPS) * 100}%` }} />
         </div>
         <span className="w-12" />
       </header>
@@ -202,7 +211,7 @@ export function NonprofitOnboarding() {
             </div>
             <p className="mt-4 text-center text-xs leading-6 text-[#737373]">ما لقيت منصتك؟ تابع، ويمكنك إضافة رابطها أو صور وملفات ومقاطع لاحقًا من محرر الصفحة.</p>
           </>
-        ) : (
+        ) : step === 2 ? (
           <>
             <h1 className="text-center text-[28px] font-black leading-tight sm:text-[34px]">عرّف بجمعيتك</h1>
             <p className="mt-2 text-center text-[15px] text-[#6e6e73] sm:text-base">تظهر هذه البيانات في صفحة جمعيتكم.</p>
@@ -228,6 +237,15 @@ export function NonprofitOnboarding() {
               </label>
             </div>
           </>
+        ) : (
+          <section className="mt-6 rounded-[28px] border border-[#e2e2de] bg-white px-6 py-9 text-center sm:px-10">
+            <h1 className="text-2xl font-bold sm:text-3xl">باقة عنوان للجمعيات</h1>
+            <p className="mt-8 flex flex-wrap items-baseline justify-center gap-2"><strong dir="ltr" className="text-6xl font-bold tracking-tight">{NONPROFIT_ANNUAL_PRICE_LABEL}</strong><span className="text-xl">ريال فقط في السنة</span></p>
+            <p className="mt-4 text-base leading-8 text-[#6e6e73]">تُدفع دفعة واحدة سنويًا.</p>
+            <hr className="my-8 border-[#e2e2de]" />
+            <h2 className="text-xl font-bold">صفحة واحدة، حضور متكامل لجمعيتك.</h2>
+            <p className="mt-4 text-base leading-8 text-[#6e6e73]">صفحة مخصصة للجمعية تجمع روابطها ووثائقها ومبادراتها، ويمكنك تخصيص تصميمها بما يعكس هويتها.</p>
+          </section>
         )}
         {error && <p role="alert" className="mt-4 text-center text-sm text-red-700">{error}</p>}
       </main>
@@ -246,8 +264,9 @@ export function NonprofitOnboarding() {
             onClick={next}
             className="flex min-h-[56px] w-full items-center justify-center rounded-full bg-[#FF6B2C] text-[17px] font-bold text-white transition-colors disabled:bg-[#e8e8e3] disabled:text-[#a3a39e]"
           >
-            {saving ? 'جارٍ الحفظ…' : step === 2 ? 'أنشئ صفحتك' : 'متابعة'}
+            {starting ? 'جارٍ بدء إنشاء الصفحة…' : saving ? 'جارٍ الحفظ…' : step === 3 ? 'ابدأ إنشاء صفحة جمعيتك' : 'متابعة'}
           </button>
+          {step === 3 && <p className="mt-3 text-center text-sm text-[#6e6e73]">يمكنك إعداد الصفحة ومعاينتها قبل الدفع.</p>}
           {step === 1 && <button type="button" onClick={() => { setChosen([]); setStep(2); saveOnboarding({ step: 2, chosen: [] }); }} className="mt-3 block w-full py-2 text-center text-[15px] font-bold text-[#6e6e73]">تخطي</button>}
         </div>
       </footer>
