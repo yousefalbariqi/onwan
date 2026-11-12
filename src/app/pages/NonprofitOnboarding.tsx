@@ -175,7 +175,7 @@ export function NonprofitOnboarding() {
           <p className="mt-4 text-xs leading-6 text-[#737373]">تختار الآن، وتضيف التفاصيل في المحرر.</p>
         </aside>
       </>}
-      <main className="relative mx-auto w-full max-w-2xl flex-1 px-5 pb-52 pt-8">
+      <main className={`relative mx-auto w-full max-w-2xl flex-1 px-5 pt-8 ${step === 3 ? 'pb-10' : 'pb-52'}`}>
         {step === 1 ? (
           <>
             <div className="mb-6 flex justify-center"><OnwanLogo /></div>
@@ -238,20 +238,45 @@ export function NonprofitOnboarding() {
             </div>
           </>
         ) : (
-          <section className="mt-6 rounded-[28px] border border-[#e2e2de] bg-white px-6 py-9 text-center sm:px-10">
-            <h1 className="text-2xl font-bold sm:text-3xl">باقة عنوان للجمعيات</h1>
-            <p className="mt-8 flex flex-wrap items-baseline justify-center gap-2"><strong dir="ltr" className="text-6xl font-bold tracking-tight">{NONPROFIT_ANNUAL_PRICE_LABEL}</strong><span className="text-xl">ريال فقط في السنة</span></p>
-            <p className="mt-4 text-base leading-8 text-[#6e6e73]">تُدفع دفعة واحدة سنويًا.</p>
-            <hr className="my-8 border-[#e2e2de]" />
-            <h2 className="text-xl font-bold">صفحة واحدة، حضور متكامل لجمعيتك.</h2>
-            <p className="mt-4 text-base leading-8 text-[#6e6e73]">صفحة مخصصة للجمعية تجمع روابطها ووثائقها ومبادراتها، ويمكنك تخصيص تصميمها بما يعكس هويتها.</p>
+          <section aria-labelledby="plan-title" className="mx-auto max-w-xl">
+            <div className="mb-6 text-center">
+              <span className="text-xs font-bold tracking-wide text-[#b54a1b]">خطوتك الأولى لحضور أكبر</span>
+              <h1 id="plan-title" className="mt-3 text-[28px] font-black leading-relaxed sm:text-[34px]">باقة عنوان للجمعيات</h1>
+              <p className="mt-2 text-sm leading-7 text-[#737373]">كل ما يعرّف بجمعيتك، في رابط واحد.</p>
+            </div>
+            <div className="overflow-hidden rounded-[28px] border border-[#e6e2dc] bg-white shadow-[0_12px_40px_-24px_rgba(59,38,19,0.2)]">
+              <div className="flex items-center gap-3 border-b border-[#eee9e2] bg-[#fcfaf6] px-6 py-5 sm:px-8">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#ebe6df] bg-white">
+                  {pageData.profileImage ? <img src={pageData.profileImage} alt="شعار الجمعية" className="h-full w-full object-contain p-1" /> : <User size={24} className="text-[#b6aa98]" aria-hidden="true" />}
+                </div>
+                <div className="min-w-0"><p className="truncate text-sm font-bold">{pageData.name || 'جمعيتك'}</p><p className="mt-1 text-xs text-[#737373]">مساحة خاصة تحمل هويتكم</p></div>
+                <span className="mr-auto shrink-0 rounded-full border border-[#e7dfd3] bg-white px-3 py-1.5 text-xs font-bold text-[#78634b]">اشتراك سنوي</span>
+              </div>
+              <div className="px-6 py-7 sm:px-8">
+                <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+                  <strong className="text-[72px] font-bold leading-none tracking-tight text-[#161614]">{NONPROFIT_ANNUAL_PRICE_LABEL}</strong>
+                  <div className="pb-1"><p className="text-lg font-bold">ريال فقط</p><p className="mt-1 text-sm text-[#737373]">في السنة</p></div>
+                </div>
+                <p className="mt-4 text-xs leading-6 text-[#737373]">تُدفع دفعة واحدة سنويًا.</p>
+                <div className="my-6 h-px bg-[#efede8]" />
+                <h2 className="text-base font-bold">حضور متكامل، يشبه جمعيتك.</h2>
+                <ul className="mt-5 space-y-4">
+                  {['روابطكم ووثائقكم ومبادراتكم في صفحة واحدة', 'تصميم يعكس هوية الجمعية وشعارها', 'تعديل المحتوى وتحديثه من محرر سهل'].map(feature => <li key={feature} className="flex items-start gap-3 text-sm leading-6 text-[#52524e]"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#fff0e7] text-[#c64f18]"><Check size={12} strokeWidth={2.5} aria-hidden="true" /></span>{feature}</li>)}
+                </ul>
+                <button type="button" disabled={!canContinue} onClick={next} className="mt-8 flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-[#FF6B2C] px-4 py-3 text-base font-bold text-white transition-colors hover:bg-[#ef5a1b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#c64f18] disabled:cursor-wait disabled:opacity-60">
+                  {starting ? 'جارٍ بدء إنشاء الصفحة…' : saving ? 'جارٍ الحفظ…' : 'ابدأ إنشاء صفحة جمعيتك'}
+                  {!starting && !saving && <ChevronRight size={19} className="rotate-180" aria-hidden="true" />}
+                </button>
+                <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs leading-6 text-[#737373]"><Check size={14} className="shrink-0 text-[#687c5a]" aria-hidden="true" />إعداد الصفحة ومعاينتها قبل الدفع</p>
+              </div>
+            </div>
           </section>
         )}
         {error && <p role="alert" className="mt-4 text-center text-sm text-red-700">{error}</p>}
       </main>
 
       {/* Fixed actions, faded over the grid as in the reference. */}
-      <footer className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-[#F8F8F6] via-[#F8F8F6] to-[#F8F8F6]/0 pt-8">
+      {step !== 3 && <footer className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-[#F8F8F6] via-[#F8F8F6] to-[#F8F8F6]/0 pt-8">
         <div className="mx-auto w-full max-w-2xl px-5 pb-6">
           {step === 2 && (
             <p className="mb-3 text-center text-[13px] leading-6 text-[#6e6e73]">
@@ -264,12 +289,11 @@ export function NonprofitOnboarding() {
             onClick={next}
             className="flex min-h-[56px] w-full items-center justify-center rounded-full bg-[#FF6B2C] text-[17px] font-bold text-white transition-colors disabled:bg-[#e8e8e3] disabled:text-[#a3a39e]"
           >
-            {starting ? 'جارٍ بدء إنشاء الصفحة…' : saving ? 'جارٍ الحفظ…' : step === 3 ? 'ابدأ إنشاء صفحة جمعيتك' : 'متابعة'}
+            {starting ? 'جارٍ بدء إنشاء الصفحة…' : saving ? 'جارٍ الحفظ…' : 'متابعة'}
           </button>
-          {step === 3 && <p className="mt-3 text-center text-sm text-[#6e6e73]">يمكنك إعداد الصفحة ومعاينتها قبل الدفع.</p>}
           {step === 1 && <button type="button" onClick={() => { setChosen([]); setStep(2); saveOnboarding({ step: 2, chosen: [] }); }} className="mt-3 block w-full py-2 text-center text-[15px] font-bold text-[#6e6e73]">تخطي</button>}
         </div>
-      </footer>
+      </footer>}
     </div>
   );
 }
