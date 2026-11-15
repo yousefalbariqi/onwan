@@ -1,7 +1,7 @@
 import { preloadMedia } from '../lib/mediaUpload';
 import { createWallpaperVariants } from '../lib/wallpaperVariants';
 import { PageData, themes, usePageContext } from '../context/PageContext';
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Check, Loader2, Search, SlidersHorizontal, Upload, X } from 'lucide-react';
 import { ColorDots, EndsSlider, Group, Panel, Row, Segmented, VerticalSlider } from './ios';
 import { VideoWallpaperEditor } from './VideoWallpaperEditor';
@@ -159,12 +159,14 @@ function PhotoFraming({ onClose }: { onClose: () => void }) {
 // «الخلفية» now also holds the themes: one place for the page's overall look.
 // `segments` (note 47): the association's editor offers only «لون / صورة / فيديو»
 // here, and the themes in a section of their own («ثيمات الصفحة»).
-export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, segments }: { initialSegment?: WallpaperSegment; onThemeSelected?: (themeName: string) => void; segments?: WallpaperSegment[] }) {
+export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, segments, onBusyChange }: { onBusyChange?: (busy: boolean) => void; initialSegment?: WallpaperSegment; onThemeSelected?: (themeName: string) => void; segments?: WallpaperSegment[] }) {
   const simple = Boolean(segments);
   const shownSegments = segments ? segments.map((id) => ({ id, label: id === 'colors' ? 'لون' : SEGMENTS.find((item) => item.id === id)!.label })) : SEGMENTS;
   const { pageData, updateWallpaper, updateTheme } = usePageContext();
   const [imageError, setImageError] = useState('');
   const [preparing, setPreparing] = useState(false);
+  const [videoBusy, setVideoBusy] = useState(false);
+  useEffect(() => { onBusyChange?.(preparing || videoBusy); }, [preparing, videoBusy, onBusyChange]);
   const [framing, setFraming] = useState(false);
   const [segment, setSegment] = useState<WallpaperSegment>(initialSegment);
   // Searching only narrows what is shown; the current choice stays as it is.
@@ -231,7 +233,7 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, se
 
       {searchable && !(simple && segment === 'colors') && <SearchField value={query} onChange={setQuery} placeholder={segment === 'themes' ? 'ابحث عن ثيم بالاسم' : segment === 'colors' ? 'ابحث عن لون' : 'ابحث عن تدرج'} />}
 
-      {segment === 'video' && <VideoWallpaperEditor />}
+      {segment === 'video' && <VideoWallpaperEditor onBusyChange={setVideoBusy} />}
 
       {segment === 'themes' && (shownThemes.length ? (
         <Group title={query ? `${shownThemes.length} من ${themes.length}` : `${themes.length} ثيمًا`} footer="الثيم يغيّر الخلفية ولون الأزرار والنص معًا، ثم تقدر تعدّل كل جزء من «الأسلوب».">

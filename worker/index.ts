@@ -1,3 +1,5 @@
+import creationEmail from '../api/auth/creation-email.js';
+import creationDraft from '../api/creation-draft.js';
 import nonprofit from '../api/nonprofit.js';
 import googleWallet from '../api/google-wallet.js';
 import walletPass from '../api/wallet-pass.js';
@@ -28,6 +30,8 @@ import { withRuntime, type RequestRuntime, type RuntimeEnv } from '../api/_lib/r
 // Explicit allowlist: helpers under api/_lib can never become public routes.
 export const routes: Record<string, (req: any, res: any) => Promise<void>> = {
   '/api/auth/signup': signup,
+  '/api/auth/creation-email': creationEmail,
+  '/api/creation-draft': creationDraft,
   '/api/auth/login': login,
   '/api/auth/reset-password': resetPassword,
   '/api/auth/email-code': emailCode,

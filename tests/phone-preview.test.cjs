@@ -17,6 +17,7 @@ test('preview stays hidden until measured and ignores hidden-pane/invalid resize
     if (name === 'react') return React;
     if (name === 'react-dom') return { createPortal: () => null };
     if (name === '../context/PageContext') return { usePageContext: () => ({ pageData: {} }) };
+    if (name === '../lib/editorPreview') return { editorPreview: data => data };
     if (name === './PageView') return { PageView: () => null };
     return require(name);
   }, module, module.exports, ResizeObserver);

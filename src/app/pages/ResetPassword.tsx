@@ -1,7 +1,7 @@
 import { journeyPath } from '../lib/journey';
 import { useEffect, useState } from 'react';
 import { digitsOnly } from '../lib/digits';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { ArrowRight, KeyRound, Loader2 } from 'lucide-react';
 import { TurnstileBox, useHumanOk } from '../lib/turnstile';
 import { PasswordRules, Row, authTheme, inputClass } from '../components/AuthModal';
@@ -13,9 +13,10 @@ import { EMAIL_HINT, PASSWORD_HINT, isValidEmailAddress, passwordProblem } from 
 
 // ACCT-06: a one-time code to the registered email, then a new password.
 function useResetFlow() {
+  const [params] = useSearchParams();
   const [step, setStep] = useState<'email' | 'code'>('email');
   const humanOk = useHumanOk();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(params.get('email') || '');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);

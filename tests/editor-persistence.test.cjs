@@ -39,11 +39,11 @@ async function editor(options = {}) {
   const provider = sandbox.module.exports;
   if (options.local) storage.set('bio_page_data', JSON.stringify({ owner: 'user:one', savedAt: Date.now(), ...options.local, data: provider.mergeWithDefaults(options.local.data) }));
   // First render supplies the provider defaults for the server response.
-  cursor = 0; provider.PageProvider({ children: null });
+  cursor = 0; provider.PageProvider({ children: null, source: options.source });
   api.snapshot = { pageData: options.serverData ? provider.mergeWithDefaults(options.serverData) : value.pageData, revision: options.revision ?? 0, draft: options.serverDraft ? { pageData: provider.mergeWithDefaults(options.serverDraft) } : null, account: { kind: 'nonprofit', pageStatus: 'published' } };
   async function flush() {
     for (let i = 0; i < 40; i++) {
-      if (dirty) { dirty = false; cursor = 0; provider.PageProvider({ children: null }); }
+      if (dirty) { dirty = false; cursor = 0; provider.PageProvider({ children: null, source: options.source }); }
       const pending = effects.splice(0); for (const effect of pending) effect();
       await Promise.resolve();
     }
@@ -167,4 +167,36 @@ test('applying a composition changes presentation while preserving content and c
   assert.deepEqual(e.value.pageData.buttonStyle.composition, composition);
   await e.advance(2500);
   assert.deepEqual(e.api.calls.at(-1).data.buttonStyle.composition, composition);
+});
+
+test('an isolated source saves incomplete forms through its own draft path without account APIs', async () => {
+  const writes = [];
+  const source = { load: async () => ({ pageData: { name: 'guest', links: [] } }), save: async data => ({ pageData: data }), saveDraft: async data => writes.push(data) };
+  const e = await editor({ source });
+  e.value.updatePageData({ bio: 'my draft', editorForm: { form: { title: 'unfinished' } } }); await e.flush();
+  await e.value.saveDraft(); await e.flush();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].editorForm.form.title, 'unfinished');
+  assert.equal(e.value.draftState, 'saved');
+  assert.equal(e.api.calls.length, 0);
+  e.value.undo(); await e.flush();
+  assert.equal(e.value.pageData.bio, '');
+  e.value.redo(); await e.flush();
+  assert.equal(e.value.pageData.bio, 'my draft');
+});
+test('an isolated source cannot acknowledge newer edits or silently fall back to account storage', async () => {
+  const pending = deferred();
+  const source = { load: async () => ({ pageData: { name: 'guest', links: [] } }), save: async data => ({ pageData: data }), saveDraft: async () => pending.promise };
+  const e = await editor({ source });
+  e.value.updatePageData({ bio: 'first' }); await e.flush();
+  const save = e.value.saveDraft();
+  e.value.updatePageData({ bio: 'newest' }); await e.flush();
+  pending.resolve();
+  await assert.rejects(save, /تغييرات أحدث/); await e.flush();
+  assert.equal(e.value.draftState, 'error');
+  assert.equal(e.value.pageData.bio, 'newest');
+  assert.equal(e.api.calls.length, 0);
+  const readonly = await editor({ source: { load: source.load, save: source.save } });
+  await assert.rejects(readonly.value.saveDraft(), /غير متاح/);
+  assert.equal(readonly.api.calls.length, 0);
 });

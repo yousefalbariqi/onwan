@@ -1,3 +1,4 @@
+import PaymentResult from './pages/PaymentResult';
 import { StandardBuilder, StandardOnboarding, StandardGate } from './pages/StandardJourney';
 import { FloatingWhatsApp } from './components/FloatingWhatsApp';
 import { NonprofitAuth, NonprofitBuilder, NonprofitQuote, NonprofitGate } from './pages/NonprofitPortal';
@@ -16,7 +17,7 @@ import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import PublicPage from './pages/PublicPage';
 import PlanSelection from './pages/PlanSelection';
-import { DemoPayment, DemoPaymentSuccess } from './pages/DemoPayment';
+import { DemoPayment } from './pages/DemoPayment';
 import Renewal from './pages/Renewal';
 import AdminApp from './admin/AdminApp';
 import StaffPageEditor from './admin/StaffPageEditor';
@@ -200,7 +201,7 @@ export const router = createBrowserRouter(isAdminHost() ? [
       },
       {
         path: 'payment/success',
-        element: <DemoPaymentSuccess />,
+        element: <PaymentResult />,
       },
       {
         path: 'renewal',

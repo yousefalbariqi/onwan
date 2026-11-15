@@ -59,5 +59,5 @@ test('reset revokes every previous customer session and preserves the new one ac
 });
 test('customer validation still rejects staff and partner tokens', async () => {
   const { auth, check } = setup();
-  for (const kind of ['staff', 'partner']) assert.equal((await check(auth.createSessionToken('customer', 'test@example.invalid', kind))).res.statusCode, 401);
+  for (const kind of ['staff', 'partner', 'creation']) assert.equal((await check(auth.createSessionToken('customer', 'test@example.invalid', kind))).res.statusCode, 401);
 });

@@ -255,7 +255,7 @@ const handlers: Record<string, Handler> = {
           `select id, cart_number, plan, plan_price::float, plan_list_price::float, general_discount::float,
                   discount_code, code_discount::float, custom_domain, domain_price::float, design_price::float, nfc_quantity, nfc_unit_price::float,
                   nfc_shipping_price::float, nfc_recipient_name, nfc_recipient_phone, nfc_city, nfc_address,
-                  total::float, created_at
+                  total::float, created_at,manual_published_at,manual_payment_url,manual_invoice_url
            from registration_carts where user_id = $1 and status = 'pending_payment'`,
           [target.id],
         ),

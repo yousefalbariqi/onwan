@@ -28,6 +28,9 @@ interface PageViewProps {
   // it in «المحتوى» instead of following it. Never set for visitors.
   showIncomplete?: boolean;
   onItemClick?: (id: string) => void;
+  onIdentityClick?: (field: 'name' | 'bio' | 'image') => void;
+  selectedItemId?: string | null;
+  onAddAfter?: (id: string | null) => void;
 }
 
 // Note 44: a picture card's photo in its fixed frame — moved and zoomed as set
@@ -92,7 +95,7 @@ function withAlpha(color: string, opacityPercent: number) {
   return `rgba(${r}, ${g}, ${b}, ${opacityPercent / 100})`;
 }
 
-export function PageView({ data, variant, lang = 'ar', children, showIncomplete = false, onItemClick }: PageViewProps) {
+export function PageView({ data, variant, lang = 'ar', children, showIncomplete = false, onItemClick, onIdentityClick, selectedItemId, onAddAfter }: PageViewProps) {
   const english = lang === 'en' ? data.translations?.en : undefined;
   const name = english?.name || data.name;
   const bio = english?.bio || data.bio;
@@ -142,7 +145,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
     buttonStyle.shadow ? 'shadow-lg' : '',
   ].join(' ');
 
-  const profileImage = (
+  const rawProfileImage = (
     <ProfileImageDisplay
       profileImage={data.profileImage}
       name={data.name}
@@ -152,6 +155,12 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
       backgroundColor={isHeroLayout && (wallpaper.type === 'color' || wallpaper.type === 'gradient') ? wallpaper.value : undefined}
     />
   );
+
+  const identity = (field: 'name' | 'bio' | 'image', content: ReactNode) => onIdentityClick
+    ? <div role="button" tabIndex={0} aria-label={`تعديل ${field === 'name' ? 'الاسم' : field === 'bio' ? 'النبذة' : 'الصورة'}`} className={`onwan-inline-target${selectedItemId === field ? ' is-selected' : ''}`} onClick={() => onIdentityClick(field)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onIdentityClick(field); } }}>{content}</div>
+    : content;
+  const profileImage = identity('image', rawProfileImage);
+  const addSlot = (id: string | null) => onAddAfter ? <button type="button" className="onwan-inline-add" onClick={() => onAddAfter(id)} aria-label={id ? 'إضافة محتوى بعد هذا العنصر' : 'إضافة محتوى في بداية الصفحة'}><span aria-hidden="true">+</span><span>أضف إلى صفحتك</span></button> : null;
 
   // Note 22: an incomplete item in its final shape, faded, with a small mark.
   // Note 23: in the editor every item is a way into its own settings.
@@ -164,9 +173,9 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
     const open = onItemClick && (() => onItemClick(link.id));
     return (
       <div key={link.id} role={open ? 'button' : undefined} tabIndex={open ? 0 : undefined} title={open ? 'اضغط للتعديل' : undefined}
-        className={`relative [&>a]:h-full ${incomplete ? 'opacity-55' : ''} ${open ? 'cursor-pointer rounded-xl outline-2 outline-offset-2 outline-transparent transition-[outline-color,opacity] hover:outline-[#0a84ff]/50 [outline-style:solid]' : ''}`}
+        className={`relative [&>a]:h-full ${incomplete ? 'opacity-55' : ''} ${open ? 'cursor-pointer rounded-xl outline-2 outline-offset-2 outline-transparent transition-[outline-color,opacity] hover:outline-[#0a84ff]/50 [outline-style:solid]' : ''} ${selectedItemId === link.id ? 'onwan-inline-target is-selected' : ''}`}
         onClickCapture={open || incomplete ? (event) => { event.preventDefault(); event.stopPropagation(); open?.(); } : undefined}
-        onKeyDown={open ? (event) => { if (event.key === 'Enter') open(); } : undefined}>
+        onKeyDown={open ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } } : undefined}>
         {inner}
         {/* A playing video would swallow the tap; in the editor it opens the item instead. */}
         {open && link.display?.kind === 'video' && <span className="absolute inset-0" aria-hidden="true" />}
@@ -309,7 +318,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
         >
           {!isHeroLayout && !isBannerLayout && profileImage}
 
-          {(name || !isPublic) && (
+          {(name || !isPublic || onIdentityClick) && identity('name', (
             <h1
               className={`${NAME_SIZES.public[nameSize]} font-black mb-3 text-center ${
                 isHeroLayout ? 'mt-0 drop-shadow-md' : 'mt-4'
@@ -318,16 +327,16 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
             >
               {name || 'اسم الجهة'}
             </h1>
-          )}
+          ))}
 
-          {(bio || !isPublic) && (
+          {(bio || !isPublic || onIdentityClick) && identity('bio', (
             <p
               className={`${BIO_SIZES.public[bioSize]} opacity-90 mb-4 text-center max-w-sm whitespace-pre-line`}
               style={{ color: data.customColors?.bioColor || theme.textColor, fontSize: data.typography?.bioPx ? `${data.typography.bioPx}px` : undefined }}
             >
               <FormattedText text={bio || 'أضف تعريفًا قصيرًا بالجهة ونشاطها'} format={english?.bio ? undefined : data.typography?.bioFormat} />
             </p>
-          )}
+          ))}
 
           {!!data.username && (
             <div
@@ -343,9 +352,13 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
           )}
 
           <div className={`page-composition-items w-full ${ITEM_SPACING[design.spacing]}`}>
-            {blocks.map(block => block[0].display?.kind === 'heading' && block[0].display.sectionId
-              ? <SectionLayout key={`${block[0].id}:${block[0].display.sectionLayout ?? 'list'}`} heading={block[0]} items={block.slice(1)} renderItem={renderItem} lang={lang} spacing={design.spacing} />
-              : block.map(renderItem))}
+            {addSlot(null)}
+            {blocks.map(block => {
+              const content = block[0].display?.kind === 'heading' && block[0].display.sectionId
+                ? <SectionLayout key={`${block[0].id}:${block[0].display.sectionLayout ?? 'list'}`} heading={block[0]} items={block.slice(1)} renderItem={renderItem} lang={lang} spacing={design.spacing} />
+                : block.map(renderItem);
+              return onAddAfter ? <div key={block[0].id} className="onwan-inline-block">{content}{addSlot(block[block.length - 1].id)}</div> : content;
+            })}
           </div>
 
           {children}

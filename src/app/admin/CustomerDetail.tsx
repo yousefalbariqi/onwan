@@ -46,6 +46,8 @@ const ACTION_LABELS: Record<string, string> = {
 // NEW-04: the registration cart is confirmed once, for everything in it.
 function CartCard({ cart, onDone }: { cart: any; onDone: () => void }) {
   const [reference, setReference] = useState('');
+  const [paymentUrl, setPaymentUrl] = useState(cart.manual_payment_url || '');
+  const [invoiceUrl, setInvoiceUrl] = useState(cart.manual_invoice_url || '');
   const action = useAction(onDone);
 
   return (
@@ -75,6 +77,7 @@ function CartCard({ cart, onDone }: { cart: any; onDone: () => void }) {
         </Info>
       )}
       <Info label="الإجمالي">{cart.total} ريال</Info>
+      {cart.manual_published_at && <div className="mt-3 space-y-2 rounded-xl bg-orange-50 p-3"><p className="text-sm">الصفحة منشورة — بانتظار إرسال الفاتورة ورابط الدفع ثم تأكيد السداد.</p><input className={inputClass} dir="ltr" type="url" value={invoiceUrl} onChange={e=>setInvoiceUrl(e.target.value)} placeholder="رابط الفاتورة (HTTPS)" aria-label="رابط الفاتورة" /><input className={inputClass} dir="ltr" type="url" value={paymentUrl} onChange={e=>setPaymentUrl(e.target.value)} placeholder="رابط الدفع (HTTPS)" aria-label="رابط الدفع" /><Button disabled={action.busy} onClick={()=>action.run(()=>adminCall('carts.setManualLinks',{id:cart.id,paymentUrl,invoiceUrl}))}>حفظ الروابط في إعدادات العميل</Button><p className="text-xs">أرسل الروابط للعميل عبر وسيلة التواصل المسجلة. حفظها هنا لا يرسل رسالة تلقائية.</p></div>}
       <div className="mt-3 flex flex-wrap gap-2">
         <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="مرجع الدفع أو ملاحظة السداد" className={`${inputClass} min-w-0 flex-1`} />
         <Button tone="good" disabled={action.busy || reference.trim().length < 3} onClick={() => action.run(() => adminCall('carts.confirmPayment', { id: cart.id, reference }))}>

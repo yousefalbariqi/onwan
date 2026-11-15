@@ -1,3 +1,4 @@
+import { ManualPaymentNotice } from './ManualPaymentNotice';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { digitsOnly } from '../lib/digits';
 import { useNavigate } from 'react-router';
@@ -298,6 +299,7 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
 
       {page === 'root' ? (
         <>
+          <ManualPaymentNotice />
           {/* Summary card, like the Apple ID card at the top of Settings. */}
           <section className="rounded-2xl bg-white p-4">
             <div className="flex items-center gap-3">

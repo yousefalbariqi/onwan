@@ -1,0 +1,33 @@
+.creation-trial, .creation-trial__empty { min-height: 100svh; background: #f8f8f6; color: #20221b; font-family: 'Cairo', sans-serif; }
+.creation-trial__header { max-width: 1100px; margin: auto; display: flex; justify-content: space-between; align-items: center; gap: 15px; padding: 22px; }
+.creation-trial__header > a { display: grid; place-items: center; height: 42px; width: 42px; border-radius: 50%; background: #eceae4; color: inherit; }
+.creation-trial__header button { display: flex; align-items: center; gap: 7px; background: #fff; border: 1px solid #e2ded3; border-radius: 50px; min-height: 42px; padding: 8px 15px; font-size: 11px; cursor: pointer; }
+.creation-trial__layout { max-width: 1000px; margin: 20px auto; padding: 0 24px 40px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 340px); gap: 72px; align-items: start; }
+.creation-trial__eyebrow { color: #aa4a1d; font-size: 11px; }
+.creation-trial__fields h1 { margin: 10px 0; font-size: 30px; font-weight: 800; }
+.creation-trial__fields > p { margin: 0 0 22px; font-size: 12px; line-height: 1.9; color: #7c7e73; }
+.creation-trial__fields label { display: grid; gap: 8px; margin-top: 18px; font-size: 12px; font-weight: 700; }
+.creation-trial__fields :is(input, textarea) { width: 100%; min-width: 0; border: 1px solid #e1ded5; border-radius: 14px; padding: 12px 14px; background: #fff; color: #292c24; font-size: 14px; font-weight: 400; }
+.creation-trial__image { display: flex; gap: 9px; align-items: center; background: #fff0e7; color: #ad4719; padding: 11px 16px; border: 0; border-radius: 100px; font-size: 12px; cursor: pointer; }
+.creation-trial__image:disabled { opacity: .5; }
+.creation-trial__links-title { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 12px; }
+.creation-trial__links-title h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.creation-trial__links-title button { display: flex; align-items: center; gap: 5px; border: 0; background: transparent; color: #ae471b; font-size: 11px; cursor: pointer; }
+.creation-trial__link { padding: 12px; border: 1px solid #e8e5db; border-radius: 18px; margin-bottom: 12px; background: #f1f0ea; }
+.creation-trial__link > div { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.creation-trial__link > div > button { height: 40px; width: 40px; flex-shrink: 0; display: grid; place-items: center; border: 0; background: transparent; color: #8a6353; cursor: pointer; }
+.creation-trial__change { display: inline-flex; margin-top: 20px; color: #ae471b; text-underline-offset: 4px; font-size: 12px; }
+.creation-trial__preview { width: 100%; position: sticky; top: 24px; }
+.creation-trial__layout.is-preview { display: flex; justify-content: center; }
+.creation-trial__layout.is-preview .creation-trial__preview { width: 340px; max-width: 90%; }
+.creation-trial__error { color: #b42318 !important; }
+.creation-trial__empty { display: grid; align-content: center; justify-items: center; gap: 18px; padding: 30px; text-align: center; }
+.creation-trial__empty a { color: #b94b1b; }
+.creation-trial :is(button, input, textarea, a):focus-visible { outline: 3px solid #b84517; outline-offset: 3px; }
+@media (max-width: 700px) {
+  .creation-trial__header { padding: 16px; }
+  .creation-trial__header .onwan-logo { max-width: 90px; }
+  .creation-trial__layout { margin-top: 10px; grid-template-columns: minmax(0, 1fr); gap: 28px; padding-inline: 22px; }
+  .creation-trial__preview { position: static; width: min(260px, 78%); margin: auto; }
+  .creation-trial__layout.is-preview .creation-trial__preview { width: min(340px, 95%); }
+}

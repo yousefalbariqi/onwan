@@ -1,5 +1,5 @@
 import { FormattingTextarea } from './FormattingTextarea';
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { usePageContext } from '../context/PageContext';
 import { Camera } from 'lucide-react';
 import { EndsSlider, Group, Panel, VerticalSlider } from './ios';
@@ -14,12 +14,16 @@ const MAX_IMAGE_SIZE = 1_000_000;
 const MIN_LOGO_ZOOM = 0.3;
 const zoomStep = (zoom: number | undefined, by: number) => Math.round(Math.min(3, Math.max(MIN_LOGO_ZOOM, (zoom ?? 1) + by)) * 100) / 100;
 
-export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logoZoomOut?: boolean; logoBanner?: boolean } = {}) {
+export function HeaderEditor({ logoZoomOut = false, logoBanner = false, onBusyChange }: { onBusyChange?: (busy: boolean) => void; logoZoomOut?: boolean; logoBanner?: boolean } = {}) {
   const { pageData, updatePageData, updateProfileStyle } = usePageContext();
   const style = pageData.profileStyle;
   // Zoom and position stay at hand in both «الصورة كاملة» and «ملء الإطار» (note 10).
   const canAdjust = Boolean(pageData.profileImage);
   const [imageError, setImageError] = useState('');
+  const [preparing, setPreparing] = useState(false);
+  const imageRequest = useRef(0);
+  useEffect(() => () => { imageRequest.current++; }, []);
+  useEffect(() => { onBusyChange?.(preparing); }, [preparing, onBusyChange]);
 
   // The builder mounts this editor twice (mobile and desktop layouts), so a
   // fixed id would point the desktop label at the hidden mobile input.
@@ -28,7 +32,8 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
   const [bannerError, setBannerError] = useState('');
   const isBanner = style.type === 'banner';
 
-  const applyProfileImage = async (imageUrl: string) => {
+  const applyProfileImage = async (imageUrl: string, request: number) => {
+    if (request !== imageRequest.current) return;
 
 
     // A data URL is about 4/3 the size of the file it carries.
@@ -44,7 +49,7 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
 
     // استخراج الألوان من الصورة
     const colors = await extractColorsFromImage(imageUrl, 8);
-    if (colors.length > 0) {
+    if (request === imageRequest.current && colors.length > 0) {
       updatePageData({ extractedColors: colors });
     }
   };
@@ -61,13 +66,15 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
             e.target.value = '';
             if (!file) return;
             setImageError('');
+            const request = ++imageRequest.current; setPreparing(true); onBusyChange?.(true);
             // Note (6)/(10): up to 10 MB in, made small automatically (the server takes 1,000 KB).
             // An SVG logo becomes a PNG here, before anything is uploaded.
             compressImage(file, 1600, { allowSvg: true })
-              .then((image) => applyProfileImage(image))
-              .catch((problem) => setImageError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'));
+              .then((image) => applyProfileImage(image, request))
+              .catch((problem) => { if (request === imageRequest.current) setImageError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'); }).finally(() => { if (request === imageRequest.current) { setPreparing(false); onBusyChange?.(false); } });
           }}
           className="hidden"
+          disabled={preparing}
           id={uploadId}
         />
         {/* The photo with its three controls around it: up/down on the right,
@@ -117,6 +124,7 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
             <button onClick={() => updatePageData({ profileImage: '', extractedColors: [] })} className="text-[#ff3b30]">إزالة</button>
           )}
         </div>
+        {preparing && <p role="status" className="text-xs text-[#737373]">جارٍ تجهيز الصورة…</p>}
         {!!imageError && <p className="text-xs text-[#ff3b30]">{imageError}</p>}
 
       </section>
@@ -145,12 +153,13 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false }: { logo
       {logoBanner && isBanner ? (
         <Group title="البنر" footer="تتغير صورة البنر والشعار كلٌّ على حدة. «يمين / يسار» تحت الصورة يحدد موضع الشعار.">
           <div className="space-y-4 p-4">
-            <input id={bannerId} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => {
+            <input id={bannerId} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={preparing} onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = '';
               if (!file) return;
               setBannerError('');
-              compressImage(file).then((image) => updateProfileStyle({ bannerImage: image })).catch((problem) => setBannerError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'));
+              const request = ++imageRequest.current; setPreparing(true); onBusyChange?.(true);
+              compressImage(file).then((image) => { if (request === imageRequest.current) updateProfileStyle({ bannerImage: image }); }).catch((problem) => { if (request === imageRequest.current) setBannerError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'); }).finally(() => { if (request === imageRequest.current) { setPreparing(false); onBusyChange?.(false); } });
             }} />
             <label htmlFor={bannerId} className="block cursor-pointer overflow-hidden rounded-2xl bg-[#f2f2f7]">
               {style.bannerImage

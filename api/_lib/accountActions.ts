@@ -1,3 +1,5 @@
+import { publishWithManualPayment } from './manualPublication.js';
+import { subscriptionCheckoutPolicy } from '../../shared/subscriptionCheckout.js';
 import { attachReferral, getReferralOffer } from './partnerReferral.js';
 import { completeDemoPayment } from './demoPayment.js';
 import { getEnv } from './runtime.js';
@@ -7,7 +9,7 @@ import { pool } from './db.js';
 import { sendAdminEmail } from './email.js';
 import { HttpError } from './http.js';
 import { codeFailure, consumeCode, issueCode } from './otp.js';
-import { getVisitStats } from './page.js';
+import { getPageDataByUserId, getVisitStats } from './page.js';
 import { hashPassword, validatePassword } from './password.js';
 import { getDesignPrice, getLatestDesignPackage, getSettings, isPackageOpen } from './services.js';
 import { reserveUsername } from './username.js';
@@ -58,6 +60,24 @@ function text(value: unknown, message: string, min: number, max: number) {
 
 const handlers: Record<string, Handler> = {
   'payment.demo.confirm': completeDemoPayment,
+  // Fail closed until a real provider adapter exists. Never send this action
+  // to demo activation or create a cart that looks like a payable checkout.
+  'checkout.publish': publishWithManualPayment,
+  'checkout.start': async () => { throw new HttpError(503, 'الدفع الإلكتروني غير مفعّل حاليًا. تصميمك وحسابك محفوظان.', 'payment_not_configured'); },
+  'checkout.status': async (params, user) => {
+    const [account, page, result] = await Promise.all([
+      getAccountSummary(user.id), getPageDataByUserId(user.id),
+      pool.query(`select cart_number,status,payment_reference,total::float,manual_published_at,manual_payment_url,manual_invoice_url,(select draft_json is not null from pages where user_id=$1 limit 1) as unpublished_draft from registration_carts where user_id=$1
+        and ($2::text is null or cart_number::text=$2) order by created_at desc limit 1`, [user.id, params.cart ? String(params.cart) : null]),
+    ]);
+    const cart = result.rows[0];
+    const paid = Boolean(cart?.status === 'paid' && cart.payment_reference);
+    const demo = paid && String(cart.payment_reference).startsWith('DEMO:');
+    const active = account.subscription?.status === 'active' && Boolean(account.subscription.expiresAt && new Date(account.subscription.expiresAt) > new Date());
+    const manual = Boolean(cart?.manual_published_at && cart.status === 'pending_payment');
+    const state = manual && account.pageStatus === 'published' ? 'published_pending_payment' : paid && active && account.pageStatus === 'published' && !cart?.unpublished_draft ? 'published' : paid ? 'publication_pending' : cart?.status === 'cancelled' ? 'failed' : 'pending';
+    return { state, demo, manualPaymentUrl: cart?.manual_payment_url ?? null, manualInvoiceUrl: cart?.manual_invoice_url ?? null, account, username: page?.username || null, cartNumber: cart?.cart_number ?? null, total: cart?.total ?? null };
+  },
   'referral.claim': async (params, user) => {
     const client = await pool.connect();
     try {
@@ -257,6 +277,7 @@ const handlers: Record<string, Handler> = {
 
     return {
       plans,
+      checkout: { ...subscriptionCheckoutPolicy(plans), manualPublication: account?.kind !== 'nonprofit' && !referral },
       designPriceSar: getDesignPrice(),
       designAvailable: !isPackageOpen(pkg),
       nfcUnitPrice: settings.nfc_unit_price,
@@ -380,6 +401,7 @@ const handlers: Record<string, Handler> = {
           plan_list_price = excluded.plan_list_price, general_discount = excluded.general_discount,
           discount_code = excluded.discount_code, code_discount = excluded.code_discount,
           custom_domain = excluded.custom_domain, domain_price = excluded.domain_price
+        where registration_carts.manual_published_at is null
         returning cart_number
       `,
       [
@@ -404,6 +426,7 @@ const handlers: Record<string, Handler> = {
       ],
     );
 
+    if (!result.rows.length) throw new HttpError(409, 'طلب الاشتراك المنشور محفوظ. تواصل مع الإدارة لتعديله.');
     await sendAdminEmail(`سلة تسجيل #${result.rows[0].cart_number} بانتظار الدفع`, [
       `العميل: ${user.email ?? user.phone}`,
       `الاشتراك: ${params.plan === 'annual' ? 'سنوي' : 'شهري'}${designPrice !== null ? ' + صمّم لي' : ''}${nfc ? ` + ${quantity} قطعة NFC` : ''}${customDomain ? ` + دومين ${customDomain}` : ''}`,

@@ -1,0 +1,40 @@
+.inline-editor { min-height: 100dvh; background: #f4f3ef; color: #22251e; font-family: 'Cairo', sans-serif; padding-block: 91px 78px; }
+.inline-editor__toolbar { position: fixed; inset: 0 0 auto; z-index: 35; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px max(12px, calc((100vw - 1000px) / 2)); border-bottom: 1px solid #e7e3d8; background: #fffefaee; backdrop-filter: blur(16px); }
+.inline-editor__tools { display: flex; gap: 5px; }
+.inline-editor__toolbar button { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; min-height: 42px; padding: 8px 11px; border: 0; border-radius: 100px; background: #eeece4; color: #34392d; font-size: 11px; cursor: pointer; }
+.inline-editor button:disabled { opacity: .4; cursor: default; }
+.inline-editor__status { position: fixed; inset: 66px 0 auto; z-index: 34; display: flex; justify-content: center; align-items: center; gap: 5px; min-height: 25px; background: #f8f7f2ed; color: #727769; font-size: 9px; }
+.inline-editor__help { margin: 14px 12px; text-align: center; font-size: 11px; color: #6e7564; }
+.inline-editor__page { max-width: 680px; margin: auto; overflow: hidden; border-radius: 20px; box-shadow: 0 8px 40px #221f1808; }
+.inline-editor__page > div > .fixed { position: absolute; }
+.inline-editor__page .onwan-inline-target { position: relative; max-width: 100%; border-radius: 12px; outline: 2px solid transparent; outline-offset: 4px; cursor: pointer; }
+.inline-editor__page .onwan-inline-target:focus-visible, .inline-editor__page .onwan-inline-target:hover { outline-color: #ff6b2c88; }
+.inline-editor__page .onwan-inline-target.is-selected { outline-color: #ff6b2c; }
+.inline-editor__page [data-composition-align='start'] .onwan-inline-target > :is(h1, p) { text-align: start; }
+.onwan-inline-add { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; margin: 12px auto; padding: 6px 14px; border: 1px dashed #ff6b2c88; border-radius: 100px; background: #fffefaec; color: #a7481d; font: 600 11px 'Cairo', sans-serif; cursor: pointer; }
+.onwan-inline-add > span:first-child { font-size: 21px; line-height: 1; }
+.inline-editor__bottom { position: fixed; z-index: 35; inset: auto 0 0; display: flex; justify-content: center; align-items: center; gap: 12px; padding: 10px 16px max(10px, env(safe-area-inset-bottom)); border-top: 1px solid #e7e3d8; background: #fffefaf5; backdrop-filter: blur(12px); }
+.inline-editor__bottom button { display: flex; align-items: center; gap: 7px; justify-content: center; min-height: 43px; padding: 9px 17px; border: 1px solid #e7e2d7; border-radius: 100px; font-size: 11px; background: #f3f1e9; cursor: pointer; }
+.inline-editor__bottom .inline-editor__next { background: #ff6b2c; border-color: #ff6b2c; color: #fff; }
+.inline-editor__dialog { --inline-viewport: 100dvh; position: fixed; inset: auto 0 0; width: min(100%, 640px); max-width: 100%; max-height: calc(var(--inline-viewport) - 28px); padding: 0; margin: auto auto 0; overflow: hidden; border: 0; border-radius: 27px 27px 0 0; background: #f8f8f4; color: #26291f; font-family: 'Cairo', sans-serif; box-shadow: 0 -12px 70px #171a1a22; }
+.inline-editor__dialog::backdrop { background: #10161245; }
+.inline-editor__sheet { display: flex; flex-direction: column; max-height: calc(var(--inline-viewport) - 28px); min-height: min(360px, calc(var(--inline-viewport) - 28px)); }
+.inline-editor__sheet-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 19px 12px; border-bottom: 1px solid #e8e5db; background: #fffefa; }
+.inline-editor__sheet-header h2 { margin: 8px 0 0; font-size: 16px; font-weight: 700; }
+.inline-editor__handle { display: block; width: 28px; height: 4px; border-radius: 10px; background: #ddd9ce; }
+.inline-editor__sheet-header > button { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 50%; background: #edeae1; cursor: pointer; }
+.inline-editor__sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 10px; -webkit-overflow-scrolling: touch; }
+.inline-editor__sheet-scroll [hidden] { display: none !important; }
+.inline-editor__sheet-footer { display: flex; flex-shrink: 0; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 19px max(11px, env(safe-area-inset-bottom)); border-top: 1px solid #e5e1d5; background: #fffefa; }
+.inline-editor__sheet-footer > span { font-size: 9px; color: #808573; }
+.inline-editor__sheet-footer > button { min-height: 42px; padding: 10px 22px; border: 0; border-radius: 100px; background: #ff6b2c; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.inline-editor__field { display: grid; gap: 12px; padding: 22px; font-size: 13px; font-weight: 700; }
+.inline-editor__field > input { min-width: 0; width: 100%; min-height: 48px; padding: 12px; border: 1px solid #ded9cc; border-radius: 14px; background: #fff; font-size: 16px; }
+.inline-editor__customize { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 20px; }
+.inline-editor__customize button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 100px; border: 1px solid #e5dfd1; border-radius: 20px; background: #fff; color: #525c44; font-size: 13px; cursor: pointer; }
+.inline-editor__item-actions { display: flex; justify-content: end; gap: 8px; padding: 12px 16px; }
+.inline-editor__item-actions button { min-height: 40px; min-width: 40px; display: flex; justify-content: center; align-items: center; gap: 6px; padding: 8px; border: 1px solid #e6ded0; border-radius: 12px; background: #fff; color: #875c44; font-size: 10px; cursor: pointer; }
+.inline-editor__error { padding: 10px 16px; margin: 0; color: #b42318; background: #fff0e8; font-size: 12px; line-height: 1.9; }
+.inline-editor__loading { min-height: 70dvh; display: flex; align-items: center; justify-content: center; gap: 12px; font: 14px 'Cairo', sans-serif; }
+.inline-editor :is(button, [role='button'], input):focus-visible { outline: 3px solid #b44a1d; outline-offset: 3px; }
+@media (max-width: 680px) { .inline-editor__page { border-radius: 0; box-shadow: none; } .inline-editor__toolbar { padding-inline: 8px; } .inline-editor__toolbar button { padding-inline: 8px; } .inline-editor__page .page-composition-content { padding-bottom: 45px; } }

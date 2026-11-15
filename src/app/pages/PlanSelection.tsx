@@ -1,3 +1,4 @@
+import SubscriptionCheckout from './SubscriptionCheckout';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ArrowRight, Check, ChevronDown, Clock, Globe, Minus, Nfc, Plus, Sparkles } from 'lucide-react';
@@ -86,7 +87,7 @@ function NfcVideo() {
 // NEW-04: one cart for the plan, «صمّم لي» and NFC pieces, paid together.
 // NEW-05: before paying, a summary with the link and the total including
 // shipping (note 48: the QR code and the Wallet preview left this card).
-export default function PlanSelection() {
+function LegacyPlanSelection() {
   const navigate = useNavigate();
   // ?design=1: the beneficiary chose «صمّم لي» in the builder.
   const [searchParams] = useSearchParams();
@@ -445,4 +446,10 @@ export default function PlanSelection() {
       )}
     </div>
   );
+}
+
+// Preserve the existing optional-service cart outside the new creation checkout.
+export default function PlanSelection() {
+  const [params] = useSearchParams();
+  return params.get('extras') === '1' || params.get('design') === '1' ? <LegacyPlanSelection /> : <SubscriptionCheckout />;
 }

@@ -341,7 +341,7 @@ function Advanced({ children }: { children: ReactNode }) {
 // `onPendingChange`: the editor window is told while a form holds unadded
 // input, so closing it never drops that input silently.
 // `focusId` (note 22): an item tapped in the preview opens here for completing.
-export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef, externalSave = false, draftSave = false }: { saveActionRef?: MutableRefObject<(() => Promise<void>) | null>; externalSave?: boolean; draftSave?: boolean; onPendingChange?: (pending: boolean) => void; focusId?: string | null; onFocused?: () => void } = {}) {
+export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef, externalSave = false, draftSave = false, inline = false, addRequest, onCommitted, onBusyChange }: { onBusyChange?: (busy: boolean) => void; inline?: boolean; addRequest?: { requestId: number; afterId: string | null }; onCommitted?: () => void; saveActionRef?: MutableRefObject<(() => Promise<void>) | null>; externalSave?: boolean; draftSave?: boolean; onPendingChange?: (pending: boolean) => void; focusId?: string | null; onFocused?: () => void } = {}) {
   const { pageData, saveDraft, saving, draftState, conflict, updatePageData, addLink, removeLink, updateLink, moveLink, reorderLink } = usePageContext();
   const links = pageData.links;
   const limitReached = links.length >= MAX_LINKS;
@@ -350,13 +350,20 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   const groups = links.filter((item) => item.display?.kind === 'heading' && item.display.sectionId);
 
   const [saveError, setSaveError] = useState('');
-  const [screen, setScreen] = useState<Screen>(() => pageData.editorForm?.screen ?? { name: 'list' });
+  const [commitTick, setCommitTick] = useState(0);
+  useEffect(() => { if (commitTick) onCommitted?.(); }, [commitTick]);
+  const [screen, setScreen] = useState<Screen>(() => pageData.editorForm?.screen ?? { name: inline ? 'choose' : 'list' });
+  const insertionAnchor = useRef<string | null | undefined>(pageData.editorForm?.insertionAfter);
+  const lastAddRequest = useRef<number | undefined>(undefined);
   const [form, setForm] = useState<FormState>(() => pageData.editorForm?.form ?? emptyForm('link'));
   const autoCommitted = useRef('');
   const autoItemId = useRef<string | undefined>(pageData.editorForm?.screen.id);
   const formStart = useRef(pageData.editorForm?.start ?? '');
   const [rawLink, setRawLink] = useState(pageData.editorForm?.rawLink ?? '');
   const [fileError, setFileError] = useState('');
+  const [readingFile, setReadingFile] = useState(false);
+  const fileRequest = useRef(0);
+  useEffect(() => () => { fileRequest.current++; }, []);
   const [iconError, setIconError] = useState('');
   const [iconsOpen, setIconsOpen] = useState(false);
   const [iconQuery, setIconQuery] = useState('');
@@ -416,6 +423,20 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId]);
 
+  useEffect(() => {
+    if (!addRequest || addRequest.requestId === lastAddRequest.current) return;
+    lastAddRequest.current = addRequest.requestId;
+    if (screen.name === 'form' && formChanged && !isReady(form)) {
+      setSaveError('لديك عنصر غير مكتمل محفوظ كمسودة. أكمله قبل إضافة عنصر آخر.');
+      return;
+    }
+    insertionAnchor.current = addRequest.afterId;
+    updatePageData({ editorForm: undefined });
+    setScreen({ name: 'choose' });
+    // The request is an explicit user action, not a side effect of typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addRequest?.requestId]);
+
   const formChanged = screen.name === 'form' && (JSON.stringify(form) !== formStart.current || rawLink !== rawFromUrl(JSON.parse(formStart.current || '{}').url || ''));
   useEffect(() => {
     if (!formChanged || (draftState === 'saved' && !conflict)) return;
@@ -455,7 +476,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
       return;
     }
     if (draftSave && autoCommitted.current === JSON.stringify({ form, rawLink })) return;
-    const snapshot = { form, screen: draftSave && autoItemId.current ? { name: 'form' as const, id: autoItemId.current } : screen, start: formStart.current, rawLink };
+    const snapshot = { form, screen: draftSave && autoItemId.current ? { name: 'form' as const, id: autoItemId.current } : screen, start: formStart.current, rawLink, insertionAfter: insertionAnchor.current };
     if (JSON.stringify(snapshot) !== JSON.stringify(pageData.editorForm)) updatePageData({ editorForm: snapshot });
   }, [form, screen, rawLink, formChanged, pageData.editorForm, updatePageData]);
 
@@ -504,11 +525,11 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     if (id) updateLink(id, wasIncomplete ? { ...values, hidden: false } : values, members);
     else {
       if (limitReached) return;
-      autoItemId.current = addLink(values, members);
+      autoItemId.current = addLink(values, members, insertionAnchor.current);
     }
     autoCommitted.current = JSON.stringify({ form, rawLink });
     updatePageData({ editorForm: undefined });
-    if (close) backToList();
+    if (close) { backToList(); setCommitTick(tick => tick + 1); }
   };
 
   // Valid input joins the shared draft automatically; incomplete input stays
@@ -543,8 +564,10 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     const isPdf = file.type === 'application/pdf';
     if (file.size > (isPdf ? MAX_PDF_SIZE : MAX_FILE_SIZE)) { setFileError(isPdf ? 'حجم ملف PDF كبير. الحد الأقصى 10MB.' : 'حجم الصورة كبير. الحد الأقصى 3MB.'); return; }
     setFileError('');
+    const request = ++fileRequest.current; setReadingFile(true); onBusyChange?.(true);
     try {
       const url = await readFileAsDataUrl(file);
+      if (request !== fileRequest.current) return;
       setForm((prev) => ({
         ...prev,
         url,
@@ -555,8 +578,8 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
         title: prev.titleTouched ? prev.title : file.name.replace(/\.[^.]+$/, '').slice(0, 120),
       }));
     } catch {
-      setFileError('تعذر قراءة الملف. حاول مرة أخرى.');
-    }
+      if (request === fileRequest.current) setFileError('تعذر قراءة الملف. حاول مرة أخرى.');
+    } finally { if (request === fileRequest.current) { setReadingFile(false); onBusyChange?.(false); } }
   };
 
   const deleteItem = (link: Link) => {
@@ -949,6 +972,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   return (
     <Panel>
       {draftSave && !externalSave && <AutoSaveStatus />}
+      {readingFile && <p role="status" className="text-sm text-[#737373]">جارٍ تجهيز الملف…</p>}
       {saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
       <div ref={topRef} className="-mt-5 h-0" aria-hidden="true" />
       {!!iconCrop && (
@@ -1061,7 +1085,18 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
             <button type="button" onClick={backToList} className="flex h-10 items-center gap-1 rounded-full pl-3 text-[15px] text-[#0a84ff]"><ChevronRight className="h-5 w-5" />رجوع</button>
           </div>
           <h3 className="px-1 text-xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>ماذا تريد أن تضيف؟</h3>
-          <div className="grid grid-cols-2 gap-3">
+          {inline && <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: 'رابط', kind: 'link' as const, preset: {} },
+              { label: 'صورة', kind: 'file' as const, preset: { display: { layout: 'card' as const } } },
+              { label: 'مقطع فيديو', kind: 'link' as const, preset: { platform: 'youtube', display: { kind: 'video' as const } } },
+              { label: 'ملف أو وثيقة', kind: 'file' as const, preset: {} },
+              { label: 'وسائل التواصل', kind: 'link' as const, preset: { mode: 'social' as const, platform: 'instagram' } },
+              { label: 'نص أو عنوان', kind: 'text' as const, preset: {} },
+              { label: 'مجموعة', kind: 'group' as const, preset: {} },
+            ].map(item => <button key={item.label} type="button" className="min-h-16 rounded-2xl border border-[#e5e2d8] bg-white p-3 text-sm font-bold" onClick={() => openForm({ ...emptyForm(item.kind), ...item.preset })}>{item.label}</button>)}
+          </div>}
+          {!inline && <div className="grid grid-cols-2 gap-3">
             {KINDS.map(({ id, label, hint, Icon, tone }) => (
               <button key={id} type="button" onClick={() => openForm(emptyForm(id))} className="flex min-h-[132px] flex-col items-center justify-start gap-3 rounded-2xl bg-white p-4 text-center shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-transform active:scale-[0.97]">
                 {/* Note 45: a tiny drawing of what gets added, in the same box size. */}
@@ -1072,7 +1107,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
                 </span>
               </button>
             ))}
-          </div>
+          </div>}
           <p className="px-1 text-xs leading-5 text-[#8e8e93]">المجموعات اختيارية؛ يمكنك إضافة أي محتوى مباشرة دون إنشاء مجموعة.</p>
         </>
       )}
@@ -1094,7 +1129,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
           {form.kind === 'group' && renderGroupFields()}
 
           <div className="space-y-3 pt-1">
-            {!draftSave && <button type="button" onClick={() => submit()} disabled={!isReady(form)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            {(!draftSave || inline) && <button type="button" onClick={() => submit()} disabled={!isReady(form)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
               {editing ? 'تطبيق التعديل' : 'إضافة إلى الصفحة'}
             </button>}
             {editing && (

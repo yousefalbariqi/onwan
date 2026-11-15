@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const STAFF_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 
-export type SessionKind = 'staff' | 'partner';
+export type SessionKind = 'staff' | 'partner' | 'creation';
 
 type SessionPayload = {
   userId: string;

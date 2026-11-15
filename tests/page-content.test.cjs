@@ -554,3 +554,12 @@ test('selected text formatting survives normalization without arbitrary CSS or H
   assert.equal(link.display.body, '  مرحبا بالعالم');
   assert.deepEqual(link.display.bodyFormat, [{ start: 2, end: 7, bold: true }]);
 });
+
+test('a page can publish without a profile image, including old drafts with the gallery placeholder', async () => {
+  for (const profileImage of [undefined, null, '', '   ', '/template-samples/mark.svg']) {
+    const saved = await api().savePageData('owner', { name: 'بدون صورة', profileImage, links: [] });
+    assert.equal(saved.profileImage, '');
+  }
+  // This is a specific placeholder compatibility fix, not permission to upload SVG.
+  await assert.rejects(api().savePageData('owner', { profileImage: '/untrusted.svg', links: [] }), { status: 400 });
+});

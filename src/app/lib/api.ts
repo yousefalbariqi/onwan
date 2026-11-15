@@ -121,7 +121,7 @@ export function checkUsername(username: string, signal?: AbortSignal) {
   }>(`/api/username/check?username=${encodeURIComponent(username)}`, { signal });
 }
 
-export function signup(input: { username: string; phone: string; email: string; password: string; nonprofit?: boolean; organizationName?: string }) {
+export function signup(input: { username: string; phone: string; email: string; password: string; nonprofit?: boolean; organizationName?: string; creationToken?: string; termsAccepted?: boolean }) {
   const partnerRef = sessionStorage.getItem('onwan_partner_ref');
   return request<AuthResponse>('/api/auth/signup', { method: 'POST', body: { ...input, partnerRef, turnstileToken: takeTurnstileToken() } }).then(response => {
     sessionStorage.removeItem('onwan_partner_ref');

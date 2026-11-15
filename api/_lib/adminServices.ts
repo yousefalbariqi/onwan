@@ -377,6 +377,20 @@ export const serviceAdminHandlers: Record<string, Handler> = {
   // One confirmation for the whole cart (PERM-07): the subscription starts
   // and the name is fixed, «صمّم لي» opens as paid, and the NFC order enters
   // the queue as paid. All or nothing.
+  'carts.setManualLinks': {
+    access: 'staff',
+    run: async (params, staff) => {
+      const url = (value: unknown) => {
+        if (!value) return null;
+        try { const parsed = new URL(String(value)); if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.href.length>2000) throw new Error(); return parsed.href; }
+        catch { throw new HttpError(400, 'أدخل رابط HTTPS صحيحًا للفاتورة أو الدفع.'); }
+      };
+      const result = await pool.query("update registration_carts set manual_payment_url=$2,manual_invoice_url=$3 where id=$1 and manual_published_at is not null and status='pending_payment' returning user_id,cart_number", [String(params.id ?? ''),url(params.paymentUrl),url(params.invoiceUrl)]);
+      if (!result.rowCount) throw new HttpError(409, 'طلب الدفع غير متاح للتعديل.');
+      await audit(staff, 'cart.manualLinks', await customer(result.rows[0].user_id), { cartNumber: result.rows[0].cart_number });
+      return { ok: true };
+    },
+  },
   'carts.confirmPayment': {
     access: 'staff',
     run: async (params, staff) => {
@@ -387,13 +401,14 @@ export const serviceAdminHandlers: Record<string, Handler> = {
         await client.query('begin');
 
         const cartResult = await client.query(
-          "select * from registration_carts where id = $1 and status = 'pending_payment' for update",
+          "select * from registration_carts where id = $1 for update",
           [String(params.id ?? '')],
         );
 
         const cart = cartResult.rows[0];
 
-        if (!cart) throw new HttpError(409, 'السلة غير موجودة أو ليست بانتظار الدفع.');
+        if (!cart || cart.status === 'cancelled') throw new HttpError(409, 'السلة غير موجودة أو ليست بانتظار الدفع.');
+        if (cart.status === 'paid') { await client.query('commit'); return { ok: true, alreadyConfirmed: true }; }
 
         await completeCart(client, cart, reference, staff.name);
 

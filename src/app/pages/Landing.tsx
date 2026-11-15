@@ -1,11 +1,12 @@
-import { useSearchParams } from 'react-router';
+import { useSearchParams, Navigate } from 'react-router';
 import JourneyLanding from './JourneyLanding';
 import AuthModal from '../components/AuthModal';
 
-// Old campaign and authentication links still enter the shared account journey.
+// Legacy start links enter the guest creation journey; login keeps its existing entry.
 export default function Landing() {
   const [params] = useSearchParams();
   const mode = params.get('auth');
   const signup = mode === 'signup' || params.get('focus') === 'name';
-  return <><JourneyLanding kind="standard" />{(signup || mode === 'login') && <AuthModal mode={signup ? 'signup' : 'login'} username={params.get('username') || undefined} />}</>;
+  if (signup) return <Navigate to={params.get('username') ? `/signup?username=${encodeURIComponent(params.get('username')!)}` : '/signup'} replace />;
+  return <><JourneyLanding kind="standard" />{mode === 'login' && <AuthModal mode="login" />}</>;
 }

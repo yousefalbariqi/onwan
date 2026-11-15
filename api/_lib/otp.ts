@@ -1,9 +1,10 @@
+import type { PoolClient } from 'pg';
 import crypto from 'node:crypto';
 import { pool } from './db.js';
 import { generateOtp, sendOtpEmail } from './email.js';
 import { HttpError } from './http.js';
 
-export type OtpPurpose = 'verify_email' | 'reset_password' | 'account_change' | 'new_email' | 'partner_login';
+export type OtpPurpose = 'verify_email' | 'reset_password' | 'account_change' | 'new_email' | 'partner_login' | 'creation_draft' | 'creation_email_change';
 
 const OTP_EXPIRY_MINUTES = 10;
 const OTP_COOLDOWN_SECONDS = 60;
@@ -13,8 +14,8 @@ export const OTP_RESEND_SECONDS = OTP_COOLDOWN_SECONDS;
 
 // Seconds left before a new code may be sent (0 = now). Counted from when the
 // last code was actually sent, so the editor can show a true countdown.
-export async function resendWaitSeconds(email: string, purpose: OtpPurpose) {
-  const recent = await pool.query<{ wait: number }>(
+export async function resendWaitSeconds(email: string, purpose: OtpPurpose, db: Pick<PoolClient, 'query'> = pool) {
+  const recent = await db.query<{ wait: number }>(
     `select ceil(extract(epoch from (created_at + make_interval(secs => $3) - now())))::int as wait
      from verification_codes
      where email = $1 and purpose = $2 and created_at > now() - make_interval(secs => $3)
@@ -28,8 +29,8 @@ export async function resendWaitSeconds(email: string, purpose: OtpPurpose) {
 // (every purpose together), on top of the 60-second gap between two codes.
 const DAILY_CODES_PER_EMAIL = 5;
 
-export async function issueCode(email: string, purpose: OtpPurpose, intro?: string) {
-  const today = await pool.query<{ sent: number }>(
+export async function issueCode(email: string, purpose: OtpPurpose, intro?: string, db: Pick<PoolClient, 'query'> = pool) {
+  const today = await db.query<{ sent: number }>(
     "select count(*)::int as sent from verification_codes where email = $1 and created_at > now() - interval '24 hours'",
     [email],
   );
@@ -37,7 +38,7 @@ export async function issueCode(email: string, purpose: OtpPurpose, intro?: stri
     throw new HttpError(429, 'وصلت للحد اليومي من رموز التحقق لهذا البريد. حاول بعد 24 ساعة، أو تواصل مع الإدارة.', 'daily_code_limit');
   }
 
-  const wait = await resendWaitSeconds(email, purpose);
+  const wait = await resendWaitSeconds(email, purpose, db);
 
   if (wait > 0) {
     // A code went out moments ago: not a failure, just not yet another one.
@@ -48,12 +49,12 @@ export async function issueCode(email: string, purpose: OtpPurpose, intro?: stri
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
   // Only the newest code stays usable.
-  await pool.query(
+  await db.query(
     'update verification_codes set used = true where email = $1 and purpose = $2 and used = false',
     [email, purpose],
   );
 
-  const inserted = await pool.query<{ id: string }>(
+  const inserted = await db.query<{ id: string }>(
     `insert into verification_codes (email, code, purpose, expires_at)
      values ($1, $2, $3, $4)
      returning id`,
@@ -64,7 +65,7 @@ export async function issueCode(email: string, purpose: OtpPurpose, intro?: stri
     await sendOtpEmail(email, code, intro);
   } catch (error) {
     // A code that never left must not start the resend cooldown.
-    await pool.query('delete from verification_codes where id = $1', [inserted.rows[0].id]);
+    await db.query('delete from verification_codes where id = $1', [inserted.rows[0].id]);
     console.error('OTP email failed:', error);
     throw new HttpError(502, 'تعذر إرسال الرمز إلى بريدك الآن. حاول بعد قليل، وإن تكرر تواصل مع الإدارة.');
   }

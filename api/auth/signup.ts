@@ -1,3 +1,6 @@
+import { assertNotLocked, recordFailure, clearFailures } from '../_lib/loginGuard.js';
+import { loadDraft } from '../_lib/pageDraft.js';
+import { requireCreationDraft } from '../_lib/creationDraft.js';
 import { serverTiming } from '../_lib/serverTiming.js';
 import { assertHuman } from '../_lib/turnstile.js';
 import { attachReferral } from '../_lib/partnerReferral.js';
@@ -7,7 +10,7 @@ import { createSessionToken } from '../_lib/auth.js';
 import { pool } from '../_lib/db.js';
 import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from '../_lib/http.js';
 import { ensurePageForUser, getPageDataByUserId } from '../_lib/page.js';
-import { hashPassword, validatePassword } from '../_lib/password.js';
+import { hashPassword, validatePassword, verifyPassword } from '../_lib/password.js';
 import { validateUsername, reserveUsername } from '../_lib/username.js';
 
 // ACCT-01 / ACCT-02 / ACCT-03: name + mandatory phone + email + password.
@@ -22,7 +25,10 @@ export default async function handler(req: any, res: any) {
   try {
     const body = await timing.measure('body', () => readJsonBody(req));
     await timing.measure('turnstile', () => assertHuman(req, body)); // REQ-020
+    const creation = body.creationToken ? await requireCreationDraft({ headers: { authorization: `Bearer ${body.creationToken}` } }, { allowCompleted: true }) : null;
     const email = normalizeEmail(body.email);
+    if (creation && (email !== creation.email || body.nonprofit === true)) throw new HttpError(400, 'استخدم البريد الموثق المرتبط بمسودتك.');
+    if (creation && body.termsAccepted !== true && !(creation.terms_accepted_at && creation.terms_version === 'account-v1')) throw new HttpError(400, 'وافق على الشروط وسياسة الخصوصية أولًا.');
     // Note 07: a Saudi mobile, stored as 05XXXXXXXX.
     const phone = normalizeSaudiMobile(String(body.phone ?? ''));
     const password = String(body.password ?? '');
@@ -54,6 +60,25 @@ export default async function handler(req: any, res: any) {
     try {
       await timing.measure('tx_begin', () => client.query('begin'));
 
+      let lockedCreation: any = null;
+      if (creation) {
+        lockedCreation = (await client.query('select * from creation_email_drafts where id=$1 and email=$2 and revoked_at is null for update', [creation.id, email])).rows[0];
+        if (!lockedCreation) throw new HttpError(401, 'أعد التحقق من بريد المسودة.');
+        if (lockedCreation.account_user_id) {
+          // A lost response can be retried, but the scoped token alone must never
+          // become a reusable login credential after account completion.
+          await assertNotLocked('creation_complete', email);
+          const owner = (await client.query('select password_hash from users where id=$1', [lockedCreation.account_user_id])).rows[0];
+          if (!owner || !verifyPassword(password, owner.password_hash)) { await recordFailure('creation_complete', email); throw new HttpError(409, 'تم إنشاء الحساب. سجّل الدخول للمتابعة.', 'account_exists'); }
+          await clearFailures('creation_complete', email);
+          userId = lockedCreation.account_user_id;
+          await client.query('commit');
+          const pageData = (await loadDraft(userId))?.pageData ?? await getPageDataByUserId(userId);
+          sendJson(res, 200, { token: createSessionToken(userId, email), pageData, account: await getAccountSummary(userId) });
+          return;
+        }
+        if (!lockedCreation.page_json) throw new HttpError(400, 'احفظ التصميم قبل إكمال الحساب.');
+      }
       const passwordHash = timing.sync('password_hash', () => hashPassword(password));
       const userResult = await timing.measure('user_insert', () => client.query<{ id: string }>(
         'insert into users (email, phone, password_hash) values ($1, $2, $3) returning id',
@@ -76,6 +101,13 @@ export default async function handler(req: any, res: any) {
       }
       if (body.nonprofit !== true && String(body.organizationName ?? '').trim()) {
         await client.query('update pages set display_name = $2 where user_id = $1', [userId, String(body.organizationName).trim().slice(0, 80)]);
+      }
+      if (lockedCreation) {
+        const draft = { ...lockedCreation.page_json, name: String(body.organizationName ?? lockedCreation.page_json.name).trim().slice(0, 80), username: validation.normalized };
+        if (!draft.name) throw new HttpError(400, 'أدخل اسم الصفحة.');
+        await client.query('update users set email_verified_at=now() where id=$1', [userId]);
+        await client.query(`update pages set display_name=$2,draft_json=$3::jsonb,draft_saved_at=now(),draft_base_revision=published_revision where user_id=$1`, [userId, draft.name, JSON.stringify(draft)]);
+        await client.query("update creation_email_drafts set account_user_id=$2,account_completed_at=now(),terms_accepted_at=coalesce(terms_accepted_at,now()),terms_version='account-v1' where id=$1", [creation!.id, userId]);
       }
       await timing.measure('referral', () => attachReferral(client, userId, body.partnerRef));
       await timing.measure('tx_commit', () => client.query('commit'));
@@ -107,7 +139,7 @@ export default async function handler(req: any, res: any) {
 
     const response = {
       token: createSessionToken(userId, email),
-      pageData: await timing.measure('page_load', () => getPageDataByUserId(userId)),
+      pageData: creation ? (await loadDraft(userId))?.pageData : await timing.measure('page_load', () => getPageDataByUserId(userId)),
       account: await timing.measure('account_load', () => getAccountSummary(userId)),
     };
     timing.flush();

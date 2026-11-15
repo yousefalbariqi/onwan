@@ -19,6 +19,7 @@ interface AuthModalProps {
   mode: AuthMode;
   nonprofit?: boolean;
   username?: string;
+  initialEmail?: string;
   // Opened over the editor: keep the guest's design, and offer the other mode in place.
   inEditor?: boolean;
 }
@@ -36,7 +37,7 @@ function fieldOf(message: string, isSignup: boolean): Field | null {
 // visitor, and cannot be closed to keep editing: the account comes first. One
 // grouped card of fields, a short error under the field it concerns, one
 // button. After signup the editor opens on the chosen page name.
-export default function AuthModal({ mode: initialMode, username, inEditor = false, nonprofit = false }: AuthModalProps) {
+export default function AuthModal({ mode: initialMode, username, initialEmail = '', inEditor = false, nonprofit = false }: AuthModalProps) {
   const navigate = useNavigate();
   const copy = journeyCopy[nonprofit ? 'nonprofit' : 'standard'];
   const collectIdentity = nonprofit || !inEditor;
@@ -81,7 +82,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
   }, [linkState, nonprofitUsername, editingLink]);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<Field | 'form', string>>>({});

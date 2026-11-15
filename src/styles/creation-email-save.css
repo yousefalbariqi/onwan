@@ -1,0 +1,46 @@
+.creation-email { min-height: 100svh; padding: max(48px, 8svh) 24px max(30px, env(safe-area-inset-bottom)); background: #fffefa; color: #111; font-family: 'Cairo', sans-serif; }
+.creation-email__content { max-width: 450px; margin: 0 auto; text-align: center; }
+.creation-email__logo { display: inline-flex; margin-bottom: 32px; text-decoration: none; }
+.creation-email h1 { margin: 0; font-size: clamp(29px, 7.5vw, 43px); line-height: 1.55; letter-spacing: -.035em; font-weight: 800; }
+.creation-email__description { max-width: 370px; margin: 16px auto 0; color: #777970; font-size: 14px; line-height: 2; }
+.creation-email form, .creation-email__existing { margin-top: 42px; }
+.creation-email input { display: block; width: 100%; min-height: 62px; padding: 15px 19px; border: 1.5px solid #e0ded7; border-radius: 20px; background: #fff; color: #24271d; font-family: inherit; font-size: 16px; text-align: start; outline: none; }
+.creation-email input::placeholder { color: #92948a; }
+.creation-email input:focus { border-color: #ff6b2c; box-shadow: 0 0 0 3px #ff6b2c12; }
+.creation-email__button { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 58px; margin-top: 18px; padding: 14px 20px; border: 0; border-radius: 100px; background: #ff6b2c; color: #fff; font-size: 16px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.creation-email__button:disabled { background: #e8e7e1; color: #a2a399; cursor: default; }
+.creation-email__login { margin: 27px 0 0; color: #777970; font-size: 13px; }
+.creation-email__login a { font-weight: 700; color: #30352a; text-underline-offset: 4px; }
+.creation-email__terms { margin: 32px auto 0; max-width: 360px; font-size: 10px; line-height: 2; color: #8a8c81; }
+.creation-email__terms a { color: #6b6f60; text-decoration: underline; text-underline-offset: 3px; }
+.creation-email__note { margin: 14px 0 0; font-size: 10px; color: #8a8c81; }
+.creation-email__error { margin: 12px 0 0; color: #b42318; font-size: 12px; line-height: 1.9; }
+.creation-email__resend { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 20px; margin-top: 20px; }
+.creation-email__resend button, .creation-email__existing > a:last-child { border: 0; background: transparent; padding: 8px; font: 11px 'Cairo', sans-serif; color: #ad481c; text-underline-offset: 4px; cursor: pointer; }
+.creation-email__resend button:disabled { color: #a0a394; cursor: default; }
+.creation-email :is(button, a):focus-visible { outline: 3px solid #b44b1d; outline-offset: 4px; }
+@media (min-width: 800px) { .creation-email { padding-top: max(60px, 11svh); } }
+@media (max-height: 650px) { .creation-email { padding-top: 26px; } .creation-email__logo { margin-bottom: 24px; } .creation-email form { margin-top: 28px; } }
+.creation-account { padding-top: 30px; }
+.creation-account__header { position: relative; }
+.creation-account__header > button { position: absolute; right: 0; top: 5px; border: 0; border-radius: 50%; padding: 10px; background: #f0eee8; cursor: pointer; }
+.creation-account h1 { font-size: clamp(26px, 6.8vw, 35px); }
+.creation-account form { margin-top: 28px; text-align: right; }
+.creation-account__row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 0; border-bottom: 1px solid #eae7df; }
+.creation-account__row > div { flex: 1; min-width: 0; }
+.creation-account__row span { display: block; color: #71736b; font-size: 12px; margin-bottom: 8px; }
+.creation-account__row strong { display: flex; align-items: center; gap: 7px; font-size: 15px; overflow-wrap: anywhere; font-weight: 600; }
+.creation-account__row strong svg { flex-shrink: 0; color: #218047; }
+.creation-account__row button, .creation-account__email-change button, .creation-account__availability button { border: 0; background: transparent; color: #a44822; font: inherit; font-size: 12px; padding: 10px; cursor: pointer; }
+.creation-account__field { display: block; margin-top: 22px; font-size: 13px; font-weight: 600; }
+.creation-account__field input { margin-top: 9px; }
+.creation-account__rules { display: flex; flex-wrap: wrap; gap: 7px 15px; padding: 0; margin: 10px 0 0; list-style: none; color: #797b72; font-size: 11px; }
+.creation-account [data-valid="true"] { color: #218047; }
+.creation-account__availability { font-size: 11px; line-height: 1.9; color: #797b72; }
+.creation-account__consent { display: flex; gap: 10px; align-items: flex-start; margin: 24px 0 10px; font-size: 12px; line-height: 2; }
+.creation-account__consent input { width: 20px; min-height: 20px; height: 20px; flex-shrink: 0; accent-color: #ff6b2c; margin-top: 3px; }
+.creation-account__consent a { text-decoration: underline; text-underline-offset: 3px; }
+.creation-account__email-change { margin-top: 14px; font-size: 12px; }
+.creation-account__email-change p { color: #777970; line-height: 1.9; }
+.creation-account__email-change input { margin-top: 8px; }
+.creation-account .creation-email__note { text-align: center; }

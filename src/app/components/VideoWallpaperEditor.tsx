@@ -51,13 +51,14 @@ function VideoPreview({ src, poster, position, dim }: { src: string; poster?: st
   );
 }
 
-export function VideoWallpaperEditor() {
+export function VideoWallpaperEditor({ onBusyChange }: { onBusyChange?: (busy: boolean) => void } = {}) {
   const { pageData, updateWallpaper, videoUploadToken } = usePageContext();
   const current = pageData.wallpaper;
   const isVideo = current.type === 'video';
   const [file, setFile] = useState<File | null>(null);
   const [localPreview, setLocalPreview] = useState('');
   const [uploading, setUploading] = useState(false);
+  useEffect(() => { onBusyChange?.(uploading); }, [uploading, onBusyChange]);
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<'uploading' | 'processing'>('uploading');
   const [error, setError] = useState('');

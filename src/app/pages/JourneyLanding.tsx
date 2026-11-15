@@ -92,7 +92,7 @@ export default function JourneyLanding({ kind = 'nonprofit' }: { kind?: JourneyK
             <Link to={path(signedIn ? (onboardingPending(kind) ? 'onboarding' : 'builder') : 'signup')} className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FF6B2C] px-8 py-3.5 text-base font-bold text-white shadow-md shadow-[#FF6B2C]/25 transition hover:bg-[#F25A18] active:scale-[0.98] focus-visible:outline-[#FF6B2C] focus-visible:outline-2 focus-visible:outline-offset-4 sm:w-auto sm:text-lg">{signedIn ? (nonprofit ? 'متابعة تصميم صفحة الجمعية' : 'متابعة تصميم صفحتك') : (nonprofit ? 'أنشئ صفحة جمعيتك' : 'أنشئ صفحتك')} <ArrowUpLeft size={19} aria-hidden="true" /></Link>
             {SUPPORT_WHATSAPP && <a href={`https://wa.me/${SUPPORT_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center px-2 text-sm font-bold underline underline-offset-4">تواصلوا معنا</a>}
           </div>
-          <p className="mt-2 text-xs text-[#737373]">{nonprofit ? 'منتج مخصص للجمعيات الخيرية بتكلفة مخفّضة.' : 'ابدأ بإعداد صفحتك ومعاينتها قبل الدفع.'}</p>
+          <p className="mt-2 text-xs text-[#737373]">{nonprofit ? 'منتج مخصص للجمعيات الخيرية بتكلفة مخفّضة.' : 'جرّب تصميم صفحتك'}</p>
           {/* Note 30: the second way in, for an association that already has an account. */}
           {!signedIn && (
             <p className="mt-6 border-t border-[#E7E7E7] pt-4 text-sm text-[#737373]">لديكم حساب؟ <Link to={path('login')} className="inline-flex min-h-11 items-center font-bold text-[#111111] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4">{nonprofit ? 'دخول بوابة الجمعية' : 'الدخول إلى حسابك'}</Link></p>

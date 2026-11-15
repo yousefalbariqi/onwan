@@ -90,9 +90,9 @@ function Scroller({ children }: { children: React.ReactNode }) {
   return <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{children}</div>;
 }
 
-export function StyleEditor() {
+export function StyleEditor({ initialTab = 'buttons', embedded = false, onBusyChange }: { onBusyChange?: (busy: boolean) => void; initialTab?: ToolTab; embedded?: boolean } = {}) {
   const { pageData, updateButtonStyle, updateTypography, updatePageData } = usePageContext();
-  const [tab, setTab] = useState<ToolTab>('buttons');
+  const [tab, setTab] = useState<ToolTab>(initialTab);
   const currentFont = pageData.typography?.font ?? 'cairo';
 
   // The fonts load only once the «النص» tab is opened.
@@ -105,6 +105,7 @@ export function StyleEditor() {
   const customFont = pageData.typography?.customFont;
   const customOn = customFontActive(pageData.typography);
   const [fontBusy, setFontBusy] = useState(false);
+  useEffect(() => { onBusyChange?.(fontBusy); }, [fontBusy, onBusyChange]);
   const [fontError, setFontError] = useState('');
   useEffect(() => loadCustomFont(customFont?.url), [customFont?.url]);
   const metrics = buttonMetrics(buttonStyle);
@@ -139,13 +140,13 @@ export function StyleEditor() {
   const setColors = (next: Partial<NonNullable<PageData['customColors']>>) => updatePageData({ customColors: { ...colors, ...next } });
 
   return (
-    <div className="flex h-full min-h-[560px] flex-col bg-[#f2f2f7]" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+    <div className={`flex flex-col bg-[#f2f2f7] ${embedded ? '' : 'h-full min-h-[560px]'}`} style={{ fontFamily: 'Tajawal, sans-serif' }}>
       {/* On desktop the big preview already sits beside the panel. */}
       {/* The free height decides the phone's size (its width follows from the
           aspect ratio), so the preview can never grow over the tool tray. */}
-      <div className="flex min-h-[200px] flex-1 items-center justify-center overflow-hidden px-4 py-3 lg:hidden">
+      {!embedded && <div className="flex min-h-[200px] flex-1 items-center justify-center overflow-hidden px-4 py-3 lg:hidden">
         <div className="aspect-[390/862] h-full max-h-[480px] max-w-full"><PhonePreview /></div>
-      </div>
+      </div>}
 
       {/* Note 25: the tray keeps one height on every tab, so the preview above
           never jumps or slides under the controls; long tabs scroll inside. */}

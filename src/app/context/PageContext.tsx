@@ -1,5 +1,5 @@
 import { editTextFormat, type TextFormat } from '../../../shared/textFormatting';
-import { arrangeSections, moveSectionItem, reorderSectionItem, saveSectionItem } from '../../../shared/linkSections';
+import { arrangeSections, insertSectionItemAfter, moveSectionItem, reorderSectionItem, saveSectionItem } from '../../../shared/linkSections';
 import { expandPageData, slimPageData } from '../../../shared/pageTransfer';
 import { moveInlineMedia } from '../lib/mediaUpload';
 import { withWallpaperTint } from '../lib/wallpaperTint';
@@ -214,7 +214,7 @@ interface PageContextType {
   updateButtonStyle: (style: Partial<PageData['buttonStyle']>) => void;
   updateProfileStyle: (style: Partial<PageData['profileStyle']>) => void;
   updateTypography: (typography: Partial<NonNullable<PageData['typography']>>) => void;
-  addLink: (link: Omit<Link, 'id'>, memberIds?: string[]) => string;
+  addLink: (link: Omit<Link, 'id'>, memberIds?: string[], afterId?: string | null) => string;
   removeLink: (id: string) => void;
   updateLink: (id: string, updates: Partial<Link>, memberIds?: string[]) => void;
   moveLink: (id: string, direction: 'up' | 'down') => void;
@@ -534,6 +534,7 @@ function loadLocalPageData() {
 // customer's page with the same editor (PERM-01).
 export type PageSource = {
   uploadToken?: () => string | null;
+  saveDraft?: (pageData: PageData) => Promise<void | { pageData: PageData }>;
   load: () => Promise<{ pageData: any }>;
   save: (pageData: PageData) => Promise<{ pageData: any }>;
 };
@@ -930,7 +931,20 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   }, [source, sendMutation]);
 
   const saveDraft = useCallback(async () => {
-    if (source || !getSessionToken()) throw new Error('سجّل الدخول لحفظ المسودة.');
+    if (source) {
+      if (!source.saveDraft) throw new Error('حفظ المسودة غير متاح لهذا المصدر.');
+      const sent = pageDataRef.current;
+      setSaving(true); setDraftState('saving');
+      try {
+        const result = await source.saveDraft(sent);
+        if (pageDataRef.current !== sent) throw new Error('لديك تغييرات أحدث لم تُحفظ بعد. أعد المحاولة.');
+        if (result?.pageData && JSON.stringify(result.pageData) !== JSON.stringify(sent)) setPageData(mergeWithDefaults(result.pageData));
+        setDraftState('saved');
+      } catch (error) { setDraftState('error'); throw error; }
+      finally { setSaving(false); }
+      return;
+    }
+    if (!getSessionToken()) throw new Error('سجّل الدخول لحفظ المسودة.');
     if (inFlight.current) await inFlight.current;
     publishedGeneration.current++;
     const sent = pageDataRef.current;
@@ -1118,9 +1132,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     }));
   }, [edit]);
 
-  const addLink = useCallback((link: Omit<Link, 'id'>, memberIds?: string[]) => {
+  const addLink = useCallback((link: Omit<Link, 'id'>, memberIds?: string[], afterId?: string | null) => {
     const newLink = { ...link, id: crypto.randomUUID() };
-    edit((prev) => (prev.links.length >= MAX_LINKS ? prev : { ...prev, links: saveSectionItem(prev.links, newLink, memberIds) }));
+    edit((prev) => (prev.links.length >= MAX_LINKS ? prev : { ...prev, links: insertSectionItemAfter(prev.links, newLink, afterId, memberIds) }));
     return newLink.id;
   }, [edit]);
 

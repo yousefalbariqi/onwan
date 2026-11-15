@@ -1,3 +1,4 @@
+import { requireCreationDraft } from './_lib/creationDraft.js';
 import { getBearerToken, verifySessionToken } from './_lib/auth.js';
 import { pool } from './_lib/db.js';
 import { getBinding } from './_lib/runtime.js';
@@ -33,7 +34,9 @@ export default async function handler(req: any, res: any) {
   try {
     const session = verifySessionToken(getBearerToken(req));
     let user;
-    if (session?.kind === 'partner') {
+    if (session?.kind === 'creation') {
+      user = await requireCreationDraft(req);
+    } else if (session?.kind === 'partner') {
       const result = await pool.query("select id from partners where id = $1 and status = 'active'", [session.userId]);
       user = result.rows[0];
       if (!user) throw new HttpError(403, 'حساب الشريك غير متاح لرفع الملفات.');

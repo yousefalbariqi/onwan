@@ -4,7 +4,7 @@ const { build } = require('esbuild');
 const vm = require('node:vm');
 const fs = require('node:fs');
 
-async function editor(initialData = { links: [] }) {
+async function editor(initialData = { links: [] }, options = {}) {
   let slots = [], cursor = 0, effects = [], dirty = true, tree, nextId = 0;
   const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
   const react = {
@@ -15,7 +15,7 @@ async function editor(initialData = { links: [] }) {
   const context = {
     pageData: initialData, draftState: 'saved',
     updatePageData(changes) { context.pageData = { ...context.pageData, ...changes }; dirty = true; },
-    addLink(values) { const id = `item-${++nextId}`; context.updatePageData({ links: [...context.pageData.links, { ...values, id }] }); return id; },
+    addLink(values, members, afterId) { context.lastAnchor = afterId; const id = `item-${++nextId}`; context.updatePageData({ links: [...context.pageData.links, { ...values, id }] }); return id; },
     updateLink(id, values) { context.updatePageData({ links: context.pageData.links.map(item => item.id === id ? { ...item, ...values } : item) }); },
   };
   const source = fs.readFileSync('src/app/components/LinkEditor.tsx', 'utf8');
@@ -40,7 +40,7 @@ async function editor(initialData = { links: [] }) {
   vm.runInNewContext(built.outputFiles[0].text, sandbox);
   function flush() {
     for (let i = 0; i < 30; i++) {
-      if (dirty) { dirty = false; cursor = 0; tree = sandbox.module.exports.LinkEditor({ draftSave: true, externalSave: true }); }
+      if (dirty) { dirty = false; cursor = 0; tree = sandbox.module.exports.LinkEditor({ draftSave: true, externalSave: true, ...options }); }
       const pending = effects.splice(0); pending.forEach(fn => fn());
       if (!dirty && !effects.length) return;
     }
@@ -97,4 +97,18 @@ test('restoring an incomplete draft continues the same item instead of adding an
   assert.equal(restored.context.pageData.links[0].id, id);
   assert.equal(restored.context.pageData.links[0].url, 'https://wa.me/966557757274');
   assert.equal(restored.context.pageData.editorForm, undefined);
+});
+
+test('inline addition reuses validation and keeps the requested insertion point in unfinished forms', async () => {
+  const e = await editor({ links: [] }, { inline: true, addRequest: { requestId: 1, afterId: 'anchor' } });
+  e.click('رابط');
+  const input = () => e.nodes().find(node => node.type === 'input' && node.props.dir === 'ltr');
+  input().props.onChange({ target: { value: '05' } }); e.flush();
+  assert.equal(e.context.pageData.editorForm.insertionAfter, 'anchor');
+  input().props.onChange({ target: { value: 'https://example.org' } }); e.flush();
+  assert.equal(e.context.lastAnchor, 'anchor');
+  assert.equal(e.context.pageData.links.length, 1);
+  e.click('تطبيق التعديل');
+  assert.equal(e.context.pageData.links.length, 1);
+  assert.equal(e.context.pageData.editorForm, undefined);
 });

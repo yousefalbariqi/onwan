@@ -326,6 +326,9 @@ function normalizeProfileStyle(value: any) {
 function validateImageValue(value: unknown, label: string) {
   if (value != null && typeof value !== 'string') throw new HttpError(400, `${label}: المسموح صورة واحدة فقط.`);
   const image = String(value ?? '').trim();
+  // The creation gallery's placeholder is not a user-uploaded logo.
+  // Older saved drafts may still carry it; an actual profile image is optional.
+  if (image === '/template-samples/mark.svg') return '';
 
   if (image && !(mediaMime(image).startsWith('image/') || /^(data:image\/(png|jpeg|webp|gif);base64,|https:\/\/)/i.test(image))) {
     throw new HttpError(400, `${label} يجب أن تكون صورة (PNG أو JPG أو WebP أو GIF).`);

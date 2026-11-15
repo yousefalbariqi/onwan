@@ -101,3 +101,25 @@ export function reorderSectionItem<T extends SectionItem>(items: T[], id: string
   next.splice(index + (target.display?.kind === 'heading' && key ? 1 : 0), 0, moved);
   return arrangeSections(next);
 }
+
+// An insertion point is explicit: undefined appends, null starts the page.
+// Existing section membership/order is preserved when inserting beside a child.
+export function insertSectionItemAfter<T extends SectionItem>(items: T[], item: T, afterId?: string | null, memberIds?: string[]): T[] {
+  if (afterId === undefined) return saveSectionItem(items, item, memberIds);
+  const anchor = items.find(value => value.id === afterId);
+  const placed = item.display?.kind !== 'heading' && anchor?.display?.sectionId
+    ? { ...item, display: { ...item.display, sectionId: anchor.display.sectionId } } : item;
+  const next = saveSectionItem(items, placed, memberIds);
+  if (placed.display?.kind === 'heading' && placed.display?.sectionId) {
+    const blocks = sectionBlocks(next);
+    const from = blocks.findIndex(block => block[0].id === placed.id);
+    const [block] = blocks.splice(from, 1);
+    const target = afterId === null ? -1 : blocks.findIndex(values => values.some(value => value.id === afterId));
+    blocks.splice(target < 0 && afterId !== null ? blocks.length : target + 1, 0, block);
+    return blocks.flat();
+  }
+  const rest = next.filter(value => value.id !== placed.id);
+  const index = afterId === null ? -1 : rest.findIndex(value => value.id === afterId);
+  rest.splice(index < 0 && afterId !== null ? rest.length : index + 1, 0, placed);
+  return arrangeSections(rest);
+}
