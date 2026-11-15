@@ -1,3 +1,4 @@
+import { StandardBuilder, StandardOnboarding, StandardGate } from './pages/StandardJourney';
 import { FloatingWhatsApp } from './components/FloatingWhatsApp';
 import { NonprofitAuth, NonprofitBuilder, NonprofitQuote, NonprofitGate } from './pages/NonprofitPortal';
 import { NonprofitOnboarding } from './pages/NonprofitOnboarding';
@@ -13,7 +14,6 @@ import NonprofitLegal from './pages/NonprofitLegal';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
-import Builder from './pages/Builder';
 import PublicPage from './pages/PublicPage';
 import PlanSelection from './pages/PlanSelection';
 import { DemoPayment, DemoPaymentSuccess } from './pages/DemoPayment';
@@ -116,7 +116,7 @@ export const router = createBrowserRouter(isAdminHost() ? [
     { path: 'account', element: <Navigate to="/" replace /> },
     { path: 'builder', element: <NonprofitBuilder /> },
     // Note 26: the association's full preview of its draft.
-    { path: 'preview', element: <PublicPage /> },
+    { path: 'preview', element: <NonprofitGate><PublicPage /></NonprofitGate> },
     { path: 'onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate> },
     { path: 'quote', element: <NonprofitQuote /> },
     { path: 'privacy', element: <NonprofitLegal page="privacy" /> },
@@ -148,6 +148,7 @@ export const router = createBrowserRouter(isAdminHost() ? [
       }, { path: 'nonprofit/login', element: <NonprofitAuth mode="login" />,
       }, { path: 'nonprofit/account', element: <Navigate to="/nonprofit" replace />,
       }, { path: 'nonprofit/builder', element: <NonprofitBuilder />,
+      }, { path: 'nonprofit/preview', element: <NonprofitGate><PublicPage /></NonprofitGate>,
       }, { path: 'nonprofit/onboarding', element: <NonprofitGate><NonprofitOnboarding /></NonprofitGate>,
       }, { path: 'nonprofit/quote', element: <NonprofitQuote />,
       }, { path: 'nonprofit/privacy', element: <NonprofitLegal page="privacy" />,
@@ -158,6 +159,7 @@ export const router = createBrowserRouter(isAdminHost() ? [
       }, { path: 'terms', element: <SiteLegal page="terms" />,
       }, { path: 'privacy', element: <SiteLegal page="privacy" />,
       }, { path: 'refund', element: <SiteLegal page="refund" />,
+      }, { path: 'reports', element: <SiteLegal page="reports" />,
       }, { path: 'contact', element: <SiteLegal page="contact" />,
       }, {
         path: 'signup',
@@ -178,11 +180,15 @@ export const router = createBrowserRouter(isAdminHost() ? [
       },
       {
         path: 'builder',
-        element: <Builder />,
+        element: <StandardBuilder />,
+      },
+      {
+        path: 'onboarding',
+        element: <StandardOnboarding />,
       },
       {
         path: 'preview',
-        element: <PublicPage />,
+        element: <StandardGate><PublicPage /></StandardGate>,
       },
       {
         path: 'plan-selection',

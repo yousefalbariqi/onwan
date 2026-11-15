@@ -1,7 +1,8 @@
+import { JourneyGate } from '../components/JourneyGate';
+import { AccountBackdrop, AccountEntry } from '../components/AccountEntry';
 import '../../styles/nonprofit-quote.css';
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
-import AuthModal from '../components/AuthModal';
 import { EmailVerifyChip } from '../components/EmailVerifyChip';
 import { NonprofitBuilderPage } from './NonprofitBuilder';
 import { usePageContext } from '../context/PageContext';
@@ -29,37 +30,15 @@ function Shell({ children, branded = false }: {children: React.ReactNode; brande
   return <div dir="rtl" className="min-h-screen bg-[#F8F8F6] text-[#111111]" style={{fontFamily:'Cairo, sans-serif'}}><header className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 p-6"><Link to={nonprofitPath()} aria-label="عنوان — الجمعيات"><OnwanLogo /></Link>{getSessionToken() && <div className="flex gap-5 text-sm"><Link to={nonprofitPath('builder')}>محرر الجمعية</Link><button onClick={logout}>تسجيل الخروج</button></div>}</header><main className="mx-auto max-w-4xl p-6">{children}</main></div>;
 }
 export function NonprofitAuth({ mode }: {mode:'signup'|'login'}) {
-  return <><Shell><h1>حساب الجمعية</h1></Shell><AuthModal mode={mode} nonprofit /></>;
+  return <AccountEntry mode={mode} kind="nonprofit" />;
 }
 // Note 09: the page behind the password reset card — the same as behind
 // sign-in and sign-up, so the three read as one experience.
-export function NonprofitAuthBackdrop({ children }: {children: React.ReactNode}) {
-  return <><Shell><h1>حساب الجمعية</h1></Shell><div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/25 backdrop-blur-[2px]" role="presentation"><div className="flex min-h-full items-center justify-center px-4 py-6">{children}</div></div></>;
-}
-// While the account loads: the shape of the editor in soft, pulsing blocks
-// instead of a line of text, so the wait reads as the page arriving.
-function AccountSkeleton() {
-  const block = 'rounded-2xl bg-[#ECEAE5]';
-  return <div dir="rtl" className="min-h-screen bg-[#F8F8F6]" role="status" aria-label="جارٍ تحميل حساب الجمعية">
-    <div className="mx-auto flex max-w-6xl animate-pulse gap-6 px-4 py-5 motion-reduce:animate-none sm:px-6">
-      <div className="hidden w-14 shrink-0 flex-col items-center gap-5 pt-14 lg:flex">{[0,1,2,3,4].map(i => <span key={i} className="h-14 w-14 rounded-full bg-[#ECEAE5]" />)}</div>
-      <div className="flex min-w-0 flex-1 flex-col gap-5">
-        <div className="flex items-center justify-between"><span className={`${block} h-10 w-40`} /><span className={`${block} h-10 w-32 rounded-full`} /></div>
-        <div className="flex gap-6">
-          <div className="hidden w-[420px] shrink-0 flex-col gap-3 lg:flex"><span className={`${block} h-14`} /><span className={`${block} h-24`} /><span className={`${block} h-14`} /><span className={`${block} h-14`} /></div>
-          <div className="flex flex-1 justify-center"><span className="aspect-[390/862] w-full max-w-[300px] rounded-[40px] bg-[#ECEAE5]" /></div>
-        </div>
-      </div>
-    </div>
-  </div>;
+export function NonprofitAuthBackdrop({ children, nonprofit = true }: {children: React.ReactNode; nonprofit?: boolean}) {
+  return <AccountBackdrop kind={nonprofit ? 'nonprofit' : 'standard'}><div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/25 backdrop-blur-[2px]" role="presentation"><div className="flex min-h-full items-center justify-center px-4 py-6">{children}</div></div></AccountBackdrop>;
 }
 export function NonprofitGate({ children }: {children: React.ReactNode}) {
-  const { account, loadingPage, isAuthenticated } = usePageContext();
-  if (!isAuthenticated || !getSessionToken()) return <Navigate to={nonprofitPath('login')} replace />;
-  if (loadingPage) return <AccountSkeleton />;
-  if (!account) return <Shell><p role="alert">تعذر تحميل الحساب. حدّث الصفحة أو سجّل الدخول مجددًا.</p></Shell>;
-  if (account.kind !== 'nonprofit') return <Shell><p>هذا الحساب مسجل كحساب عميل عادي. لن نغيّر حسابك أو اشتراكك.</p><a href="https://onwan.link/builder" className="mt-4 inline-block underline">متابعة حسابك في عنوان</a><p className="mt-4">لجمعية جديدة، سجّل الخروج ثم أنشئ حساب جمعية مستقلًا.</p></Shell>;
-  return <>{children}</>;
+  return <JourneyGate kind="nonprofit">{children}</JourneyGate>;
 }
 export function NonprofitBuilder() {
   return <NonprofitBuilderPage gate={NonprofitGate} />;

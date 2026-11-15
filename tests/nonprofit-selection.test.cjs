@@ -43,12 +43,12 @@ function authHarness() {
   let owner = 'guest'; const storage = new Map(), restores = [], routes = [], replacements = [];
   const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
   const session = { sessionOwner: () => owner, setSessionToken: () => { owner = 'user:new'; } };
-  const onboarding = load('src/app/lib/nonprofitOnboarding.ts', { './session': session }, localStorage);
+  const onboarding = load('src/app/lib/journeyOnboarding.ts', { './session': session }, localStorage);
   const context = { pageData: { name: 'guest', links: [{ id: 'guest-link', platform: 'instagram' }] }, replacePageData: data => replacements.push(data), restoreDraft: data => restores.push(data), setAccount() {}, setAuthenticated() {} };
   const { useAuthSuccess } = load('src/app/lib/useAuthSuccess.ts', {
     'react-router': { useNavigate: () => (...args) => routes.push(args) },
     '../context/PageContext': { usePageContext: () => context }, './session': session,
-    './site': { isNonprofitHost: () => true }, './nonprofitOnboarding': onboarding,
+    './journey': load('src/app/lib/journey.ts', { './nonprofit': { nonprofitPath: (page = '') => `/nonprofit/${page}` } }), './journeyOnboarding': onboarding,
   });
   return { run: useAuthSuccess(), storage, restores, routes, replacements };
 }
@@ -72,4 +72,21 @@ test('standard signup still preserves an explicitly requested guest design', () 
   h.run({ token: 'new', account: { kind: 'standard' }, pageData: { links: [] } }, { keepDraft: true });
   assert.equal(h.restores.length, 1);
   assert.equal(h.restores[0].links[0].id, 'guest-link');
+});
+
+test('new standard signup starts its own setup without reading nonprofit progress', () => {
+  const h = authHarness();
+  h.storage.set('onwan_nonprofit_onboarding_user:new', JSON.stringify({ step: 2, chosen: ['whatsapp'] }));
+  h.run({ token: 'new', account: { kind: 'standard' }, pageData: { name: 'My page', links: [] } }, { newStandard: true });
+  assert.deepEqual(JSON.parse(h.storage.get('onwan_standard_onboarding_user:new')), { step: 1, chosen: [] });
+  assert.deepEqual(JSON.parse(h.storage.get('onwan_nonprofit_onboarding_user:new')), { step: 2, chosen: ['whatsapp'] });
+  assert.equal(h.routes[0][0], '/onboarding');
+});
+test('standard login resumes unfinished setup without importing guest content', () => {
+  const h = authHarness(), progress = { step: 3, chosen: ['image'] };
+  h.storage.set('onwan_standard_onboarding_user:new', JSON.stringify(progress));
+  h.run({ token: 'new', account: { kind: 'standard' }, pageData: { links: [] } });
+  assert.deepEqual(JSON.parse(h.storage.get('onwan_standard_onboarding_user:new')), progress);
+  assert.equal(h.routes[0][0], '/onboarding');
+  assert.equal(h.restores.length, 0);
 });

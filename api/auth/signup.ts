@@ -74,6 +74,9 @@ export default async function handler(req: any, res: any) {
       if (body.nonprofit === true) {
         await timing.measure('organization_name', () => client.query('update pages set display_name = $2, suggested_username = $3 where user_id = $1', [userId, String(body.organizationName ?? '').trim().slice(0, 160), validation.normalized]));
       }
+      if (body.nonprofit !== true && String(body.organizationName ?? '').trim()) {
+        await client.query('update pages set display_name = $2 where user_id = $1', [userId, String(body.organizationName).trim().slice(0, 80)]);
+      }
       await timing.measure('referral', () => attachReferral(client, userId, body.partnerRef));
       await timing.measure('tx_commit', () => client.query('commit'));
     } catch (error: any) {

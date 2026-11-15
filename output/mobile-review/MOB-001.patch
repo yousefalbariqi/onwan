@@ -1,0 +1,35 @@
+--- a/src/app/pages/NonprofitOnboarding.tsx
++++ b/src/app/pages/NonprofitOnboarding.tsx
+@@ -101,6 +101,8 @@
+   const [step, setStep] = useState<1 | 2 | 3>(() => onboardingProgress()?.step ?? 1);
+   const [imageError, setImageError] = useState('');
+   const uploadId = useId();
++  const logoRequest = useRef(0);
++  useEffect(() => () => { logoRequest.current++; }, []);
+   const [chosen, setChosen] = useState<string[]>(() => (onboardingProgress()?.chosen ?? []).filter(id => VISIBLE_CHOICES.some(choice => choice.id === id)));
+   // Only an open setup is remembered; opening this page again after it was
+   // finished does not lock the editor.
+@@ -135,17 +137,21 @@
+ 
+   // Name, bio and logo go straight into the page draft, so they survive going back and forth.
+   const pickLogo = (file: File) => {
++    const request = ++logoRequest.current;
+     setImageError('');
+     compressImage(file)
+       .then(async (image) => {
++        if (request !== logoRequest.current) return;
+         updatePageData({ profileImage: image });
+         // Note 18: the logo starts uploading now, while the name and bio are typed.
+         preloadMedia(image);
+         updateProfileStyle({ fit: 'contain', zoom: 1, positionX: 50, positionY: 50 });
+         const colors = await extractColorsFromImage(image, 8);
+-        if (colors.length > 0) updatePageData({ extractedColors: colors });
++        if (request === logoRequest.current && colors.length > 0) updatePageData({ extractedColors: colors });
+       })
+-      .catch((problem) => setImageError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'));
++      .catch((problem) => {
++        if (request === logoRequest.current) setImageError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.');
++      });
+   };
+   const back = () => { if (starting) return; if (step === 1) navigate(nonprofitPath()); else setStep(step === 3 ? 2 : 1); };
+   const next = () => { if (step === 3) void finish(); else setStep(step === 1 ? 2 : 3); };

@@ -1,3 +1,4 @@
+import { journeyPath, type JourneyKind } from '../lib/journey';
 import { AutoSaveStatus } from '../components/AutoSaveStatus';
 import '../../styles/nonprofit-builder.css';
 import { nonprofitPath } from '../lib/nonprofit';
@@ -39,7 +40,11 @@ const brandBackdrop: React.CSSProperties = {
 
 // `staffEdit` is set when an employee edits a customer's page from the
 // administration panel (PERM-01): same editor, without the owner-only parts.
-export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: () => void; title?: string; onContinue?: () => void; continueLabel?: string; exitLabel?: string; exitAsLogout?: () => void }; editor?: EditorConfig }) {
+export type EditorControls = { onExit: () => void; title?: string; onContinue?: () => void; continueLabel?: string; exitLabel?: string; exitAsLogout?: () => void };
+export type OwnerWorkspace = EditorControls & { kind: JourneyKind };
+
+export default function Builder({ staffEdit, workspace, editor }: { staffEdit?: EditorControls; workspace?: OwnerWorkspace; editor?: EditorConfig }) {
+  const controls = workspace ?? staffEdit;
   const showSection = (item: { id: Tab }) => !editor?.sections || editor.sections.includes(item.id);
   const withLabel = <T extends { id: Tab; label: string }>(item: T): T => ({ ...item, label: editor?.labels?.[item.id] ?? item.label });
   const navigate = useNavigate();
@@ -60,7 +65,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
   // Note 15: in the association's editor the corner button signs out, after a confirmation.
   const [logoutPrompt, setLogoutPrompt] = useState(false);
   // Note 18: the association's editor has one compact toolbar on a computer.
-  const compactBar = Boolean(staffEdit?.exitAsLogout);
+  const compactBar = Boolean(controls?.exitAsLogout);
   const [templateCategory, setTemplateCategory] = useState('');
   // Notes 22–23: an item tapped in the preview opens in «المحتوى».
   const [focusLinkId, setFocusLinkId] = useState<string | null>(null);
@@ -78,7 +83,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themesSeen, compactBar]);
   const openItem = (id: string) => { setActiveTab('links'); setFocusLinkId(id); };
-  const continueToNext = async () => { if (pageData.editorForm || contentFormPending) { setSaveError('أكمل العنصر أو احتفظ به كمسودة قبل المتابعة.'); return; } if (await handleSave()) { if (hasPendingChanges()) { setSaveError('لديك تعديلات أحدث؛ احفظها قبل المتابعة.'); return; } staffEdit?.onContinue?.(); } };
+  const continueToNext = async () => { if (pageData.editorForm || contentFormPending) { setSaveError('أكمل العنصر أو احتفظ به كمسودة قبل المتابعة.'); return; } if (await handleSave()) { if (hasPendingChanges()) { setSaveError('لديك تعديلات أحدث؛ احفظها قبل المتابعة.'); return; } controls?.onContinue?.(); } };
   // The draft when a panel was opened, so «×» can put it back.
   const [panelStart, setPanelStart] = useState<{ data: PageData } | null>(null);
   // «×» on a window with changes asks once: save them, or leave without them.
@@ -96,8 +101,8 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
   const [designOffer, setDesignOffer] = useState<{ priceSar: number | null } | null>(null);
   const [designSheet, setDesignSheet] = useState(false);
   const isDraft = !guestPreview && account?.pageStatus === 'draft';
-  useEffect(() => { if (!staffEdit && account?.kind === 'nonprofit') navigate(nonprofitPath('builder'), { replace: true }); }, [account?.kind, staffEdit, navigate]);
-  const hasAccount = Boolean(account) && !guestPreview && !staffEdit;
+  useEffect(() => { if (!controls && account?.kind === 'nonprofit') navigate(nonprofitPath('builder'), { replace: true }); }, [account?.kind, controls, navigate]);
+  const hasAccount = Boolean(account) && !guestPreview && !controls;
 
   useEffect(() => {
     if (!hasAccount) {
@@ -149,8 +154,8 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
       setShowLogin(false);
       return;
     }
-    if (staffEdit) {
-      staffEdit.onExit();
+    if (controls) {
+      controls.onExit();
       return;
     }
     const timer = window.setTimeout(() => setShowLogin(true), 600);
@@ -441,7 +446,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles },
     { id: 'sharing' as Tab, label: 'المشاركة', icon: Share2 },
     { id: 'account' as Tab, label: 'الإعدادات', icon: Settings },
-  ].filter((tab) => (!staffEdit && !guestPreview) || tab.id !== 'account').filter(showSection).map(withLabel);
+  ].filter((tab) => (!controls && !guestPreview) || tab.id !== 'account').filter(showSection).map(withLabel);
 
   const renderActivePanel = () => {
     if (activeTab === 'sharing') return <SharingPanel username={pageData.username} />;
@@ -491,9 +496,9 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
       );
     }
 
-    if (activeTab === 'account' && staffEdit?.exitAsLogout) {
+    if (activeTab === 'account' && controls?.exitAsLogout) {
       // Note 48: the association's own settings.
-      return <NonprofitSettings onLogout={() => setLogoutPrompt(true)} />;
+      return workspace?.kind === 'standard' ? <AccountPanel onLogout={() => setLogoutPrompt(true)} /> : <NonprofitSettings onLogout={() => setLogoutPrompt(true)} />;
     }
 
     if (activeTab === 'account') {
@@ -516,9 +521,9 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
     );
   }
 
-  if (!staffEdit && account?.kind === 'nonprofit') return null;
+  if (!controls && account?.kind === 'nonprofit') return null;
 
-  if (!isAuthenticated && staffEdit) {
+  if (!isAuthenticated && controls) {
     return null;
   }
 
@@ -531,7 +536,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
       <div className={`flex items-center justify-between gap-2 border-b border-black/5 bg-white px-3 py-2 sm:px-4 sm:py-3 ${compactBar ? 'hidden' : ''}`}>
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Exit, first in the header (top right in RTL), on every screen size. */}
-          {staffEdit?.exitAsLogout ? (
+          {controls?.exitAsLogout ? (
             <button
               onClick={() => setLogoutPrompt(true)}
               className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-gray-100 px-3.5 text-sm font-bold text-gray-700 transition-transform active:scale-95"
@@ -541,17 +546,17 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
             </button>
           ) : (
           <button
-            onClick={() => leave(() => (staffEdit ? staffEdit.onExit() : navigate('/')))}
+            onClick={() => leave(() => (controls ? controls.onExit() : navigate('/')))}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform active:scale-95"
-            aria-label={staffEdit ? (staffEdit.exitLabel ?? 'العودة إلى لوحة الإدارة') : 'الخروج من المحرر'}
-            title={staffEdit ? (staffEdit.exitLabel ?? 'العودة إلى لوحة الإدارة') : 'الخروج من المحرر'}
+            aria-label={controls ? (controls.exitLabel ?? 'العودة إلى لوحة الإدارة') : 'الخروج من المحرر'}
+            title={controls ? (controls.exitLabel ?? 'العودة إلى لوحة الإدارة') : 'الخروج من المحرر'}
           >
             <X className="h-5 w-5" />
           </button>
           )}
-          {staffEdit && (
+          {controls && (
             <div className="text-base font-bold text-emerald-600 sm:text-xl" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              {staffEdit.title ?? 'تعديل صفحة عميل'}
+              {controls.title ?? 'تعديل صفحة عميل'}
             </div>
           )}
           <div className="hidden truncate text-sm text-gray-500 sm:block" style={{ fontFamily: 'Tajawal, sans-serif' }} dir="ltr">
@@ -560,8 +565,8 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {staffEdit?.onContinue && <button type="button" onClick={continueToNext} disabled={saving || loadingPage || conflict || Boolean(pageData.editorForm)} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{staffEdit.continueLabel ?? 'التالي'}</button>}
-          {account && !account.emailVerified && !guestPreview && !staffEdit ? (
+          {controls?.onContinue && <button type="button" onClick={continueToNext} disabled={saving || loadingPage || conflict || Boolean(pageData.editorForm)} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{controls.continueLabel ?? 'التالي'}</button>}
+          {account && !account.emailVerified && !guestPreview && !controls ? (
             // Until the email is confirmed the confirmation takes the header's place.
             <EmailVerifyChip />
           ) : (
@@ -577,7 +582,7 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
                   صمّم لي
                 </button>
               )}
-              {!staffEdit && !guestPreview && account?.pageStatus === 'draft' && (
+              {!controls && !guestPreview && account?.pageStatus === 'draft' && (
                 <button
                   onClick={() => leave(handleShare)}
                   className="flex h-10 w-[104px] items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-lime-500 to-emerald-500 text-sm font-bold text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)] transition-all active:scale-95"
@@ -608,8 +613,8 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               { id: 'links' as Tab, label: 'المحتوى', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
-              ...((!staffEdit || compactBar) && !guestPreview && isAuthenticated ? [{ id: 'sharing' as Tab, label: 'المشاركة', icon: Share2, tone: 'bg-[#d5eee5] text-[#176b50]' }] : []),
-              ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
+              ...((!controls || compactBar) && !guestPreview && isAuthenticated ? [{ id: 'sharing' as Tab, label: 'المشاركة', icon: Share2, tone: 'bg-[#d5eee5] text-[#176b50]' }] : []),
+              ...(controls || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
             ].filter(showSection).map(withLabel).concat(
               // Notes 18–19: the association's own «الإعدادات», on every screen.
               compactBar ? [{ id: 'theme' as Tab, label: 'القوالب', icon: Palette, tone: 'bg-[#FFF0E8] text-[#F25A18]' }, { id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }, { id: 'history' as Tab, label: 'السجل', icon: History, tone: 'bg-[#e5e5ea] text-[#3a3a3c]' }] : [],
@@ -628,15 +633,15 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1">
               <h2 className="shrink-0 text-2xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>الشكل الحالي</h2>
               {/* Note 39: the step to review and publish, beside the design it concerns. */}
-              {compactBar && staffEdit?.onContinue && (
+              {compactBar && controls?.onContinue && (
                 <button type="button" onClick={continueToNext} disabled={saving || loadingPage || conflict || Boolean(pageData.editorForm)} className="flex h-11 min-w-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-sm font-bold text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] transition-transform active:scale-[0.97] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  <span className="truncate">{staffEdit.continueLabel ?? 'التالي'}</span>
+                  <span className="truncate">{controls.continueLabel ?? 'التالي'}</span>
                   <ArrowLeft className="h-4 w-4 shrink-0" />
                 </button>
               )}
             </div>
             <div className="grid grid-cols-[minmax(0,4fr)_minmax(44px,3fr)_minmax(0,3fr)] items-start gap-2.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              <button onClick={() => ((staffEdit && !compactBar) || guestPreview ? openPanel('header') : navigate('/preview'))} className="min-w-0 w-full text-right transition-transform active:scale-[0.98]">
+              <button onClick={() => ((controls && !compactBar) || guestPreview ? openPanel('header') : navigate(journeyPath(account?.kind === 'nonprofit' ? 'nonprofit' : 'standard', 'preview')))} className="min-w-0 w-full text-right transition-transform active:scale-[0.98]">
                 <PhonePreview interactive={false} />
                 <span className="mt-2 block text-center text-xs font-bold text-[#3a3a3c]">{isDirty ? `الحالي · ${draftLabel}` : 'الحالي'}</span>
               </button>
@@ -766,8 +771,8 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
               { id: 'links' as Tab, label: 'المحتوى', icon: Link2, tone: 'bg-[#c9a6f5] text-[#5b21b6]' },
               { id: 'style' as Tab, label: 'الأسلوب', icon: Sparkles, tone: 'bg-[#ffad4d] text-[#9a3412]' },
               { id: 'wallpaper' as Tab, label: 'الخلفية', icon: ImageIcon, tone: 'bg-[#1d1d1f] text-white' },
-              ...((!staffEdit || compactBar) && !guestPreview && isAuthenticated ? [{ id: 'sharing' as Tab, label: 'المشاركة', icon: Share2, tone: 'bg-[#d5eee5] text-[#176b50]' }] : []),
-              ...(staffEdit || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
+              ...((!controls || compactBar) && !guestPreview && isAuthenticated ? [{ id: 'sharing' as Tab, label: 'المشاركة', icon: Share2, tone: 'bg-[#d5eee5] text-[#176b50]' }] : []),
+              ...(controls || guestPreview || !isAuthenticated ? [] : [{ id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }]),
             ].filter(showSection).map(withLabel).concat(
               compactBar ? [{ id: 'theme' as Tab, label: 'القوالب', icon: Palette, tone: 'bg-[#FFF0E8] text-[#F25A18]' }, { id: 'account' as Tab, label: 'الإعدادات', icon: Settings, tone: 'bg-[#d1d1d6] text-[#3a3a3c]' }, { id: 'history' as Tab, label: 'السجل', icon: History, tone: 'bg-[#e5e5ea] text-[#3a3a3c]' }] : [],
             ).map((item) => {
@@ -804,14 +809,14 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
                   <div className="flex items-center gap-3">
                     {renderEditActions(true)}
                     {/* Note 26: the full preview, always in reach. */}
-                    <button type="button" onClick={() => navigate('/preview')} className="flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-[#3a3a3c] transition-colors hover:bg-[#f2f2f7]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    <button type="button" onClick={() => navigate(journeyPath(account?.kind === 'nonprofit' ? 'nonprofit' : 'standard', 'preview'))} className="flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-[#3a3a3c] transition-colors hover:bg-[#f2f2f7]" style={{ fontFamily: 'Cairo, sans-serif' }}>
                       <Eye className="h-4 w-4" />معاينة
                     </button>
                     {!guestPreview && isAuthenticated && <AutoSaveStatus />}
                   </div>
-                  {staffEdit?.onContinue && (
+                  {controls?.onContinue && (
                     <button type="button" onClick={continueToNext} disabled={saving || loadingPage || conflict || Boolean(pageData.editorForm)} className="flex h-11 items-center gap-2 rounded-full bg-emerald-600 px-6 text-[15px] font-bold text-white shadow-[0_4px_12px_rgba(5,150,105,0.3)] transition-all hover:bg-emerald-700 active:scale-[0.97] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                      {staffEdit.continueLabel ?? 'التالي'}
+                      {controls.continueLabel ?? 'التالي'}
                       <ArrowLeft className="h-4 w-4" />
                     </button>
                   )}
@@ -836,8 +841,8 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
                 <ChevronDown className="h-5 w-5 motion-safe:animate-bounce" />
               </button>
             )}
-            {!staffEdit && !guestPreview && isAuthenticated && (
-              <button onClick={() => navigate('/preview')} className="flex items-center gap-2 text-sm font-bold text-[#0a84ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            {!controls && !guestPreview && isAuthenticated && (
+              <button onClick={() => navigate(journeyPath(account?.kind === 'nonprofit' ? 'nonprofit' : 'standard', 'preview'))} className="flex items-center gap-2 text-sm font-bold text-[#0a84ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 <Eye className="h-4 w-4" />
                 فتح المعاينة بملء الشاشة
               </button>
@@ -876,19 +881,19 @@ export default function Builder({ staffEdit, editor }: { staffEdit?: { onExit: (
       {guestPreview && !isAuthenticated && <AuthModal mode="signup" username={guestUsername} inEditor />}
       {showLogin && !isAuthenticated && !guestPreview && <AuthModal mode="login" inEditor />}
 
-      {logoutPrompt && staffEdit?.exitAsLogout && (
+      {logoutPrompt && controls?.exitAsLogout && (
         // One short choice: save and sign out, stay, or sign out without saving
         // (offered only when there is something unsaved).
         <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={() => setLogoutPrompt(false)}>
           <div className="w-full max-w-[340px] overflow-hidden rounded-[22px] bg-white text-center shadow-2xl" onClick={(event) => event.stopPropagation()} role="alertdialog" aria-modal="true" aria-label="تسجيل الخروج؟">
             <p className="px-6 pb-4 pt-5 text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>تسجيل الخروج؟</p>
             <div className="space-y-2 px-4 pb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              <button type="button" disabled={saving} onClick={async () => { if (!isDirty || (await handleSave())) { setLogoutPrompt(false); staffEdit.exitAsLogout!(); } }} className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#FF6B2C] text-[15px] font-bold text-white disabled:opacity-60">
+              <button type="button" disabled={saving} onClick={async () => { if (!isDirty || (await handleSave())) { setLogoutPrompt(false); controls.exitAsLogout!(); } }} className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#FF6B2C] text-[15px] font-bold text-white disabled:opacity-60">
                 {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : isDirty ? 'حفظ وتسجيل الخروج' : 'تسجيل الخروج'}
               </button>
               <button type="button" onClick={() => setLogoutPrompt(false)} className="block w-full rounded-xl bg-[#f2f2f7] py-3 text-[15px] font-bold text-[#1d1d1f]">إلغاء</button>
               {isDirty && !saving && (
-                <button type="button" onClick={() => { setLogoutPrompt(false); staffEdit.exitAsLogout!(); }} className="block w-full py-2.5 text-[15px] font-bold text-[#ff3b30]">خروج بدون حفظ</button>
+                <button type="button" onClick={() => { setLogoutPrompt(false); controls.exitAsLogout!(); }} className="block w-full py-2.5 text-[15px] font-bold text-[#ff3b30]">خروج بدون حفظ</button>
               )}
             </div>
           </div>

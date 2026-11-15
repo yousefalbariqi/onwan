@@ -1,3 +1,4 @@
+import { journeyCopy } from '../lib/journey';
 import { nonprofitPath } from '../lib/nonprofit';
 import { arabicSlug } from '../lib/arabicSlug';
 import { toAsciiDigits } from '../lib/digits';
@@ -5,7 +6,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { ArrowRight, Link2, Loader2 } from 'lucide-react';
 import { ApiError, checkUsername, login, signup } from '../lib/api';
-import { pageHost } from '../lib/site';
+import { pageHost, ROOT_DOMAIN } from '../lib/site';
 import { useAuthSuccess } from '../lib/useAuthSuccess';
 import { PasswordInput } from './PasswordInput';
 import { TurnstileBox, useTurnstile } from '../lib/turnstile';
@@ -37,18 +38,20 @@ function fieldOf(message: string, isSignup: boolean): Field | null {
 // button. After signup the editor opens on the chosen page name.
 export default function AuthModal({ mode: initialMode, username, inEditor = false, nonprofit = false }: AuthModalProps) {
   const navigate = useNavigate();
+  const copy = journeyCopy[nonprofit ? 'nonprofit' : 'standard'];
+  const collectIdentity = nonprofit || !inEditor;
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const onSuccess = useAuthSuccess();
   // Note 22: the association types its Arabic name; the link is suggested from it.
   const [organizationName, setOrganizationName] = useState('');
   // Note 24: the link shows small under the name; «تعديل» opens a field for it.
-  const [editingLink, setEditingLink] = useState(false);
-  const [customLink, setCustomLink] = useState('');
+  const [editingLink, setEditingLink] = useState(Boolean(username));
+  const [customLink, setCustomLink] = useState(username || '');
   const nonprofitUsername = editingLink ? customLink : arabicSlug(organizationName);
   const [linkState, setLinkState] = useState<{ name: string; status: 'checking' | 'available' | 'unavailable' | 'error'; reason?: string } | null>(null);
   const [linkRetry, setLinkRetry] = useState(0);
   useEffect(() => {
-    if (!nonprofit || mode !== 'signup' || !nonprofitUsername) { setLinkState(null); return; }
+    if (!collectIdentity || mode !== 'signup' || !nonprofitUsername) { setLinkState(null); return; }
     let live = true;
     const controller = new AbortController();
     setLinkState({ name: nonprofitUsername, status: 'checking' });
@@ -65,8 +68,8 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
       }
     }, 400);
     return () => { live = false; window.clearTimeout(timer); window.clearTimeout(timeout); controller.abort(); };
-  }, [nonprofit, mode, nonprofitUsername, linkRetry]);
-  const linkReady = !nonprofit || (linkState?.name === nonprofitUsername && linkState.status === 'available');
+  }, [collectIdentity, mode, nonprofitUsername, linkRetry]);
+  const linkReady = !collectIdentity || (linkState?.name === nonprofitUsername && linkState.status === 'available');
   const checkingLink = Boolean(nonprofitUsername && (linkState?.name !== nonprofitUsername || linkState.status === 'checking'));
   const linkTaken = !checkingLink && (linkState?.status === 'unavailable' || linkState?.status === 'error');
   const linkSize = nonprofitUsername.length > 20 ? 'text-[15px]' : nonprofitUsername.length > 13 ? 'text-[17px]' : 'text-[20px]';
@@ -90,7 +93,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (loading || !humanOk || (isSignup && nonprofit && (!organizationName.trim() || !nonprofitUsername || !linkReady))) return;
+    if (loading || !humanOk || (isSignup && collectIdentity && (!organizationName.trim() || !nonprofitUsername || !linkReady))) return;
 
     // Note 07: the same rules the server applies (shared/accountRules.ts).
     if (isSignup) {
@@ -110,13 +113,13 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
       setLoading(true);
 
       if (isSignup) {
-        onSuccess(await signup({ username: nonprofit ? nonprofitUsername : username || '', phone: normalizeSaudiMobile(phone) ?? phone, email, password, ...(nonprofit ? { nonprofit: true, organizationName: organizationName.trim() } : {}) }), { keepDraft: inEditor, newNonprofit: nonprofit });
+        onSuccess(await signup({ username: collectIdentity ? nonprofitUsername : username || '', phone: normalizeSaudiMobile(phone) ?? phone, email, password, ...(nonprofit ? { nonprofit: true } : {}), ...(collectIdentity ? { organizationName: organizationName.trim() } : {}) }), { keepDraft: inEditor, newNonprofit: nonprofit, newStandard: !nonprofit });
       } else {
         onSuccess(await login(identifier, password), { keepDraft: false });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : isSignup ? 'تعذر إنشاء الحساب الآن.' : 'تعذر تسجيل الدخول الآن.';
-      if (isSignup && nonprofit && err instanceof ApiError && err.code?.startsWith('username_')) {
+      if (isSignup && collectIdentity && err instanceof ApiError && err.code?.startsWith('username_')) {
         setLinkState({ name: nonprofitUsername, status: 'unavailable', reason: message });
       }
       setErrors({ [fieldOf(message, isSignup) ?? 'form']: message });
@@ -139,7 +142,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
   const emailHint = touched.email && email && !isValidEmailAddress(email) ? EMAIL_HINT : undefined;
   const loginEmailHint = touched.identifier && identifier && !isValidEmailAddress(identifier) ? EMAIL_HINT : undefined;
   const passwordHint = touched.password && password ? passwordProblem(password) ?? undefined : undefined;
-  const ready = isSignup ? Boolean(normalizeSaudiMobile(phone) && isValidEmailAddress(email) && !passwordProblem(password) && (!nonprofit || (organizationName.trim() && nonprofitUsername && linkReady))) : Boolean(identifier && password);
+  const ready = isSignup ? Boolean(normalizeSaudiMobile(phone) && isValidEmailAddress(email) && !passwordProblem(password) && (!collectIdentity || (organizationName.trim() && nonprofitUsername && linkReady))) : Boolean(identifier && password);
 
   return (
     // Note 58: centred on every screen. The overlay itself scrolls, so with
@@ -176,36 +179,36 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
           <div className="overflow-hidden rounded-2xl bg-white">
             {isSignup ? (
               <>
-                {nonprofit && <>
-                  <Row><input aria-label="اسم الجمعية" value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="اسم الجمعية" maxLength={80} disabled={loading} autoFocus className={inputClass} /></Row>
+                {collectIdentity && <>
+                  <Row><input aria-label={copy.nameLabel} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder={copy.nameLabel} maxLength={80} disabled={loading} autoFocus className={inputClass} /></Row>
                 </>}
                 <Row label="الجوال" error={errors.phone ?? phoneHint}>
-                  <input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => { setPhone(toAsciiDigits(e.target.value).replace(/[^0-9+]/g, '')); clear('phone'); }} onBlur={blur('phone')} placeholder="05XXXXXXXX" maxLength={16} autoFocus={!nonprofit} aria-invalid={Boolean(errors.phone ?? phoneHint)} className={inputClass} dir="ltr" />
+                  <input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => { setPhone(toAsciiDigits(e.target.value).replace(/[^0-9+]/g, '')); clear('phone'); }} onBlur={blur('phone')} placeholder="05XXXXXXXX" maxLength={16} autoFocus={!collectIdentity} aria-invalid={Boolean(errors.phone ?? phoneHint)} className={inputClass} dir="ltr" />
                 </Row>
                 <Row label="البريد الإلكتروني" error={errors.email ?? emailHint} stacked>
                   <input type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value.trim()); clear('email'); }} onBlur={blur('email')} placeholder="name@example.com" aria-invalid={Boolean(errors.email ?? emailHint)} className={inputClassStacked} dir="ltr" />
                 </Row>
-                <Row label="كلمة المرور" error={errors.password ?? passwordHint} last={!nonprofit}>
+                <Row label="كلمة المرور" error={errors.password ?? passwordHint} last={!collectIdentity}>
                   <PasswordInput autoComplete="new-password" value={password} onChange={(e) => { setPassword(e.target.value); clear('password'); }} onBlur={blur('password')} placeholder="••••••••" aria-invalid={Boolean(errors.password ?? passwordHint)} aria-describedby="password-rules" className={inputClass} dir="ltr" />
                 </Row>
                 {/* The suggested link is the last, full-width row — an important result of the data above. */}
-                {nonprofit && (organizationName.trim() || editingLink) && (
+                {collectIdentity && (organizationName.trim() || editingLink) && (
                   <div className="px-4 py-3">
                     <div className="mb-1.5 flex items-center justify-between gap-2">
-                      <span className="text-[12px] font-medium text-[#8e8e93]">رابط جمعيتكم</span>
+                      <span className="text-[12px] font-medium text-[#8e8e93]">{nonprofit ? 'رابط جمعيتكم' : 'رابط صفحتك'}</span>
                       {!editingLink && <button type="button" disabled={loading} onClick={startLinkEdit} className="text-[13px] font-bold text-[#F25A18]">تعديل</button>}
                     </div>
                     {!editingLink ? (
                       // The whole link stays visible: smaller type for long names, wrapping only as a last resort.
                       <button type="button" disabled={loading} onClick={startLinkEdit} aria-label="تعديل الرابط" className="flex w-full items-center gap-2 text-start">
                         <Link2 className="h-5 w-5 shrink-0 text-[#FF6B2C]" />
-                        <span dir="ltr" className={`min-w-0 flex-1 break-all font-black ${linkSize} ${linkTone}`}>{nonprofitUsername || '…'}.onwan.link</span>
+                        <span dir="ltr" className={`min-w-0 flex-1 break-all font-black ${linkSize} ${linkTone}`}>{nonprofitUsername || '…'}.{ROOT_DOMAIN}</span>
                         {checkingLink && nonprofitUsername && <Loader2 aria-label="جارٍ التحقق من توفر الرابط" className="h-4 w-4 shrink-0 animate-spin text-[#737373]" />}
                       </button>
                     ) : (
                       <div className={`flex items-center overflow-hidden rounded-xl bg-[#f7f7f7] ring-1 ${linkTaken ? 'ring-[#DC2626]' : 'ring-[#e5e5ea] focus-within:ring-[#FF6B2C]'}`} dir="ltr">
                         <input autoFocus aria-label="رابط الصفحة" aria-invalid={linkTaken} value={customLink} disabled={loading} onChange={e => setCustomLink(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} maxLength={30} className="min-w-0 flex-1 bg-transparent px-3 py-3 text-[17px] font-bold focus:outline-none" />
-                        <span className="pr-3 text-[15px] text-[#8e8e93]">.onwan.link</span>
+                        <span className="pr-3 text-[15px] text-[#8e8e93]">.{ROOT_DOMAIN}</span>
                       </div>
                     )}
                     <div role="status" aria-live="polite">
@@ -235,7 +238,7 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
 
           {isSignup && <PasswordRules password={password} />}
           {/* The link's helper note stays below the table, as a help note. */}
-          {isSignup && nonprofit && (organizationName.trim() || editingLink) && (
+          {isSignup && collectIdentity && (organizationName.trim() || editingLink) && (
             <p className="mt-2 px-1 text-[13px] text-[#737373]">يُعتمد الرابط عند تفعيل الحساب، ويمكنكم لاحقًا استخدام نطاقكم الخاص (الدومين).</p>
           )}
           {/* A login failure concerns both fields: shown here, below them and before Turnstile. */}
@@ -258,12 +261,12 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
         {isSignup ? (
           <p className="mt-4 text-center text-[15px] text-[#6e6e73]">
             لديك حساب؟{' '}
-            <button type="button" onClick={() => (inEditor || nonprofit ? (setErrors({}), setMode('login')) : navigate('/?auth=login'))} className={`font-bold ${accentText}`}>سجّل الدخول</button>
+            <button type="button" onClick={() => (inEditor || collectIdentity ? (setErrors({}), setMode('login')) : navigate('/?auth=login'))} className={`font-bold ${accentText}`}>سجّل الدخول</button>
           </p>
         ) : (
           <div className="mt-4 flex items-center justify-between px-1 text-[15px]">
             <Link to={nonprofit && !window.location.hostname.startsWith('nonprofit.') ? '/nonprofit/reset-password' : '/reset-password'} className={accentText}>نسيت كلمة المرور؟</Link>
-            {(inEditor && initialMode === 'signup') || nonprofit ? (
+            {(inEditor && initialMode === 'signup') || collectIdentity ? (
               <button type="button" onClick={() => { setErrors({}); setMode('signup'); }} className={`font-bold ${accentText}`}>إنشاء حساب جديد</button>
             ) : (
               <Link to="/?focus=name" className={`font-bold ${accentText}`}>إنشاء حساب جديد</Link>
@@ -278,10 +281,8 @@ export default function AuthModal({ mode: initialMode, username, inEditor = fals
 
 // Note 09: one look for every account page — the general one, and the «عنوان»
 // brand on the nonprofit pages (also used by the password reset there).
-export function authTheme(nonprofit: boolean) {
-  return nonprofit
-    ? { surface: 'bg-[#F8F8F6]', accentText: 'text-[#FF6B2C]', primaryButton: 'bg-[#FF6B2C] shadow-[0_6px_16px_rgba(255,107,44,0.28)] hover:bg-[#F25A18]' }
-    : { surface: 'bg-[#f2f2f7]', accentText: 'text-[#0a84ff]', primaryButton: 'bg-[#0a84ff] shadow-[0_6px_16px_rgba(10,132,255,0.28)]' };
+export function authTheme(_nonprofit: boolean) {
+  return { surface: 'bg-[#F8F8F6]', accentText: 'text-[#FF6B2C]', primaryButton: 'bg-[#FF6B2C] shadow-[0_6px_16px_rgba(255,107,44,0.28)] hover:bg-[#F25A18]' };
 }
 
 // Note 07: the password rules as a live checklist under the fields.

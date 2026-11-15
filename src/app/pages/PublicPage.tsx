@@ -1,3 +1,5 @@
+import { PreviewContinue } from '../components/PreviewContinue';
+import { journeyPath } from '../lib/journey';
 import { useEffect, useState } from 'react';
 import { ArrowRight, Check, Copy, Flag, Share, UserPlus, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router';
@@ -326,6 +328,7 @@ export default function PublicPage() {
       // does; sharing gives the public link, or says it needs publishing.
       // Only «العودة للتحرير» is extra, between the two top buttons.
       <>
+        <div className={account?.pageStatus === 'draft' ? 'pb-28' : undefined}>
         <PageView data={previewPage} variant="public" lang={previewLang} showIncomplete>
           <VisitorActions
             page={previewPage}
@@ -335,7 +338,7 @@ export default function PublicPage() {
             middle={
               // The draft lives in the editor's state, so going back keeps every edit.
               <button
-                onClick={() => navigate('/builder')}
+                onClick={() => navigate(journeyPath(account?.kind === 'nonprofit' ? 'nonprofit' : 'standard', 'builder'))}
                 className="flex h-11 min-w-0 shrink items-center gap-1.5 rounded-full bg-black/75 px-3.5 text-[13px] font-semibold text-white shadow-lg backdrop-blur-md sm:px-4 sm:text-sm"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
@@ -345,6 +348,8 @@ export default function PublicPage() {
             }
           />
         </PageView>
+        </div>
+        <PreviewContinue />
       </>
     );
   }

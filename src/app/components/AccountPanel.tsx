@@ -76,7 +76,7 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-export function AccountPanel() {
+export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
   const navigate = useNavigate();
   const { pageData, account, setAccount, updatePageData, resetDesign, logout, isDirty } = usePageContext();
   const { overview, reload } = useOverview();
@@ -354,7 +354,7 @@ export function AccountPanel() {
             <SettingsRow icon={Palette} tone="bg-[#ff2d55]" label="استعادة التصميم الافتراضي" onClick={() => setConfirm('reset')} />
           </Group>
 
-          <button type="button" onClick={() => (isDirty ? setConfirm('logout') : doLogout())} className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-white text-[15px] text-[#ff3b30] active:bg-[#f2f2f7]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <button type="button" onClick={() => onLogout ? onLogout() : (isDirty ? setConfirm('logout') : doLogout())} className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-white text-[15px] text-[#ff3b30] active:bg-[#f2f2f7]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             <LogOut className="h-4 w-4" />
             تسجيل الخروج
           </button>

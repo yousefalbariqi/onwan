@@ -1,14 +1,13 @@
+import { journeyPath } from '../lib/journey';
 import { useEffect, useState } from 'react';
 import { digitsOnly } from '../lib/digits';
 import { useNavigate } from 'react-router';
 import { ArrowRight, KeyRound, Loader2 } from 'lucide-react';
 import { TurnstileBox, useHumanOk } from '../lib/turnstile';
-import { AuthError, AuthField, AuthLayout, AuthSubmit } from '../components/AuthLayout';
 import { PasswordRules, Row, authTheme, inputClass } from '../components/AuthModal';
 import { PasswordInput } from '../components/PasswordInput';
 import { NonprofitAuthBackdrop } from './NonprofitPortal';
 import { confirmPasswordReset, requestPasswordReset } from '../lib/api';
-import { nonprofitPath } from '../lib/nonprofit';
 import { useAuthSuccess } from '../lib/useAuthSuccess';
 import { EMAIL_HINT, PASSWORD_HINT, isValidEmailAddress, passwordProblem } from '../../../shared/accountRules';
 
@@ -69,44 +68,10 @@ function useResetFlow() {
 }
 
 export default function ResetPassword({ nonprofit = false }: { nonprofit?: boolean }) {
-  return nonprofit ? <NonprofitReset /> : <GeneralReset />;
+  return <NonprofitReset nonprofit={nonprofit} />;
 }
 
-function GeneralReset() {
-  const flow = useResetFlow();
-  return (
-    <AuthLayout
-      icon={KeyRound}
-      title="استعادة كلمة المرور"
-      subtitle={flow.step === 'email' ? 'نرسل رمزًا مؤقتًا إلى بريدك المسجل.' : 'أدخل الرمز الذي وصلك ثم كلمة المرور الجديدة.'}
-      backTo="/login"
-    >
-      {flow.step === 'email' ? (
-        <form onSubmit={flow.request} noValidate>
-          <AuthField label="البريد الإلكتروني" type="email" autoComplete="email" value={flow.email} onChange={(e) => flow.setEmail(e.target.value.trim())} placeholder="name@example.com" required autoFocus />
-          <TurnstileBox />
-          <AuthError message={flow.error} />
-          <AuthSubmit loading={flow.loading} disabled={!flow.email || !flow.humanOk}>إرسال الرمز</AuthSubmit>
-        </form>
-      ) : (
-        <form onSubmit={flow.confirm} noValidate>
-          {flow.notice && (
-            <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" style={{ fontFamily: 'Tajawal, sans-serif' }}>{flow.notice}</div>
-          )}
-          <AuthField label="رمز الاستعادة" hint="4 أرقام، صالح لمدة 10 دقائق ولمرة واحدة." type="text" inputMode="numeric" autoComplete="one-time-code" value={flow.code} onChange={(e) => flow.setCode(digitsOnly(e.target.value))} maxLength={4} required autoFocus />
-          <AuthField label="كلمة المرور الجديدة" hint={PASSWORD_HINT} type="password" autoComplete="new-password" value={flow.password} onChange={(e) => flow.setPassword(e.target.value)} required />
-          <AuthError message={flow.error} />
-          <AuthSubmit loading={flow.loading} disabled={flow.code.length !== 4 || Boolean(passwordProblem(flow.password))}>حفظ كلمة المرور والدخول</AuthSubmit>
-          <ResetRecovery flow={flow} />
-        </form>
-      )}
-    </AuthLayout>
-  );
-}
-
-// Note 09: the nonprofit reset looks like its sign-in and sign-up — the same
-// card, grouped fields and «عنوان» colours over the same page.
-function NonprofitReset() {
+function NonprofitReset({ nonprofit }: { nonprofit: boolean }) {
   const flow = useResetFlow();
   const navigate = useNavigate();
   const { surface, accentText, primaryButton } = authTheme(true);
@@ -116,10 +81,10 @@ function NonprofitReset() {
     </button>
   );
   return (
-    <NonprofitAuthBackdrop>
+    <NonprofitAuthBackdrop nonprofit={nonprofit}>
       <section className={`relative w-full max-w-[400px] rounded-[28px] ${surface} px-5 pb-7 pt-6 shadow-2xl`} role="dialog" aria-modal="true" aria-labelledby="reset-title" dir="rtl" style={{ fontFamily: 'Tajawal, sans-serif' }}>
         {/* Note: its own row above the title, so it never overlaps on small screens. */}
-        <button type="button" onClick={() => navigate(nonprofitPath('login'))} className={`mb-3 flex h-9 w-fit items-center gap-1 rounded-full px-2 text-[15px] ${accentText}`}>
+        <button type="button" onClick={() => navigate(journeyPath(nonprofit ? 'nonprofit' : 'standard', 'login'))} className={`mb-3 flex h-9 w-fit items-center gap-1 rounded-full px-2 text-[15px] ${accentText}`}>
           <ArrowRight className="h-4 w-4" />رجوع
         </button>
         <div className="mb-5 text-center">

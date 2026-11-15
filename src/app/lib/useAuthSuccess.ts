@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router';
 import { usePageContext } from '../context/PageContext';
 import { AuthResponse } from './api';
-import { isNonprofitHost } from './site';
 import { sessionOwner, setSessionToken } from './session';
-import { onboardingPending, startOnboarding } from './nonprofitOnboarding';
+import { journeyPath } from './journey';
+import { onboardingPending, startOnboarding } from './journeyOnboarding';
 
 // Shared tail of signup / login / password reset: store the session, load the
 // account into the editor state and open the builder.
@@ -16,7 +16,7 @@ export function useAuthSuccess(options: { keepDraft?: boolean } = {}) {
   const navigate = useNavigate();
   const { pageData, replacePageData, restoreDraft, setAccount, setAuthenticated } = usePageContext();
 
-  return (response: AuthResponse, call: { keepDraft?: boolean; newNonprofit?: boolean } = {}) => {
+  return (response: AuthResponse, call: { keepDraft?: boolean; newNonprofit?: boolean; newStandard?: boolean } = {}) => {
     const draft = pageData;
     const keepDraft = !call.newNonprofit && response.account?.kind !== 'nonprofit' && (call.keepDraft ?? options.keepDraft) && sessionOwner() === 'guest';
     setSessionToken(response.token);
@@ -24,10 +24,9 @@ export function useAuthSuccess(options: { keepDraft?: boolean } = {}) {
     if (keepDraft) restoreDraft({ ...draft, username: response.pageData.username ?? draft.username });
     setAccount(response.account);
     setAuthenticated(true);
-    // Note 19: a nonprofit that has just signed up picks its platforms first.
-    // Note 14: an association that left its setup unfinished comes back to it.
-    if (call.newNonprofit) startOnboarding(true);
-    if (call.newNonprofit || (response.account?.kind === 'nonprofit' && onboardingPending())) { navigate(isNonprofitHost() ? '/onboarding' : '/nonprofit/onboarding', { replace: true }); return; }
-    navigate(isNonprofitHost() ? '/builder' : response.account?.kind === 'nonprofit' ? '/nonprofit/builder' : '/builder', { replace: true });
+    const kind = response.account?.kind === 'nonprofit' ? 'nonprofit' : 'standard';
+    if (call.newNonprofit || call.newStandard) startOnboarding(true, kind);
+    if (call.newNonprofit || call.newStandard || onboardingPending(kind)) { navigate(journeyPath(kind, 'onboarding'), { replace: true }); return; }
+    navigate(journeyPath(kind, 'builder'), { replace: true });
   };
 }
