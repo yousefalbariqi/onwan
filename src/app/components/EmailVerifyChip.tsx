@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { digitsOnly } from '../lib/digits';
+import { VerificationCodeInput } from './VerificationCodeInput';
 import { createPortal } from 'react-dom';
 import { Check, Mail } from 'lucide-react';
 import { resendWait, sendEmailCode, verifyEmailCode } from '../lib/api';
@@ -15,14 +15,13 @@ const clock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(
 export function EmailVerifyChip({ autoOpen = false, label = 'أكّد بريدك لإتمام النشر' }: { autoOpen?: boolean; label?: string } = {}) {
   const { account, setAccount } = usePageContext();
   const [open, setOpen] = useState(false);
-  const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''));
+  const [code, setCode] = useState('');
   const [wait, setWait] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // Note 38: «sent» is shown only once the server accepted the request.
   const [info, setInfo] = useState('');
   const [done, setDone] = useState(false);
-  const inputs = useRef<(HTMLInputElement | null)[]>([]);
   const started = useRef(false);
 
   useEffect(() => {
@@ -46,7 +45,6 @@ export function EmailVerifyChip({ autoOpen = false, label = 'أكّد بريدك
       const response = await sendEmailCode();
       setInfo(response.message);
       setWait(response.retryAfter ?? RESEND_SECONDS);
-      window.setTimeout(() => inputs.current[digits.findIndex((digit) => !digit) === -1 ? 0 : digits.findIndex((digit) => !digit)]?.focus(), 50);
     } catch (err) {
       // Waiting before another code is normal, not an error.
       const seconds = resendWait(err);
@@ -68,23 +66,9 @@ export function EmailVerifyChip({ autoOpen = false, label = 'أكّد بريدك
     } catch (err) {
       setError(err instanceof Error ? err.message : 'الرمز غير صحيح.');
       // The typed code stays, so one wrong digit is fixed without retyping all.
-      window.setTimeout(() => inputs.current[CODE_LENGTH - 1]?.focus(), 0);
     } finally {
       setBusy(false);
     }
-  };
-
-  const type = (index: number, value: string) => {
-    const clean = digitsOnly(value);
-    setError('');
-    const next = [...digits];
-    // Pasting the whole code fills every box.
-    clean.slice(0, CODE_LENGTH - index).split('').forEach((digit, offset) => (next[index + offset] = digit));
-    if (!clean) next[index] = '';
-    setDigits(next);
-    const filled = next.join('');
-    if (clean) inputs.current[Math.min(index + clean.length, CODE_LENGTH - 1)]?.focus();
-    if (filled.length === CODE_LENGTH) verify(filled);
   };
 
   if (!account || account.emailVerified) return null;
@@ -117,26 +101,10 @@ export function EmailVerifyChip({ autoOpen = false, label = 'أكّد بريدك
               <>
                 <p className="text-lg font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>أدخل رمز التأكيد</p>
                 <p className="mt-1 text-sm text-[#6e6e73]">أرسلنا {CODE_LENGTH} أرقام إلى <span dir="ltr">{account.email}</span></p>
-                <div className="mt-5 flex justify-center gap-3" dir="ltr">
-                  {digits.map((digit, index) => (
-                    <input
-                      key={index}
-                      ref={(element) => { inputs.current[index] = element; }}
-                      value={digit}
-                      inputMode="numeric"
-                      autoComplete={index === 0 ? 'one-time-code' : 'off'}
-                      maxLength={CODE_LENGTH}
-                      disabled={busy}
-                      onChange={(event) => type(index, event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Backspace' && !digit && index > 0) inputs.current[index - 1]?.focus();
-                      }}
-                      className="h-14 w-12 rounded-2xl border-2 border-[#e5e5ea] text-center text-2xl font-black text-[#1d1d1f] focus:border-[#0a84ff] focus:outline-none"
-                    />
-                  ))}
-                </div>
+                <div className="mt-5"><VerificationCodeInput value={code} onChange={value => { setCode(value); setError(''); }} disabled={busy} invalid={Boolean(error)} describedBy={error ? 'email-verify-code-error' : undefined} /></div>
+                <button type="button" disabled={busy || code.length !== CODE_LENGTH} onClick={() => void verify(code)} className="mt-4 min-h-12 w-full rounded-full bg-[#ff6b2c] px-4 py-3 font-bold text-white disabled:opacity-50">{busy ? 'لحظة…' : 'تأكيد الرمز'}</button>
                 {error ? (
-                  <p role="alert" className="mt-3 text-sm text-[#ff3b30]">{error}</p>
+                  <p id="email-verify-code-error" role="alert" className="mt-3 text-sm text-[#ff3b30]">{error}</p>
                 ) : info ? (
                   <p role="status" className="mt-3 flex items-center justify-center gap-1.5 text-sm text-[#1f7a35]"><Check className="h-4 w-4 shrink-0" />{info}</p>
                 ) : null}

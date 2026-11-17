@@ -88,7 +88,7 @@ function walk(node, predicate, found = []) {
   React.Children.forEach(node.props?.children, child => walk(child, predicate, found));
   return found;
 }
-function screen({ existing = false, failSave = false, failSession = false } = {}) {
+function screen({ existing = false, failSave = false, failSession = false, failVerify = false } = {}) {
   const slots = [], routes = [], sessions = [], saved = []; let cursor = 0, verifies = 0, sends = 0;
   const hooks = { ...React, useEffect() {}, useRef: value => { const index = cursor++; return slots[index] ??= { current: value }; }, useState: initial => {
     const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;
@@ -98,7 +98,7 @@ function screen({ existing = false, failSave = false, failSession = false } = {}
     react: hooks, 'react-router': { Link: () => null, useNavigate: () => (...args) => routes.push(args) },
     '../context/PageContext': { mergeWithDefaults: data => data },
     '../lib/turnstile': { TurnstileBox: () => null, useHumanOk: () => true },
-    '../lib/creationCloud': { clearCreationSession() {}, sendCreationCode: async () => { sends++; return { retryAfter: 60 }; }, verifyCreationCode: async () => { verifies++; return existing ? { existingAccount: true } : { id: 'draft', token: 'scoped', email: 'person@example.org', revision: 0 }; }, storeCreationSession: value => { if (failSession) { failSession = false; throw Error('storage blocked'); } sessions.push(value); } },
+    '../lib/creationCloud': { clearCreationSession() {}, sendCreationCode: async () => { sends++; return { retryAfter: 60 }; }, verifyCreationCode: async () => { verifies++; if (failVerify) { failVerify = false; throw Error('invalid code'); } return existing ? { existingAccount: true } : { id: 'draft', token: 'scoped', email: 'person@example.org', revision: 0 }; }, storeCreationSession: value => { if (failSession) { failSession = false; throw Error('storage blocked'); } sessions.push(value); } },
     '../lib/creationDraftSource': { createGuestPageSource: () => ({ load: async () => ({ pageData: { name: 'chosen', links: [], theme: { id: 'chosen-theme' } } }), saveDraft: async data => { if (failSave) { failSave = false; throw Error('save failed'); } saved.push(data); } }) },
   }).default;
   return { render: () => { cursor = 0; return Page(); }, routes, sessions, saved, verifies: () => verifies, sends: () => sends };
@@ -107,7 +107,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 async function enterCode(h) {
   walk(h.render(), node => node.type === 'input')[0].props.onChange({ target: { value: 'person@example.org' } });
   walk(h.render(), node => node.type === 'form')[0].props.onSubmit({ preventDefault() {} }); await tick();
-  walk(h.render(), node => node.type === 'input')[0].props.onChange({ target: { value: '١٢٣٤' } });
+  walk(h.render(), node => node.type?.name === 'VerificationCodeInput')[0].props.onChange('1234');
 }
 test('email screen has one field, validates it, and only enters editing after proof and durable saving', async () => {
   const h = screen(); let tree = h.render();
@@ -159,4 +159,19 @@ test('cloud transport reuses a lost-response operation and uploads with only the
   assert.deepEqual(uploads, ['creation-only', 'creation-only']);
   assert.equal(cloud.creationSession().revision, 1);
   assert.equal(cloud.creationSession().syncedSequence, 7);
+});
+
+test('failed verification retains the code for correction and back returns to email without losing the design route', async () => {
+  const h = screen({ failVerify: true }); await enterCode(h);
+  walk(h.render(), node => node.type === 'form')[0].props.onSubmit({ preventDefault() {} }); await tick();
+  let tree = h.render();
+  const field = walk(tree, node => node.type?.name === 'VerificationCodeInput')[0];
+  assert.equal(field.props.value, '1234'); assert.equal(field.props.invalid, true);
+  field.props.onChange('0123');
+  assert.equal(walk(h.render(), node => node.props?.role === 'alert').length, 0);
+  walk(h.render(), node => node.props?.className === 'creation-email__back')[0].props.onClick();
+  tree = h.render(); assert.equal(walk(tree, node => node.type === 'input')[0].props.value, 'person@example.org');
+  assert.equal(walk(tree, node => node.type?.name === 'VerificationCodeInput').length, 0);
+  walk(tree, node => node.props?.className === 'creation-email__back')[0].props.onClick();
+  assert.equal(h.routes[0][0], '/signup?step=templates');
 });

@@ -1,87 +1,86 @@
-.creation-themes { --onwan-accent: #ff6b2c; height: 100dvh; min-height: 500px; display: flex; flex-direction: column; overflow: hidden; background: #f5f4f0; color: #171814; font-family: 'Cairo', sans-serif; }
-.creation-themes__header { width: min(100%, 1300px); margin: 0 auto; display: flex; flex: 0 0 auto; align-items: center; gap: 28px; padding: 22px 32px; }
-.creation-themes__back { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: #eae8e2; color: #24251f; }
+/* The screen owns its safe areas, including the keyboard-sized visual viewport. */
+#root:has(> .creation-themes) { padding: 0; }
+.creation-themes { --onwan-accent: #ff6b2c; height: 100vh; height: var(--themes-height, 100dvh); min-height: 500px; display: flex; flex-direction: column; overflow: hidden; background: #f5f4f0; color: #171814; font-family: 'Cairo', sans-serif; }
+.creation-themes__header { width: min(100%, 1300px); margin: 0 auto; display: flex; flex: 0 0 auto; align-items: center; gap: 24px; padding: max(18px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) 18px max(24px, env(safe-area-inset-left)); }
+.creation-themes__back { width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: #eae8e2; color: #24251f; }
 .creation-themes__header > a:last-child { text-decoration: none; }
-.creation-themes__progress { flex: 1; height: 6px; margin-inline: 24px; overflow: hidden; border-radius: 20px; background: #e1dfd8; }
+.creation-themes__progress { flex: 1; height: 5px; margin-inline: 16px; overflow: hidden; border-radius: 20px; background: #e1dfd8; }
 .creation-themes__progress span { display: block; height: 100%; width: 66.666%; border-radius: inherit; background: var(--onwan-accent); }
-.creation-themes__layout { width: min(100%, 1200px); margin: 0 auto; padding: 0 24px 24px; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(390px, 500px); gap: 44px; direction: ltr; }
-.creation-themes__stage { direction: rtl; position: relative; isolation: isolate; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; border-radius: 36px; }
-.creation-themes__stage::before { content: ''; position: absolute; z-index: -1; inset: 4%; border-radius: 50%; background: var(--theme-tint); opacity: .09; filter: blur(44px); transition: background-color .25s; }
-.creation-themes__phone { width: min(290px, 72%); flex: 0 0 auto; }
-.creation-themes__preview-caption { margin: 18px 0 0; text-align: center; font-size: 15px; font-weight: 700; }
-.creation-themes__preview-caption span { display: block; margin-top: 3px; font-size: 11px; font-weight: 400; color: #85857d; }
-.creation-themes__sheet { direction: rtl; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; background: #fffefa; border: 1px solid #eae7de; border-radius: 32px; box-shadow: 0 14px 45px #29241c05; }
-.creation-themes__sheet-heading { padding: 24px 24px 16px; text-align: center; }
+.creation-themes__layout { width: min(100%, 1200px); margin: 0 auto; padding: 0 24px max(20px, env(safe-area-inset-bottom)); flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); gap: 32px; direction: ltr; }
+.creation-themes__stage { container-type: size; direction: rtl; min-height: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; border-radius: 32px; background: color-mix(in srgb, var(--theme-tint) 22%, #f5f4f0); transition: background-color .22s ease; }
+.creation-themes__phone { width: min(280px, calc((100cqh - 80px) / 2.2)); flex: 0 0 auto; }
+.creation-themes__preview-caption { margin: 12px 0 0; text-align: center; font-size: 13px; font-weight: 700; }
+.creation-themes__preview-caption span { display: block; margin-top: 3px; font-size: 10px; font-weight: 400; color: #73756c; }
+.creation-themes__sheet { direction: rtl; min-height: 0; min-width: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: #fff; border: 1px solid #eae7de; border-radius: 28px; }
+.creation-themes__sheet-heading { padding: 18px 20px 14px; }
 .creation-themes__handle { display: none; }
-.creation-themes__eyebrow { font-size: 10px; color: #a45a35; }
-.creation-themes__sheet h1 { margin: 8px 0 6px; font-size: 24px; font-weight: 800; letter-spacing: -.025em; line-height: 1.6; }
-.creation-themes__sheet-heading p { margin: 0; color: #7f7f76; font-size: 12px; line-height: 1.9; }
-.creation-themes__groups { display: flex; justify-content: center; gap: 5px; padding: 0 22px 18px; }
-.creation-themes__groups button { min-height: 36px; border: 1px solid transparent; border-radius: 100px; background: transparent; padding: 6px 15px; font-size: 11px; font-weight: 600; color: #77796f; cursor: pointer; }
-.creation-themes__groups button[aria-pressed='true'] { background: #fff0e7; color: #af4518; border-color: #ff6b2c25; }
-.creation-themes__options { min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 14px; padding: 3px 25px 20px; scrollbar-width: thin; scrollbar-color: #d9d5c9 transparent; }
-.creation-themes__option { appearance: none; display: block; min-width: 0; align-self: start; border: 0; background: transparent; padding: 0; cursor: pointer; color: #83847c; }
-.creation-themes__thumbnail { display: block; position: relative; border: 2px solid #eae9e4; border-radius: 21px; padding: 2px; transition: border-color .15s; }
-.creation-themes__thumbnail > div { border-radius: 16px; }
-.creation-themes__option:hover .creation-themes__thumbnail { border-color: #c4bdb1; }
+.creation-themes__heading-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; }
+.creation-themes__sheet h1 { margin: 0; font-size: 19px; font-weight: 700; line-height: 1.6; }
+.creation-themes__heading-row p { margin: 3px 0 0; color: #73756c; font-size: 10px; line-height: 1.9; }
+.creation-themes__heading-row p a { color: #73756c; text-decoration: underline; text-underline-offset: 3px; }
+.creation-themes__search-toggle { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%; background: #f4f3ef; color: #292c24; cursor: pointer; }
+.creation-themes__search { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; min-height: 48px; padding-inline: 10px 2px; border: 1px solid #e4e1d9; border-radius: 16px; background: #f7f7f3; color: #73756c; }
+.creation-themes__search:focus-within { border-color: #ff6b2c; }
+.creation-themes__search > svg { flex-shrink: 0; }
+.creation-themes__search input { min-width: 0; width: 0; flex: 1; min-height: 44px; border: 0; outline: none; background: transparent; color: #292c24; font: inherit; font-size: 16px; }
+.creation-themes__search input::placeholder { color: #73756c; font-size: 13px; }
+.creation-themes__search input::-webkit-search-cancel-button { display: none; }
+.creation-themes__search button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; color: #53564b; background: transparent; cursor: pointer; }
+.creation-themes__suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.creation-themes__suggestions button { min-height: 36px; padding: 6px 12px; border: 1px solid #ebe8e0; border-radius: 50px; background: #faf9f6; color: #626558; font-size: 11px; cursor: pointer; }
+.creation-themes__search-status { margin: 8px 0 0; font-size: 10px; color: #73756c; line-height: 1.8; }
+.creation-themes__options { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; align-content: start; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; padding: 4px 20px 14px; scrollbar-width: thin; scrollbar-color: #d9d5c9 transparent; }
+.creation-themes__option { appearance: none; display: block; min-width: 0; align-self: start; border: 0; background: transparent; padding: 0; cursor: pointer; color: #73756c; }
+.creation-themes__thumbnail { display: block; position: relative; border: 2px solid #eae9e4; border-radius: 16px; padding: 2px; transition: border-color .15s; }
+.creation-themes__thumbnail > div { aspect-ratio: 1 / 1.1 !important; border-radius: 11px; }
+@media (hover: hover) { .creation-themes__option:hover .creation-themes__thumbnail { border-color: #c4bdb1; } }
 .creation-themes__option.is-selected .creation-themes__thumbnail { border-color: var(--onwan-accent); }
-.creation-themes__selected-mark { position: absolute; top: 5px; left: 5px; display: grid; place-items: center; height: 22px; width: 22px; border-radius: 50%; background: var(--onwan-accent); color: #fff; border: 2px solid #fff; }
-.creation-themes__name { display: block; margin-top: 7px; font-size: 11px; line-height: 1.8; }
+.creation-themes__selected-mark { position: absolute; top: 4px; left: 4px; display: grid; place-items: center; height: 22px; width: 22px; border-radius: 50%; background: var(--onwan-accent); color: #fff; border: 2px solid #fff; }
+.creation-themes__name { display: block; margin-top: 5px; font-size: 11px; line-height: 1.8; }
 .creation-themes__option.is-selected .creation-themes__name { color: #33362c; font-weight: 700; }
-.creation-themes__footer { padding: 16px 24px 14px; border-top: 1px solid #f0eee7; background: #fffefa; }
-.creation-themes__continue { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 12px; border: 0; border-radius: 100px; background: var(--onwan-accent); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
-.creation-themes__continue:hover { background: #ef5a1c; }
-.creation-themes__hint { min-height: 18px; margin: 8px 0 0; text-align: center; font-size: 10px; color: #85867e; }
+.creation-themes__footer { padding: 12px 20px; border-top: 1px solid #f0eee7; background: #fff; }
+.creation-themes__continue { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 12px; border: 0; border-radius: 100px; background: var(--onwan-accent); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
+.creation-themes__continue:hover:not(:disabled) { background: #ef5a1c; }
+.creation-themes__continue:disabled { background: #e5e3db; color: #73756c; cursor: default; }
+.creation-themes__hint { margin: 6px 0 0; text-align: center; font-size: 10px; line-height: 1.8; color: #73756c; }
 .creation-themes__error { color: #b42318; font-size: 12px; line-height: 1.8; margin: 0 0 8px; }
+.creation-themes__empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px; text-align: center; color: #73756c; }
+.creation-themes__empty h2 { margin: 0; color: #42463b; font-size: 13px; font-weight: 700; }
+.creation-themes__empty p { margin: 0; font-size: 11px; line-height: 1.8; }
+.creation-themes__empty button { min-height: 44px; margin-top: 4px; padding: 8px 14px; border: 1px solid #e9dfd4; border-radius: 100px; background: #fff0e7; color: #a6461b; font-size: 11px; cursor: pointer; }
 .creation-themes :is(button, a):focus-visible { outline: 3px solid #b84517; outline-offset: 3px; }
 @media (max-width: 760px) {
   .creation-themes { min-height: 0; }
-  .creation-themes__header { gap: 16px; padding: 15px 20px; }
-  .creation-themes__header .creation-themes__back { width: 40px; height: 40px; }
-  .creation-themes__header > a:last-child span > span { display: none; }
+  .creation-themes__header { gap: 16px; padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); }
   .creation-themes__progress { margin-inline: 0; }
-  .creation-themes__layout { width: 100%; padding: 0; gap: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(150px, 36%) minmax(0, 1fr); }
-  .creation-themes__stage { justify-content: flex-start; padding-top: 16px; border-radius: 0; }
-  .creation-themes__phone { width: min(218px, 57vw); }
+  .creation-themes__header > a:last-child span > span { font-size: 20px; }
+  .creation-themes__header > a:last-child svg { width: 30px; height: 30px; }
+  .creation-themes__layout { --sheet-height: min(350px, 58%); width: 100%; padding: 0 max(0px, env(safe-area-inset-right)) 0 max(0px, env(safe-area-inset-left)); gap: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sheet-height); transition: grid-template-rows .22s ease; }
+  .creation-themes.is-expanded .creation-themes__layout { --sheet-height: 74%; }
+  .creation-themes__stage { border-radius: 0; }
+  .creation-themes__phone { width: min(280px, 70vw, calc((100cqh - 20px) / 2.2)); }
   .creation-themes__preview-caption { display: none; }
-  .creation-themes__sheet { position: relative; border-width: 1px 0 0; border-radius: 30px 30px 0 0; box-shadow: 0 -8px 30px #29241c04; }
-  .creation-themes__sheet-heading { padding: 10px 18px 10px; }
-  .creation-themes__handle { display: block; width: 32px; height: 4px; border-radius: 10px; background: #e5e2d9; margin: 0 auto 10px; }
-  .creation-themes__eyebrow { display: none; }
-  .creation-themes__sheet h1 { font-size: 22px; margin: 0 0 4px; }
-  .creation-themes__sheet-heading p { font-size: 10px; }
-  .creation-themes__groups { padding: 0 15px 12px; }
-  .creation-themes__groups button { min-height: 32px; font-size: 10px; padding: 5px 14px; }
-  .creation-themes__options { padding: 3px 22px 16px; gap: 14px 12px; }
-  .creation-themes__footer { padding: 12px 22px max(12px, env(safe-area-inset-bottom)); }
-  .creation-themes__continue { font-size: 13px; min-height: 48px; }
-  .creation-themes__hint { margin-top: 6px; font-size: 9px; }
-  .creation-themes__thumbnail { border-radius: 18px; }
-  .creation-themes__thumbnail > div { border-radius: 13px; }
+  .creation-themes__sheet { border-width: 1px 0 0; border-radius: 28px 28px 0 0; }
+  .creation-themes__sheet-heading { padding: 0 18px 10px; }
+  .creation-themes__handle { display: grid; place-items: center; width: 100%; height: 24px; background: transparent; cursor: ns-resize; touch-action: none; }
+  .creation-themes__handle span { display: block; width: 36px; height: 4px; border-radius: 10px; background: #d9d7d0; }
+  .creation-themes__sheet h1 { font-size: 18px; }
+  .creation-themes__options { padding-inline: 18px; }
+  .creation-themes:not(.is-expanded) .creation-themes__options { grid-auto-rows: 100%; }
+  .creation-themes__footer { padding: 10px 18px calc(10px + env(safe-area-inset-bottom)); }
+  .creation-themes__continue { min-height: 48px; font-size: 13px; }
+  .creation-themes.is-keyboard .creation-themes__layout { --sheet-height: 100%; }
+  .creation-themes.is-keyboard .creation-themes__suggestions { display: none; }
 }
-@media (max-height: 650px) and (max-width: 760px) {
-  .creation-themes__layout { grid-template-rows: minmax(115px, 28%) minmax(0, 1fr); }
-  .creation-themes__header { padding-block: 10px; }
-  .creation-themes__sheet-heading { padding-top: 8px; padding-bottom: 6px; }
-  .creation-themes__sheet-heading p { display: none; }
-  .creation-themes__sheet h1 { font-size: 19px; }
-  .creation-themes__handle { margin-bottom: 6px; }
+@media (max-height: 600px) and (max-width: 760px) {
+  .creation-themes__layout { --sheet-height: 55%; }
+  .creation-themes.is-expanded .creation-themes__layout { --sheet-height: 82%; }
+  .creation-themes__header { padding-block: max(6px, env(safe-area-inset-top)) 6px; }
+  .creation-themes__hint { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .creation-themes * { transition: none; } }
-
-.creation-themes__controls { padding: 0 24px; }
-.creation-themes__search { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 13px; border: 1px solid #e4e1d9; border-radius: 16px; background: #f7f7f3; color: #85867d; }
-.creation-themes__search:focus-within { border-color: #ff6b2c; box-shadow: 0 0 0 2px #ff6b2c12; }
-.creation-themes__search input { min-width: 0; flex: 1; min-height: 44px; border: 0; outline: none; background: transparent; color: #292c24; font: inherit; font-size: 12px; }
-.creation-themes__search input::placeholder { color: #92948a; }
-.creation-themes__search input::-webkit-search-cancel-button { display: none; }
-.creation-themes__search button { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 36px; padding: 0; border: 0; border-radius: 12px; color: #77796f; background: transparent; cursor: pointer; }
-.creation-themes__controls .creation-themes__groups { padding: 12px 0 4px; }
-.creation-themes__search-status { min-height: 14px; margin: 0 0 8px; text-align: center; font-size: 9px; color: #85867e; }
-.creation-themes__empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px; text-align: center; color: #888a80; }
-.creation-themes__empty h2 { margin: 0; color: #42463b; font-size: 13px; font-weight: 700; }
-.creation-themes__empty p { margin: 0; font-size: 11px; line-height: 1.8; }
-.creation-themes__empty button { min-height: 40px; margin-top: 5px; padding: 8px 14px; border: 1px solid #e9dfd4; border-radius: 100px; background: #fff0e7; color: #a6461b; font-size: 11px; cursor: pointer; }
-.creation-themes__continue:disabled { background: #e5e3db; color: #8a8c81; cursor: default; }
-@media (max-width: 760px) { .creation-themes__controls { padding-inline: 22px; } .creation-themes__search input { font-size: 16px; } .creation-themes__search { min-height: 44px; } .creation-themes__search input { min-height: 42px; } }
-@media (max-height: 650px) and (max-width: 760px) { .creation-themes__layout { grid-template-rows: minmax(80px, 20%) minmax(0, 1fr); } .creation-themes__search-status { margin-bottom: 5px; } }
+@media (max-height: 450px) and (max-width: 760px) {
+  .creation-themes.is-expanded .creation-themes__layout { --sheet-height: 100%; }
+  .creation-themes__suggestions { display: none; }
+  .creation-themes__search-status { margin-top: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .creation-themes *, .creation-themes__stage { transition: none; } }

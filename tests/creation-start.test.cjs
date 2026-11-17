@@ -25,42 +25,45 @@ function walk(node, predicate, found = []) {
 }
 function screen() {
   const { api, values } = storageHarness();
-  const state = []; let cursor = 0;
+  const state = []; const navigations = []; let cursor = 0;
   const hooks = { ...React, useEffect() {}, useRef: value => ({ current: value }), useState: initial => {
     const index = cursor++;
     if (!(index in state)) state[index] = typeof initial === 'function' ? initial() : initial;
     return [state[index], value => { state[index] = typeof value === 'function' ? value(state[index]) : value; }];
   } };
-  const CreationStart = load('src/app/pages/CreationStart.tsx', { react: hooks, 'react-router': { useNavigate: () => () => {}, Link: () => null }, '../lib/creationStart': api }).default;
-  return { render: () => { cursor = 0; return CreationStart(); }, values };
+  const CreationStart = load('src/app/pages/CreationStart.tsx', { react: hooks, 'react-router': { useNavigate: () => path => navigations.push(path), Link: () => null }, '../lib/creationStart': api }).default;
+  return { render: () => { cursor = 0; return CreationStart(); }, values, navigations };
 }
 test('category screen is available without account fields and starts without a selected category', () => {
   const h = screen(), tree = h.render();
   const radios = walk(tree, node => node.props?.role === 'radio');
   assert.equal(radios.length, 4);
+  assert.deepEqual(radios.map(radio => walk(radio, node => node.props?.className === 'creation-start__choice-label')[0].props.children), ['صفحة شخصية', 'نشاط تجاري', 'صانع محتوى', 'جمعية أو جهة غير ربحية']);
   assert.ok(radios.every(node => !node.props['aria-checked']));
   assert.equal(walk(tree, node => node.type === 'input' || node.props?.role === 'dialog').length, 0);
   assert.equal(walk(tree, node => node.props?.className === 'creation-start__continue')[0].props.disabled, true);
-  assert.equal(walk(tree, node => node.props?.role === 'radiogroup')[0].props.dir, 'ltr');
+  assert.equal(walk(tree, node => node.props?.role === 'radiogroup')[0].props.dir, 'rtl');
 });
 test('changing the category selects exactly one card and confirmation retains it without registration', () => {
   const h = screen();
-  walk(h.render(), node => node.props?.role === 'radio')[2].props.onClick();
+  walk(h.render(), node => node.props?.role === 'radio')[1].props.onClick();
   let tree = h.render(), radios = walk(tree, node => node.props?.role === 'radio');
   assert.equal(radios.filter(node => node.props['aria-checked']).length, 1);
-  assert.ok(radios[2].props.className.includes('is-selected'));
+  assert.ok(radios[1].props.className.includes('is-selected'));
+  assert.deepEqual(h.navigations, [], 'selection must not navigate automatically');
   walk(tree, node => node.props?.className === 'creation-start__continue')[0].props.onClick();
+  assert.deepEqual(h.navigations, ['/signup?step=templates']);
   assert.equal([...h.values.values()][0], 'business');
   assert.match(walk(h.render(), node => node.props?.role === 'status')[0].props.children, /نشاط تجاري/);
   radios[0].props.onClick();
   tree = h.render(); radios = walk(tree, node => node.props?.role === 'radio');
   assert.equal(radios[0].props['aria-checked'], true);
-  assert.equal(radios[2].props['aria-checked'], false);
+  assert.equal(radios[1].props['aria-checked'], false);
   assert.match(walk(tree, node => node.props?.role === 'status')[0].props.children, /بدون تسجيل/);
 });
-test('category cards support arrow-key selection in their LTR grid', () => {
+test('category cards support arrow-key selection in their RTL grid', () => {
   const h = screen(); let prevented = false;
-  walk(h.render(), node => node.props?.role === 'radio')[0].props.onKeyDown({ key: 'ArrowRight', preventDefault() { prevented = true; } });
+  walk(h.render(), node => node.props?.role === 'radio')[0].props.onKeyDown({ key: 'ArrowLeft', preventDefault() { prevented = true; } });
   assert.equal(prevented, true);
   assert.equal(walk(h.render(), node => node.props?.role === 'radio')[1].props['aria-checked'], true);
 });

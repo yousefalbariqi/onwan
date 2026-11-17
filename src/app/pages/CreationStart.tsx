@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ArrowLeft, ArrowRight, Check, HeartHandshake, Store, UserRound, Video } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, HeartHandshake, Store, UserRound, Clapperboard } from 'lucide-react';
 import { OnwanLogo } from '../components/OnwanLogo';
 import { CREATION_CATEGORIES, readCreationCategory, saveCreationCategory, type CreationCategory } from '../lib/creationStart';
 import '../../styles/creation-start.css';
 
-const ICONS = { person: UserRound, video: Video, store: Store, heart: HeartHandshake };
+// Presentation order only; category IDs and template selection remain unchanged.
+const DISPLAY_CATEGORIES = ['personal', 'business', 'creator', 'nonprofit'].map(id => CREATION_CATEGORIES.find(item => item.id === id)!);
+const ICONS = { person: UserRound, video: Clapperboard, store: Store, heart: HeartHandshake };
 
 // Stage one is intentionally independent of account kind, authentication and billing.
 export default function CreationStart() {
@@ -15,16 +17,16 @@ export default function CreationStart() {
   const choices = useRef<(HTMLButtonElement | null)[]>([]);
   useEffect(() => {
     const previous = document.title;
-    document.title = 'صفحتك، بطريقتك — عنوان';
+    document.title = 'لمن تريد إنشاء الصفحة؟ — عنوان';
     return () => { document.title = previous; };
   }, []);
   const select = (id: CreationCategory) => { setSelected(id); setConfirmed(false); saveCreationCategory(id); };
   const move = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const delta = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 2, ArrowUp: -2 }[event.key];
+    const delta = { ArrowRight: -1, ArrowLeft: 1, ArrowDown: 2, ArrowUp: -2 }[event.key];
     if (delta === undefined && event.key !== 'Home' && event.key !== 'End') return;
     event.preventDefault();
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? CREATION_CATEGORIES.length - 1 : (index + delta + CREATION_CATEGORIES.length) % CREATION_CATEGORIES.length;
-    select(CREATION_CATEGORIES[next].id);
+    select(DISPLAY_CATEGORIES[next].id);
     choices.current[next]?.focus();
   };
   return <div className="creation-start" dir="rtl">
@@ -39,18 +41,17 @@ export default function CreationStart() {
       </div>
       <main className="creation-start__main">
         <div className="creation-start__intro">
-          <h1>صفحتك، بطريقتك.</h1>
-          <p>اجمع روابطك وصورك وملفاتك في صفحة واحدة.<br className="creation-start__mobile-break" /> جرّب بنفسك قبل التسجيل.</p>
+          <h1 id="creation-category-question">لمن تريد إنشاء الصفحة؟</h1>
+          <p>اختر النوع المناسب، وتقدر تغيّره لاحقًا.</p>
         </div>
-        <h2 id="creation-category-question">لمن تريد إنشاء الصفحة؟</h2>
-        <div className="creation-start__grid" role="radiogroup" aria-labelledby="creation-category-question" dir="ltr">
-          {CREATION_CATEGORIES.map((item, index) => {
+        <div className="creation-start__grid" role="radiogroup" aria-labelledby="creation-category-question" dir="rtl">
+          {DISPLAY_CATEGORIES.map((item, index) => {
             const Icon = ICONS[item.icon];
             const active = selected === item.id;
             return <button key={item.id} ref={element => { choices.current[index] = element; }} type="button" role="radio" aria-checked={active}
               tabIndex={active || (!selected && index === 0) ? 0 : -1} onKeyDown={event => move(event, index)} onClick={() => select(item.id)}
-              className={`creation-start__choice${active ? ' is-selected' : ''}`} dir="rtl">
-              <Icon size={34} strokeWidth={1.65} aria-hidden="true" />
+              className={`creation-start__choice creation-start__choice--${item.id}${active ? ' is-selected' : ''}`} dir="rtl">
+              <span className="creation-start__art" aria-hidden="true"><span className="creation-start__icon"><Icon size={44} strokeWidth={1.8} /></span></span>
               <span className="creation-start__choice-label">{item.label}</span>
               <span className="creation-start__check" aria-hidden="true">{active && <Check size={12} strokeWidth={2.5} />}</span>
             </button>;

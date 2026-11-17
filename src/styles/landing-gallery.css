@@ -1,0 +1,63 @@
+.landing-gallery { width: 100%; min-width: 0; }
+.landing-gallery__viewport {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  border-radius: 32px;
+  -webkit-overflow-scrolling: touch;
+}
+.landing-gallery__viewport::-webkit-scrollbar { display: none; }
+.landing-gallery__viewport:focus-visible { outline: 2px solid #ff6b2c; outline-offset: 4px; }
+.landing-gallery__card {
+  flex: 0 0 88%;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 32px;
+  scroll-snap-align: start;
+  background: #ffeadf;
+}
+.landing-gallery__card:last-child { margin-inline-end: 12%; }
+.landing-gallery__card--1 { background: #eeeae3; }
+.landing-gallery__card--2 { background: #f4dfcb; }
+.landing-gallery__card--3 { background: #e9eae5; }
+.landing-gallery__art { position: relative; aspect-ratio: 0.78; width: 100%; }
+.landing-gallery__art img {
+  position: absolute;
+  inset: 7% 10% 10%;
+  width: 80%;
+  height: 83%;
+  object-fit: contain;
+  user-select: none;
+}
+.landing-gallery__chip {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 10px 12px;
+  border-radius: 16px;
+  font-size: clamp(10px, 2.8vw, 13px);
+  font-weight: 700;
+  line-height: 1.7;
+  white-space: pre-line;
+  background: #fff;
+  color: #111;
+  box-shadow: 0 4px 12px #11111108;
+}
+.landing-gallery__chip svg { flex-shrink: 0; }
+.landing-gallery__chip--top { top: 23%; left: 16px; background: #111; color: white; }
+.landing-gallery__chip--top svg { color: #ff6b2c; }
+.landing-gallery__chip--bottom { bottom: 6%; right: 16px; }
+.landing-gallery__controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.landing-gallery__hint { color: #737373; font-size: 11px; }
+.landing-gallery__dots { display: flex; }
+.landing-gallery__dots button { display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; border-radius: 50%; }
+.landing-gallery__dots button:focus-visible { outline: 2px solid #ff6b2c; }
+.landing-gallery__dots span { width: 6px; height: 6px; border-radius: 20px; background: #b5b1ad; transition: width .25s ease, background-color .25s ease; }
+.landing-gallery__dots [aria-current="true"] span { width: 20px; background: #ff6b2c; }
+@media (min-width: 640px) { .landing-gallery__art { aspect-ratio: .9; } }
+@media (prefers-reduced-motion: reduce) { .landing-gallery__dots span { transition: none; } }

@@ -44,3 +44,5 @@
 .creation-account__email-change p { color: #777970; line-height: 1.9; }
 .creation-account__email-change input { margin-top: 8px; }
 .creation-account .creation-email__note { text-align: center; }
+.creation-email__back { display: flex; align-items: center; gap: 6px; min-height: 44px; margin: 0 0 14px auto; padding: 8px 0 8px 12px; border: 0; background: transparent; color: #30352a; font: 600 14px 'Cairo', sans-serif; cursor: pointer; }
+.creation-email__back:disabled { opacity: .5; cursor: default; }

@@ -8,13 +8,13 @@ function load(entry, mocks = {}, storage) {
   new Function('require', 'module', 'exports', 'sessionStorage', outputFiles[0].text)(name => mocks[name] ?? require(name), module, module.exports, storage);
   return module.exports;
 }
-function setup({ draft = null, blocked = false } = {}) {
-  const values = new Map(), routes = [], states = []; let cursor = 0;
+function setup({ draft = null, blocked = false, category = 'personal' } = {}) {
+  const values = new Map(), routes = [], states = [], refs = []; let cursor = 0, refCursor = 0;
   if (draft) values.set('onwan_guest_creation_v1', JSON.stringify(draft));
   const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => { if (blocked) throw Error('blocked'); values.set(key, value); } };
   const api = load('src/app/lib/creationTemplates.ts', {}, storage);
   const PhonePreview = () => null;
-  const hooks = { ...React, useEffect() {}, useRef: value => ({ current: value }), useState: initial => {
+  const hooks = { ...React, useEffect() {}, useRef: value => refs[refCursor++] ||= { current: value }, useState: initial => {
     const index = cursor++;
     if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial;
     return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }];
@@ -23,11 +23,11 @@ function setup({ draft = null, blocked = false } = {}) {
     react: hooks, 'react-router': { useNavigate: () => route => routes.push(route), Link: () => null },
     '../context/PageContext': { mergeWithDefaults: data => data },
     '../components/PhonePreview': { PhonePreview }, '../components/TemplatePreview': { TemplatePreview: () => null },
-    '../lib/creationStart': { readCreationCategory: () => 'personal', saveCreationCategory() {} },
+    '../lib/creationStart': { readCreationCategory: () => category, saveCreationCategory() {} },
     '../lib/creationTemplates': api,
     '../lib/creationDraftSource': { createGuestPageSource: () => ({ load: async () => ({ pageData: api.readCreationDraft() || api.creationSample('personal') }), saveDraft: async data => { if (!api.saveCreationDraft(data)) throw Error('blocked'); } }) },
   }).default;
-  return { api, values, routes, PhonePreview, render: () => { cursor = 0; return Screen(); } };
+  return { api, values, routes, PhonePreview, render: () => { cursor = 0; refCursor = 0; return Screen(); } };
 }
 function walk(node, predicate, found = []) {
   if (!node || typeof node !== 'object') return found;
@@ -76,14 +76,13 @@ test('blocked guest-draft storage leaves selection open and reports the problem'
   assert.deepEqual(h.routes, []);
   assert.ok(walk(h.render(), node => node.props?.role === 'alert').length);
 });
-test('switching categories keeps the preview valid and uses only templates from the new group', async () => {
-  const h = setup();
-  await walk(h.render(), node => node.props?.['aria-pressed'] !== undefined)[2].props.onClick();
+test('the prior category determines templates without repeated category tabs', () => {
+  const h = setup({ category: 'nonprofit' });
   const tree = h.render();
   assert.equal(walk(tree, node => node.type === h.PhonePreview)[0].props.data.name, 'اسم جمعيتك');
-  const radios = walk(tree, node => node.props?.role === 'radio');
-  assert.equal(radios.length, 6);
-  assert.equal(radios.filter(node => node.props['aria-checked']).length, 1);
+  assert.equal(walk(tree, node => node.props?.['aria-pressed'] !== undefined).length, 0);
+  assert.equal(walk(tree, node => node.props?.['aria-label'] === 'تغيير نوع الصفحة')[0].props.to, '/signup');
+  assert.equal(walk(tree, node => node.props?.role === 'radio').length, 6);
 });
 
 test('smart search finds Nukhba by Arabic specialties and English synonyms, not just its name', async () => {
@@ -105,8 +104,8 @@ test('search normalization supports Arabic spelling variants, diacritics and pun
   assert.equal(normalizeTemplateSearch('  إِستشاراتٌ ـ إدارية، LAWYER! '), 'استشارات اداريه lawyer');
 });
 test('search is inside the sheet, retains the current preview, and only continues after a matching result is chosen', async () => {
-  const h = setup();
-  await walk(h.render(), node => node.props?.['aria-pressed'] !== undefined)[1].props.onClick();
+  const h = setup({ category: 'business' });
+  walk(h.render(), node => node.props?.['aria-label'] === 'البحث عن تصميم أو مجال')[0].props.onClick();
   const original = walk(h.render(), node => node.type === h.PhonePreview)[0].props.data;
   walk(h.render(), node => node.type === 'input' && node.props.type === 'search')[0].props.onChange({ target: { value: 'محامي' } });
   let tree = h.render();
@@ -123,6 +122,7 @@ test('search is inside the sheet, retains the current preview, and only continue
 test('empty results allow clearing search without changing the category or forgetting the selected design', async () => {
   const h = setup();
   await walk(h.render(), node => node.props?.role === 'radio')[2].props.onClick();
+  walk(h.render(), node => node.props?.['aria-label'] === 'البحث عن تصميم أو مجال')[0].props.onClick();
   walk(h.render(), node => node.type === 'input' && node.props.type === 'search')[0].props.onChange({ target: { value: 'xyzunknown' } });
   let tree = h.render();
   assert.equal(walk(tree, node => node.props?.role === 'radio').length, 0);
@@ -133,4 +133,34 @@ test('empty results allow clearing search without changing the category or forge
   tree = h.render();
   assert.equal(walk(tree, node => node.props?.role === 'radio').length, 6);
   assert.equal(walk(tree, node => node.props?.role === 'radio' && node.props['aria-checked'])[0].props['aria-label'], 'تصميم مدار');
+});
+
+test('search opens on demand and expands the sheet; Escape clears it and returns to preview', () => {
+  const h = setup();
+  let tree = h.render();
+  assert.equal(walk(tree, node => node.type === 'input').length, 0);
+  walk(tree, node => node.props?.['aria-label'] === 'البحث عن تصميم أو مجال')[0].props.onClick();
+  tree = h.render();
+  assert.ok(tree.props.className.includes('is-expanded'));
+  const input = walk(tree, node => node.type === 'input')[0];
+  input.props.onChange({ target: { value: 'xyzunknown' } });
+  const previous = global.window;
+  global.window = { requestAnimationFrame: callback => callback() };
+  try { input.props.onKeyDown({ key: 'Escape', preventDefault() {} }); }
+  finally { global.window = previous; }
+  tree = h.render();
+  assert.equal(tree.props.className, 'creation-themes');
+  assert.equal(walk(tree, node => node.type === 'input').length, 0);
+  assert.equal(walk(tree, node => node.props?.role === 'radio').length, 6);
+  assert.deepEqual(h.routes, []);
+});
+test('handle swipes snap to expanded and compact states without the following click undoing the swipe', () => {
+  const h = setup();
+  const handle = () => walk(h.render(), node => node.props?.className === 'creation-themes__handle')[0];
+  handle().props.onPointerDown({ clientY: 200, pointerId: 1, currentTarget: { setPointerCapture() {} } });
+  handle().props.onPointerUp({ clientY: 100 }); handle().props.onClick();
+  assert.ok(h.render().props.className.includes('is-expanded'));
+  handle().props.onPointerDown({ clientY: 100, pointerId: 1, currentTarget: { setPointerCapture() {} } });
+  handle().props.onPointerUp({ clientY: 200 }); handle().props.onClick();
+  assert.equal(h.render().props.className, 'creation-themes');
 });
