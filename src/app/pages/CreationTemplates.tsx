@@ -6,7 +6,6 @@ import { Link, useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, Check, Search, X } from 'lucide-react';
 import { OnwanLogo } from '../components/OnwanLogo';
 import { PhonePreview } from '../components/PhonePreview';
-import { TemplatePreview } from '../components/TemplatePreview';
 import { mergeWithDefaults } from '../context/PageContext';
 import { readCreationCategory } from '../lib/creationStart';
 import { creationSample, creationTemplates, readCreationDraft, readTemplateChoice, saveTemplateChoice, templateGroup, templatePreviewData, type TemplateGroup } from '../lib/creationTemplates';
@@ -115,7 +114,19 @@ export default function CreationTemplates() {
             event.preventDefault();
             const next = event.key === 'Home' ? 0 : event.key === 'End' ? results.length - 1 : (index + delta + results.length) % results.length;
             choose(results[next].id); buttons.current[next]?.focus();
-          }}><span className="creation-themes__thumbnail"><TemplatePreview design={template.design} sample={sample} phone />{active.id === template.id && <span className="creation-themes__selected-mark"><Check size={13} strokeWidth={3} aria-hidden="true" /></span>}</span><span className="creation-themes__name">{template.name}</span></button>)}
+          }}><span className="creation-themes__thumbnail"><span className="creation-themes__swatch" aria-hidden="true" style={{
+              background: template.design.theme.background,
+              color: template.design.theme.textColor,
+              fontFamily: template.design.typography.font === 'amiri' ? 'Amiri, serif' : 'Cairo, sans-serif',
+            }}>
+              <span className="creation-themes__font-sample">أب</span>
+              <span className="creation-themes__button-sample" style={{
+                background: template.design.theme.buttonColor,
+                borderRadius: template.design.buttonStyle.shape === 'pill' ? '999px' : template.design.buttonStyle.shape === 'square' ? '4px' : '14px',
+                border: template.design.buttonStyle.border ? `1px solid ${template.design.theme.textColor}` : 'none',
+                boxShadow: template.design.buttonStyle.shadow ? `0 3px 0 ${template.design.theme.textColor}30` : 'none',
+              }} />
+            </span>{active.id === template.id && <span className="creation-themes__selected-mark"><Check size={13} strokeWidth={3} aria-hidden="true" /></span>}</span><span className="creation-themes__name">{template.name}</span></button>)}
           {!results.length && <div className="creation-themes__empty"><Search size={26} aria-hidden="true" /><h2>ما لقينا تصميمًا مطابقًا</h2><p>جرّب اسم تصميم أو مجالًا آخر.</p><button type="button" onClick={() => setQuery('')}>عرض كل التصاميم</button></div>}
         </div>
         <footer className="creation-themes__footer">
@@ -133,7 +144,7 @@ export default function CreationTemplates() {
             } catch (problem) { setError(problem instanceof Error ? problem.message : 'تعذر الاحتفاظ بالتصميم. حاول مجددًا.'); }
             finally { continuePending.current = false; setContinuing(false); }
           }}>{continuing ? 'جارٍ تجهيز صفحتك…' : 'استخدم هذا التصميم'}<ArrowLeft size={20} aria-hidden="true" /></button>
-          <p className="creation-themes__hint" role="status" aria-live="polite">{canContinue ? `${active.name} · جرّب التعديل بدون تسجيل` : 'اختر تصميمًا من النتائج أو غيّر البحث'}</p>
+          <p className="sr-only" role="status" aria-live="polite">{canContinue ? `التصميم المختار: ${active.name}` : 'اختر تصميمًا من النتائج أو غيّر البحث'}</p>
         </footer>
       </section>
     </main>

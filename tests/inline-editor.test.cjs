@@ -75,3 +75,114 @@ test('durable guest media wins over an older session copy and does not leak into
   h.session.clear();
   await assert.rejects(h.create().load(), /اختر تصميمًا/);
 });
+
+function workspace({ failDraft = false, pending = false } = {}) {
+  let cursor = 0; const slots = [], actions = [];
+  const PageView = () => null, LinkEditor = () => null;
+  const noop = () => null;
+  const hooks = { ...React, useEffect() {}, useLayoutEffect() {}, useCallback: callback => callback, useRef: value => slots[cursor++] ??= { current: value }, useState: initial => {
+    const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;
+    return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }];
+  } };
+  const Component = load('src/app/components/InlinePageEditor.tsx', {
+    react: hooks,
+    '../context/PageContext': { usePageContext: () => ({
+      pageData: { name: 'اسمي', bio: '', profileImage: '', theme: { background: '#fff', textColor: '#111' }, buttonStyle: { shape: 'pill' }, links: [{ id: 'first' }, { id: 'last' }] },
+      loadingPage: false, saving: false, conflict: false, draftState: 'saved', canUndo: true, canRedo: true,
+      saveDraft: async () => { actions.push('draft'); if (failDraft) throw Error('save failed'); },
+      save: async () => { actions.push('save'); }, hasPendingChanges: () => pending,
+      undo: () => actions.push('undo'), redo: () => actions.push('redo'), updatePageData() {}, moveLink() {},
+    }) },
+    '../lib/editorPreview': { editorPreview: data => data },
+    './PageView': { PageView }, './LinkEditor': { LinkEditor }, './TemporaryPasswordGate': { TemporaryPasswordGate: noop },
+    './HeaderEditor': { HeaderEditor: noop }, './FormattingTextarea': { FormattingTextarea: noop },
+    './WallpaperEditor': { WallpaperEditor: noop }, './StyleEditor': { StyleEditor: noop },
+    './CreationInlineTemplates': { CreationInlineTemplates: noop }, './TemplateGallery': { TemplateGallery: noop },
+  }).InlinePageEditor;
+  return { actions, PageView, LinkEditor, render() { cursor = 0; return Component({ localOnly: true, onAdvanced: () => actions.push('advanced'), onBack: () => actions.push('back'), onContinue: () => actions.push('continue'), continueLabel: 'حفظ صفحتي' }); } };
+}
+function nodes(node, predicate, found = []) {
+  if (!node || typeof node !== 'object') return found;
+  if (predicate(node)) found.push(node);
+  React.Children.forEach(node.props?.children, child => nodes(child, predicate, found)); return found;
+}
+const settle = () => new Promise(resolve => setImmediate(resolve));
+test('workspace has one add control, no repeated insertion slots, and appends through the existing content editor', () => {
+  const h = workspace(); let tree = h.render();
+  assert.equal(nodes(tree, n => n.type === h.PageView)[0].props.onAddAfter, undefined);
+  const add = nodes(tree, n => n.props?.className === 'inline-editor__add'); assert.equal(add.length, 1);
+  const page = nodes(tree, n => n.type === h.PageView)[0];
+  assert.equal(nodes(page, n => n.props?.className === 'inline-editor__add').length, 1);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__dock-actions').length, 0);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__more-actions').length, 1);
+  add[0].props.onClick(); tree = h.render();
+  const editor = nodes(tree, n => n.type === h.LinkEditor)[0];
+  assert.equal(editor.props.addRequest.afterId, 'last'); assert.equal(editor.props.focusId, null);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__design-tools')[0].props.children.length, 6);
+});
+test('preview removes editing controls and saves before changing mode; return and advanced preserve draft save', async () => {
+  const h = workspace(); let tree = h.render();
+  nodes(tree, n => n.type === 'button' && n.props['aria-pressed'] === false)[0].props.onClick(); await settle();
+  tree = h.render(); assert.ok(tree.props.className.includes('is-preview'));
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__dock').length, 0);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__add').length, 0);
+  assert.equal(nodes(tree, n => n.type === h.PageView)[0].props.onIdentityClick, undefined);
+  assert.deepEqual(h.actions, ['draft']);
+  nodes(tree, n => n.props?.['aria-label'] === 'العودة')[0].props.onClick(); await settle();
+  assert.deepEqual(h.actions.slice(-2), ['draft', 'back']);
+});
+test('header save retains completion checks and blocks navigation when newer changes remain', async () => {
+  for (const pending of [false, true]) {
+    const h = workspace({ pending });
+    nodes(h.render(), n => n.props?.className === 'inline-editor__save')[0].props.onClick(); await settle();
+    assert.equal(h.actions.includes('save'), true); assert.equal(h.actions.includes('continue'), !pending);
+    if (pending) assert.ok(nodes(h.render(), n => n.props?.role === 'alert').length > 0);
+  }
+});
+test('a failed draft save prevents leaving the editor and surfaces the error', async () => {
+  const h = workspace({ failDraft: true });
+  nodes(h.render(), n => n.props?.['aria-label'] === 'العودة')[0].props.onClick(); await settle();
+  assert.deepEqual(h.actions, ['draft']);
+  assert.ok(nodes(h.render(), n => n.props?.role === 'alert').length > 0);
+});
+
+
+test('identity panel leaves a clear inert live preview, expands and closes without a manual save action', async () => {
+  const h = workspace(); let tree = h.render();
+  nodes(tree, n => n.props?.className === 'inline-editor__design-tools')[0].props.children[0].props.onClick();
+  tree = h.render();
+  assert.ok(tree.props.className.includes('has-panel'));
+  assert.equal(nodes(tree, n => n.type === 'main')[0].props.inert, true);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__sheet-footer').length, 0);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__save')[0].props.children[1].props.children, 'التالي');
+  const handle = nodes(tree, n => n.props?.className === 'inline-editor__handle')[0];
+  handle.props.onClick();
+  assert.ok(h.render().props.className.includes('is-panel-expanded'));
+  nodes(tree, n => n.props?.['aria-label'] === 'إغلاق اللوحة')[0].props.onClick(); await settle();
+  assert.equal(h.render().props.className.includes('has-panel'), false);
+  assert.deepEqual(h.actions, ['draft']);
+});
+
+
+test('panel exit holds its last frame until the native dialog is hidden', async () => {
+  const { closeInlinePanel } = load('src/app/lib/inlinePanelMotion.ts', {});
+  const order = []; let finish;
+  const finished = new Promise(resolve => { finish = resolve; });
+  const element = { animate(frames, options) { assert.equal(options.fill, 'forwards'); order.push('animate'); return { finished, cancel() { order.push('release'); } }; }, close() { order.push('hide'); } };
+  const closing = closeInlinePanel(element, false);
+  assert.deepEqual(order, ['animate']);
+  finish(); await closing;
+  assert.deepEqual(order, ['animate', 'hide', 'release']);
+});
+test('reduced motion closes immediately without creating an animation', async () => {
+  const { closeInlinePanel } = load('src/app/lib/inlinePanelMotion.ts', {});
+  let closed = false;
+  await closeInlinePanel({ close() { closed = true; }, animate() { throw Error('unexpected animation'); } }, true);
+  assert.equal(closed, true);
+});
+test('an interrupted exit still hides the panel before releasing its held frame', async () => {
+  const { closeInlinePanel } = load('src/app/lib/inlinePanelMotion.ts', {});
+  const order = [];
+  await closeInlinePanel({ animate() { return { finished: Promise.reject(Error('interrupted')), cancel() { order.push('release'); } }; }, close() { order.push('hide'); } }, false);
+  assert.deepEqual(order, ['hide', 'release']);
+});
