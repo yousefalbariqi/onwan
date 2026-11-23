@@ -1,0 +1,19 @@
+{
+  "subscriptions": [
+    {
+      "status": "pending_payment",
+      "count": 2
+    }
+  ],
+  "manual": [
+    {
+      "status": "pending_payment",
+      "count": 2
+    }
+  ],
+  "payments": [
+    {
+      "count": 1
+    }
+  ]
+}

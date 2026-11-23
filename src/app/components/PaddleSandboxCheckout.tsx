@@ -20,10 +20,14 @@ export default function PaddleSandboxCheckout({ ready, email, features, loadErro
 
   useEffect(() => subscribeToSandbox(event => {
     if (!opened.current) return;
-    if (event.name === 'checkout.completed') { setCompleted(true); setOpening(false); }
+    if (event.name === 'checkout.completed') { setError(''); setCompleted(true); setOpening(false); }
     if (event.name === 'checkout.loaded') setOpening(false);
     if (event.name === 'checkout.closed') { opened.current = false; setOpening(false); }
-    if (event.name === 'checkout.error' || event.name === 'checkout.payment.error' || event.name === 'checkout.payment.failed') {
+    if (event.name === 'checkout.payment.failed') {
+      setOpening(false);
+      setError('رُفضت عملية الدفع التجريبية. جرّب بطاقة اختبار أخرى أو أعد المحاولة من نافذة Paddle.');
+    }
+    if (event.name === 'checkout.error' || event.name === 'checkout.payment.error') {
       setOpening(false);
       setError('تعذر إتمام الدفع التجريبي. تحقق من إعدادات Sandbox ورابط الدفع الافتراضي في Paddle، ثم حاول مجددًا.');
     }
@@ -53,6 +57,16 @@ export default function PaddleSandboxCheckout({ ready, email, features, loadErro
     return () => window.clearTimeout(timeout);
   }, [opening]);
 
+  // Render the real payment methods in-page rather than a second overlay.
+  // The target below is mounted before this effect runs.
+  useEffect(() => {
+    if (ready && price && !loadError && !opened.current) void pay();
+  }, [ready, price, loadError]);
+
+  useEffect(() => () => {
+    if (opened.current) { paddle.current?.Checkout.close(); opened.current = false; }
+  }, []);
+
   async function pay() {
     if (!price || !paddle.current || running.current || opening || completed) return;
     running.current = true; setOpening(true); setError('');
@@ -63,7 +77,14 @@ export default function PaddleSandboxCheckout({ ready, email, features, loadErro
       paddle.current.Checkout.open({
         items: [{ priceId: config.priceId, quantity: 1 }],
         ...(email ? { customer: { email, ...(price.address ? { address: price.address } : {}) } } : {}),
-        settings: { displayMode: 'overlay', variant: 'one-page', showAddDiscounts: false, showAddTaxId: false, ...(email ? { allowLogout: false } : {}) },
+        settings: {
+          displayMode: 'inline', variant: 'one-page', locale: 'ar',
+          frameTarget: 'onwan-paddle-payment', frameInitialHeight: 600,
+          frameStyle: 'width:100%;min-width:286px;background-color:transparent;border:none;',
+          allowedPaymentMethods: ['apple_pay', 'card'],
+          showAddDiscounts: false, showAddTaxId: false,
+          ...(email ? { allowLogout: false } : {}),
+        },
       });
     } catch (problem) {
       opened.current = false; setOpening(false);
@@ -80,7 +101,11 @@ export default function PaddleSandboxCheckout({ ready, email, features, loadErro
       {price ? <><p className="subscription-checkout__price" dir="auto">{price.total}</p><p className="subscription-checkout__annual">دفعة سنوية · العملة {price.currency}</p><p className="subscription-checkout__muted">هذا سعر الاختبار من Paddle، وليس سعر الإطلاق بالريال. قد يتحدث الإجمالي عند تغيير بلد الفوترة داخل نافذة الدفع.</p></> : !error && !loadError && <p role="status" className="subscription-checkout__loading"><Loader2 className="animate-spin" />جارٍ تحميل السعر التجريبي…</p>}
       <ul className="subscription-checkout__features">{features.map(feature => <li key={feature}><Check size={17} aria-hidden="true" /><span>{feature}</span></li>)}</ul>
       {(error || loadError) && <div role="alert" className="subscription-checkout__error"><p>{error || loadError}</p><button type="button" onClick={() => { retry(); setAttempt(value => value + 1); }}>إعادة المحاولة</button></div>}
-      {completed ? <div role="status" className="subscription-checkout__notice">انتهت خطوة الدفع في نافذة Sandbox. هذه النتيجة لا تؤكد السداد على خادم عنوان ولا تفعّل الاشتراك. <Link to="/builder">العودة للمصمم</Link></div> : <button type="button" className="subscription-checkout__pay" disabled={!ready || !price || opening || Boolean(loadError)} onClick={() => void pay()}>{opening ? 'جارٍ فتح Paddle…' : price ? `جرّب الدفع ${price.total}` : 'بانتظار السعر التجريبي'}</button>}
+      <h3>طريقة الدفع</h3>
+      <p className="subscription-checkout__muted">Apple Pay بالأعلى على الأجهزة المدعومة، ثم الدفع بالبطاقة.</p>
+      {opening && <p role="status" className="subscription-checkout__loading"><Loader2 className="animate-spin" />جارٍ تحميل خيارات الدفع…</p>}
+      <div className="onwan-paddle-payment" aria-label="Apple Pay والدفع بالبطاقة" />
+      {completed ? <div role="status" className="subscription-checkout__notice">انتهت خطوة الدفع في نافذة Sandbox. هذه النتيجة لا تؤكد السداد على خادم عنوان ولا تفعّل الاشتراك. <Link to="/builder">العودة للمصمم</Link></div> : error && <button type="button" className="subscription-checkout__pay" disabled={!ready || !price || opening || Boolean(loadError)} onClick={() => void pay()}>إعادة فتح خيارات الدفع</button>}
     </section>
   </div></main>;
 }

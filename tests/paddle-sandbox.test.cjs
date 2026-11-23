@@ -33,19 +33,40 @@ test('shows Paddle formatted totals verbatim, retains preview location, and reje
 test('checkout saves the draft then opens the exact annual price, prefills the user and never provisions', async () => {
   const calls = []; const client = { Checkout: { open: options => calls.push(['open', options]) } };
   let state = 0, ref = 0;
-  const hooks = { ...React, useEffect() {}, useState: initial => [state++ === 0 ? sandboxPrice(preview(), priceId) : initial, () => {}],
+  const effects = [];
+  const hooks = { ...React, useEffect: effect => effects.push(effect), useState: initial => [state++ === 0 ? sandboxPrice(preview(), priceId) : initial, () => {}],
     useRef: value => ({ current: ref++ === 0 ? client : value }) };
   const Page = load('src/app/components/PaddleSandboxCheckout.tsx', {
     react: hooks, 'react-router': { Link: 'a', useNavigate: () => () => {} }, '@paddle/paddle-js': sdk,
   }).default;
   const tree = Page({ ready: true, email: 'test@example.com', features: [], retry() {}, saveDraft: async () => calls.push(['save']) });
   const html = renderToStaticMarkup(tree); assert.match(html, /\$57\.50/); assert.match(html, /لا تحصيل حقيقي/); assert.doesNotMatch(html, /190 ريال|انشر صفحتي/);
-  function find(node) { if (!node || typeof node !== 'object') return; if (node.props?.className === 'subscription-checkout__pay') return node;
-    for (const child of React.Children.toArray(node.props?.children)) { const found = find(child); if (found) return found; } }
-  find(tree).props.onClick(); await new Promise(resolve => setImmediate(resolve));
+  assert.match(html, /onwan-paddle-payment/);
+  effects[3](); await new Promise(resolve => setImmediate(resolve));
   assert.equal(calls[0][0], 'save'); assert.equal(calls[1][0], 'open');
   assert.deepEqual(calls[1][1].items, [{ priceId, quantity: 1 }]);
-  assert.equal(calls[1][1].settings.variant, 'one-page'); assert.equal(calls[1][1].settings.displayMode, 'overlay');
+  assert.equal(calls[1][1].settings.variant, 'one-page'); assert.equal(calls[1][1].settings.displayMode, 'inline');
+  assert.deepEqual(calls[1][1].settings.allowedPaymentMethods, ['apple_pay', 'card']);
+  assert.equal(calls[1][1].settings.frameTarget, 'onwan-paddle-payment');
   assert.deepEqual(calls[1][1].customer, { email: 'test@example.com', address: { countryCode: 'SA' } });
   assert.equal(calls.length, 2);
+});
+
+test('a declined card asks for another test card, and completion clears the old failure without granting access', () => {
+  let state = 0, listener;
+  const updates = [];
+  const helpers = { sandboxConfig, sandboxPrice, loadSandbox: async () => { throw Error('should not load without session'); },
+    subscribeToSandbox: callback => { listener = callback; return () => {}; } };
+  let ref = 0;
+  const hooks = { ...React, useEffect: effect => effect(), useState: initial => { const index = state++; return [initial, value => updates.push([index, value])]; },
+    useRef: value => ({ current: ref++ === 2 ? true : value }) };
+  const Page = load('src/app/components/PaddleSandboxCheckout.tsx', { react: hooks,
+    'react-router': { Link: 'a', useNavigate: () => () => {} }, '../lib/paddleSandbox': helpers }).default;
+  Page({ ready: false, features: [], retry() {}, saveDraft: async () => {} });
+  listener({ name: 'checkout.payment.failed' });
+  assert.ok(updates.some(([index, value]) => index === 1 && /بطاقة اختبار أخرى/.test(value)));
+  assert.ok(!updates.some(([, value]) => typeof value === 'string' && /إعدادات Sandbox/.test(value)));
+  listener({ name: 'checkout.completed' });
+  assert.ok(updates.some(([index, value]) => index === 1 && value === ''));
+  assert.ok(updates.some(([index, value]) => index === 4 && value === true));
 });

@@ -31,6 +31,8 @@
 .subscription-checkout :is(button,a):focus-visible { outline: 3px solid #b4481c; outline-offset: 3px; }
 .subscription-checkout__loading { padding: 40px; text-align: center; font-size: 13px; color: #737373; }
 .subscription-checkout__loading svg { margin: 0 auto 12px; }
+.onwan-paddle-payment { margin-inline: -12px; }
+@media (max-width: 350px) { .onwan-paddle-payment { margin-inline: -18px; } }
 @media (max-width: 350px) { .subscription-checkout { padding-inline: 14px; } .subscription-checkout__card { padding: 24px 18px; } .subscription-checkout__total { font-size: 11px; } .subscription-checkout__total strong { font-size: 18px; } }
 .subscription-checkout__result { padding: 50px 10px; text-align: center; }
 .subscription-checkout__result h1 { font-size: 28px; line-height: 1.8; margin: 24px 0 12px; }
