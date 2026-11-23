@@ -102,7 +102,8 @@ export default function CreationTemplates() {
         </div>
         <div id="creation-template-options" className="creation-themes__options" role="radiogroup" aria-label="التصاميم المتاحة" onScroll={event => { if (event.currentTarget.scrollTop > 12 && !expanded) setExpanded(true); }}>
           {results.map((template, index) => <button ref={node => { buttons.current[index] = node; }} key={template.id} type="button" role="radio" aria-checked={active.id === template.id} tabIndex={active.id === template.id || (!canContinue && index === 0) ? 0 : -1} aria-label={`تصميم ${template.name}`} className={`creation-themes__option${active.id === template.id ? ' is-selected' : ''}`} onClick={() => choose(template.id)} onKeyDown={event => {
-            const delta = { ArrowLeft: 1, ArrowRight: -1, ArrowDown: 3, ArrowUp: -3 }[event.key];
+            const columns = window.matchMedia('(max-width: 760px) and (min-height: 601px)').matches ? 5 : 3;
+            const delta = { ArrowLeft: 1, ArrowRight: -1, ArrowDown: columns, ArrowUp: -columns }[event.key];
             if (delta === undefined && event.key !== 'Home' && event.key !== 'End') return;
             event.preventDefault();
             const next = event.key === 'Home' ? 0 : event.key === 'End' ? results.length - 1 : (index + delta + results.length) % results.length;

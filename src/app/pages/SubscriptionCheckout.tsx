@@ -6,6 +6,8 @@ import { accountCall, type Account } from '../lib/api';
 import { pageHost } from '../lib/site';
 import type { subscriptionCheckoutPolicy } from '../../../shared/subscriptionCheckout';
 import '../../styles/subscription-checkout.css';
+import PaddleSandboxCheckout from '../components/PaddleSandboxCheckout';
+import { paddleSandboxRequested } from '../lib/paddleSandbox';
 
 type Quote = { checkout: ReturnType<typeof subscriptionCheckoutPolicy>; account: Account; demoPrices?: boolean; cart?: { cart_number: number; plan: string; total: number; design_price: number | null; nfc_quantity: number; custom_domain: string | null; discount_code?: string | null } | null };
 export const checkoutMoney = (value: number) => `${value.toLocaleString('en', { maximumFractionDigits: 2 })} ريال`;
@@ -44,6 +46,10 @@ export default function SubscriptionCheckout() {
       else throw new Error('تعذر بدء الدفع. لم يتم تأكيد أي عملية.');
     } catch (problem) { setError(problem instanceof Error ? problem.message : 'تعذر بدء الدفع.'); }
     finally { running.current = false; setBusy(false); }
+  }
+  if (paddleSandboxRequested(import.meta.env) && quote?.account.kind !== 'nonprofit') {
+    return <PaddleSandboxCheckout ready={Boolean(quote && isAuthenticated && !loadingPage)} email={quote?.account.email}
+      features={policy?.features ?? []} loadError={error} retry={() => setAttempt(value => value + 1)} saveDraft={saveDraft} />;
   }
   return <main className="subscription-checkout" dir="rtl"><div className="subscription-checkout__container">
     <button type="button" className="subscription-checkout__back" onClick={() => navigate('/builder')} aria-label="الرجوع إلى المصمم"><ArrowRight size={22} /></button>

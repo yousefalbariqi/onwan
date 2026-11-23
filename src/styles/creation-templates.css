@@ -121,3 +121,27 @@
   .creation-themes__search-status { margin-top: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { .creation-themes *, .creation-themes__stage { transition: none; } }
+
+/* Phone: the page stays the star. Shorter theme cards keep three comfortable
+   columns while the buttons of the preview remain in view. */
+@media (max-width: 760px) and (min-height: 601px) {
+  .creation-themes__layout { --sheet-height: min(392px, 47%); }
+  .creation-themes.is-expanded .creation-themes__layout { --sheet-height: 76%; }
+  .creation-themes__phone { width: min(250px, 62vw); }
+  .creation-themes__sheet-heading { padding: 0 16px 6px; }
+  .creation-themes__handle { height: 18px; }
+  .creation-themes__heading-row { min-height: 44px; }
+  .creation-themes__search { min-height: 44px; border-color: transparent; border-radius: 14px; background: #F2F1ED; }
+  .creation-themes__search input { min-height: 42px; }
+  .creation-themes__search-status { margin-top: 4px; font-size: 11px; line-height: 1.6; }
+  .creation-themes__options { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px 5px; padding: 2px 14px 10px; }
+  .creation-themes__thumbnail { border-radius: 14px; }
+  .creation-themes__swatch { aspect-ratio: 1 / 1.08; gap: 2px; padding: 5px 5px 6px; border-radius: 8px; }
+  .creation-themes__font-sample { font-size: 17px; line-height: 1.25; }
+  .creation-themes__button-sample { height: 13px; min-height: 13px; }
+  .creation-themes__selected-mark { top: 2px; left: 2px; width: 18px; height: 18px; }
+  .creation-themes__selected-mark svg { width: 10px; height: 10px; }
+  .creation-themes__thumbnail { border-radius: 12px; }
+  .creation-themes__name { margin-top: 2px; overflow: hidden; font-size: 11px; line-height: 1.5; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+  .creation-themes__footer { padding: 7px 16px calc(7px + env(safe-area-inset-bottom)); }
+}
