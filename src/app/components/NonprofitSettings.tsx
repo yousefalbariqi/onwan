@@ -35,7 +35,7 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
   if (!account) return null;
 
   const back = (
-    <button type="button" onClick={() => setPage('root')} className="flex h-10 items-center gap-1 text-[15px] text-[#0a84ff]"><ChevronRight className="h-5 w-5" />الإعدادات</button>
+    <button type="button" onClick={() => setPage('root')} className="flex h-10 items-center gap-1 text-[15px] text-[#C2410C]"><ChevronRight className="h-5 w-5" />الإعدادات</button>
   );
 
   if (page.startsWith('change-')) {
@@ -48,7 +48,7 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
       <div className="space-y-4 p-5">
         {back}
         <Group title="رسالتك للإدارة" footer="نرد عليك على بريد حسابك وجواله.">
-          <div className="px-4 py-3"><textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} maxLength={4000} aria-label="رسالتك للإدارة" placeholder="اكتب استفسارك أو طلبك…" className="w-full resize-none bg-transparent text-[16px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" /></div>
+          <div className="px-4 py-3"><textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} maxLength={4000} aria-label="رسالتك للإدارة" placeholder="اكتب استفسارك أو طلبك…" className="w-full resize-none bg-transparent text-[16px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none" /></div>
         </Group>
         {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
         <PrimaryButton busy={sending} disabled={!message.trim()} onClick={async () => {
@@ -70,11 +70,11 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="space-y-6 p-5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-      {toast && <p role="status" className="rounded-xl bg-[#34c759]/10 px-4 py-2 text-sm font-bold text-[#1f8a3b]">{toast}</p>}
+      {toast && <p role="status" className="rounded-xl bg-[#16A34A]/10 px-4 py-2 text-sm font-bold text-[#15803D]">{toast}</p>}
 
       <Group title="صفحتك">
-        <SettingsRow icon={Link2} tone="bg-[#0a84ff]" label="الرابط" value={<span dir="ltr">{pageData.username ? pageHost(pageData.username) : '—'}</span>} />
-        <SettingsRow icon={Link2} tone="bg-[#34c759]" label="الحالة" value={PAGE_STATUS[account.pageStatus] ?? account.pageStatus} />
+        <SettingsRow icon={Link2} tone="bg-[#111111]" label="الرابط" value={<span dir="ltr">{pageData.username ? pageHost(pageData.username) : '—'}</span>} />
+        <SettingsRow icon={Link2} tone="bg-[#16A34A]" label="الحالة" value={PAGE_STATUS[account.pageStatus] ?? account.pageStatus} />
         {quote && <SettingsRow icon={MessageCircle} tone="bg-[#ff9500]" label={`طلب عرض السعر #${quote.request_number}`} value={quoteStatus[quote.status] ?? quote.status} />}
         {/* Temporarily disabled until the link-change feature is approved: the
             field and «تغيير» stay visible but inert, and the current link above
@@ -82,21 +82,21 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
             `disabled` conditions. */}
         {!account.nameFixed && (
           <div className="space-y-2 px-4 py-3">
-            <p className="text-xs text-[#6e6e73]">تغيير الرابط غير متاح حاليًا.</p>
+            <p className="text-xs text-[#737373]">تغيير الرابط غير متاح حاليًا.</p>
             <div className="flex items-center gap-2 opacity-50" dir="ltr">
-              <input value={linkName} disabled maxLength={30} placeholder="new-link" aria-label="الرابط الجديد" className="min-w-0 flex-1 rounded-xl bg-[#f2f2f7] px-3 py-2.5 text-[15px] focus:outline-none" />
-              <button type="button" disabled onClick={changeLink} className="shrink-0 rounded-xl bg-[#0a84ff] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{linkBusy ? '…' : 'تغيير'}</button>
+              <input value={linkName} disabled maxLength={30} placeholder="new-link" aria-label="الرابط الجديد" className="min-w-0 flex-1 rounded-xl bg-[#F5F5F3] px-3 py-2.5 text-[15px] focus:outline-none" />
+              <button type="button" disabled onClick={changeLink} className="shrink-0 rounded-xl bg-[#111111] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{linkBusy ? '…' : 'تغيير'}</button>
             </div>
-            {linkMsg && <p role="status" className="text-xs text-[#3a3a3c]">{linkMsg}</p>}
+            {linkMsg && <p role="status" className="text-xs text-[#262626]">{linkMsg}</p>}
           </div>
         )}
       </Group>
 
       <Group title="الحساب" footer="أي تغيير يحتاج رمزًا نرسله إلى بريدك المسجل.">
-        <SettingsRow icon={Mail} tone="bg-[#0a84ff]" label="البريد الإلكتروني" value={<span dir="ltr">{account.email || '—'}</span>} onClick={() => setPage('change-email')} />
+        <SettingsRow icon={Mail} tone="bg-[#111111]" label="البريد الإلكتروني" value={<span dir="ltr">{account.email || '—'}</span>} onClick={() => setPage('change-email')} />
         {!account.emailVerified && <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-[#b45309]"><span>غير مؤكَّد — مطلوب للمتابعة وطلب عرض السعر</span><EmailVerifyChip label="تأكيد البريد" /></div>}
-        <SettingsRow icon={Smartphone} tone="bg-[#34c759]" label="رقم الجوال" value={<span dir="ltr">{account.phone}</span>} onClick={() => setPage('change-phone')} />
-        <SettingsRow icon={KeyRound} tone="bg-[#8e8e93]" label="كلمة المرور" value="••••••••" onClick={() => setPage('change-password')} />
+        <SettingsRow icon={Smartphone} tone="bg-[#16A34A]" label="رقم الجوال" value={<span dir="ltr">{account.phone}</span>} onClick={() => setPage('change-phone')} />
+        <SettingsRow icon={KeyRound} tone="bg-[#737373]" label="كلمة المرور" value="••••••••" onClick={() => setPage('change-password')} />
       </Group>
 
       <Group title="الإحصاءات">
@@ -104,14 +104,14 @@ export function NonprofitSettings({ onLogout }: { onLogout: () => void }) {
       </Group>
 
       <Group title="المساعدة">
-        <SettingsRow icon={MessageCircle} tone="bg-[#34c759]" label="التواصل مع الإدارة" onClick={() => setPage('support')} />
+        <SettingsRow icon={MessageCircle} tone="bg-[#16A34A]" label="التواصل مع الإدارة" onClick={() => setPage('support')} />
       </Group>
 
       <Group title="التصميم" footer="يعيد الثيم والخلفية والأزرار والخط إلى الشكل الافتراضي، ولا يمس الاسم أو الوصف أو الشعار أو المحتوى.">
         <SettingsRow icon={Palette} tone="bg-[#ff2d55]" label="استعادة التصميم الافتراضي" onClick={() => setConfirmReset(true)} />
       </Group>
 
-      <button type="button" onClick={onLogout} className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-white text-[15px] font-bold text-[#ff3b30] active:bg-[#f2f2f7]">
+      <button type="button" onClick={onLogout} className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-white text-[15px] font-bold text-[#DC2626] active:bg-[#F5F5F3]">
         <LogOut className="h-5 w-5" />تسجيل الخروج
       </button>
 

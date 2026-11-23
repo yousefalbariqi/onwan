@@ -14,6 +14,7 @@ import { ProfileImageDisplay } from './ProfileImageDisplay';
 import { SocialIcon, brandColor } from './SocialIcons';
 import { FONT_WEIGHTS, buttonMetrics } from '../lib/buttonSizes';
 import { OFFICIAL_DOCUMENT_ICON } from '../lib/officialDocuments';
+import { pageColors } from '../lib/readableColors';
 
 interface PageViewProps {
   data: PageData;
@@ -110,6 +111,8 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
   useEffect(() => loadCustomFont(customFont, rootRef.current?.ownerDocument), [customFont]);
   const fontFamily = customFont ? `${customFontFamily(customFont)}, ${builtInFamily}` : builtInFamily;
   useEffect(() => loadFont(data.typography?.font), [data.typography?.font]);
+  useEffect(() => { if (data.typography?.nameFont) loadFont(data.typography.nameFont); }, [data.typography?.nameFont]);
+  const nameFontFamily = data.typography?.nameFont ? FONT_OPTIONS.find(font => font.id === data.typography?.nameFont)?.family : undefined;
   // nameSize / bioSize override the shared size for each text.
   const textSize = data.typography?.size ?? 'medium';
   const nameSize = data.typography?.nameSize ?? textSize;
@@ -128,13 +131,16 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
 
   const accentColor =
     buttonStyle.useCustomColor && buttonStyle.customColor ? buttonStyle.customColor : theme.buttonColor;
-  const buttonTextColor = buttonStyle.textColor || (buttonStyle.border ? accentColor : theme.buttonTextColor);
+  // Audit E01: colours left on «لون الثيم» stay readable on this page's real background.
+  const readable = pageColors(data);
+  const buttonTextColor = readable.buttonText;
+  const buttonEdge = readable.buttonEdge;
   // Exact sizes from «تحكم دقيق» (note 34); a preset alone keeps its classes.
   const metrics = buttonMetrics(buttonStyle);
   const sizeStyle = metrics.custom ? { minHeight: metrics.height, paddingTop: 6, paddingBottom: 6, fontSize: metrics.font } : {};
   const fontWeight = buttonStyle.fontWeight ? FONT_WEIGHTS[buttonStyle.fontWeight] : 600;
-  const headingColor = data.customColors?.headingColor || data.customColors?.nameColor || theme.textColor;
-  const paragraphColor = data.customColors?.paragraphColor || data.customColors?.bioColor || theme.textColor;
+  const headingColor = data.customColors?.headingColor || data.customColors?.nameColor || readable.text;
+  const paragraphColor = data.customColors?.paragraphColor || data.customColors?.bioColor || readable.text;
   // What a logo sits on: the button fill, or the page behind an outline-only button.
   const buttonSurface = buttonStyle.border ? (wallpaper.type === 'color' ? wallpaper.value : theme.background) : accentColor;
 
@@ -157,10 +163,10 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
   );
 
   const identity = (field: 'name' | 'bio' | 'image', content: ReactNode) => onIdentityClick
-    ? <div role="button" tabIndex={0} aria-label={`تعديل ${field === 'name' ? 'الاسم' : field === 'bio' ? 'النبذة' : 'الصورة'}`} className={`onwan-inline-target${selectedItemId === field ? ' is-selected' : ''}`} onClick={() => onIdentityClick(field)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onIdentityClick(field); } }}>{content}</div>
+    ? <div role="button" tabIndex={0} aria-label={`تعديل ${field === 'name' ? 'الاسم' : field === 'bio' ? 'النبذة' : 'الصورة'}`} className={`onwan-inline-target${field === 'image' ? ' onwan-inline-target--image' : ''}${selectedItemId === field ? ' is-selected' : ''}`} onClick={() => onIdentityClick(field)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onIdentityClick(field); } }}>{content}</div>
     : content;
   const profileImage = identity('image', rawProfileImage);
-  const addSlot = (id: string | null) => onAddAfter ? <button type="button" className="onwan-inline-add" onClick={() => onAddAfter(id)} aria-label={id ? 'إضافة محتوى بعد هذا العنصر' : 'إضافة محتوى في بداية الصفحة'}><span aria-hidden="true">+</span><span>أضف إلى صفحتك</span></button> : null;
+  const addSlot = (id: string | null) => onAddAfter ? <button type="button" className="onwan-inline-add" style={{ color: readable.text, borderColor: `color-mix(in srgb, ${readable.text} 55%, transparent)` }} onClick={() => onAddAfter(id)} aria-label={id ? 'إضافة محتوى بعد هذا العنصر' : 'إضافة محتوى في بداية الصفحة'}><span aria-hidden="true">+</span><span>أضف إلى صفحتك</span></button> : null;
 
   // Note 22: an incomplete item in its final shape, faded, with a small mark.
   // Note 23: in the editor every item is a way into its own settings.
@@ -198,7 +204,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
     // Note 35 / 44: a picture card — a fixed video-shaped (16:9) frame on top (cropped where its owner
     // set it, never stretched) and the button under it. A «pill» button style
     // would turn the card into an oval, so cards keep rounded corners instead.
-    if (link.display?.layout === 'card' && link.display.image) return <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" download={link.linkType === 'file' ? link.fileName || true : undefined} className={`block w-full overflow-hidden transition-opacity hover:opacity-90 ${buttonStyle.shape === 'pill' ? 'rounded-3xl' : BUTTON_SHAPES[buttonStyle.shape]} ${buttonStyle.shadow ? 'shadow-lg' : ''} ${buttonStyle.border ? 'border-2' : ''}`} style={{ backgroundColor: buttonStyle.border ? 'transparent' : withAlpha(accentColor, buttonStyle.opacity ?? 100), color: buttonTextColor, borderColor: accentColor }}>
+    if (link.display?.layout === 'card' && link.display.image) return <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" download={link.linkType === 'file' ? link.fileName || true : undefined} className={`block w-full overflow-hidden transition-opacity hover:opacity-90 ${buttonStyle.shape === 'pill' ? 'rounded-3xl' : BUTTON_SHAPES[buttonStyle.shape]} ${buttonStyle.shadow ? 'shadow-lg' : ''} ${buttonStyle.border ? 'border-2' : ''}`} style={{ backgroundColor: buttonStyle.border ? 'transparent' : withAlpha(accentColor, buttonStyle.opacity ?? 100), color: buttonTextColor, borderColor: buttonEdge }}>
       <div className="aspect-video w-full overflow-hidden bg-black/5"><img src={link.display.image} alt="" loading="lazy" className="h-full w-full" style={cardImageStyle(link.display)} /></div>
       <span className={`block break-words ${BUTTON_SIZES[buttonStyle.size ?? 'medium']} ${link.textPosition === 'right' ? 'text-start' : 'text-center'}`} style={{ ...sizeStyle, minHeight: undefined, fontWeight }}>{(lang === 'en' && link.titleEn) || link.title}</span>
     </a>;
@@ -211,7 +217,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
     // button; then it takes the button text colour, which always reads.
     const brand = brandColor(platform);
     // Library icons have no brand colour: they follow the button text.
-    const customIconColor = buttonStyle.iconColor === 'custom' && buttonStyle.iconCustomColor ? buttonStyle.iconCustomColor : undefined;
+    const customIconColor = readable.icon;
     const useText = buttonStyle.iconColor === 'text' || link.iconStyle === 'mono' || link.customIcon?.startsWith('icon:') || contrastRatio(brand, buttonSurface) < MIN_LOGO_CONTRAST;
     const icon = (
       <SocialIcon
@@ -237,7 +243,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
             ? 'transparent'
             : withAlpha(accentColor, buttonStyle.opacity ?? 100),
           color: buttonTextColor,
-          borderColor: accentColor,
+          borderColor: buttonEdge,
           ...sizeStyle,
         }}
       >
@@ -292,7 +298,7 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
               isHeroLayout ? 'min-h-[700px]' : 'min-h-[600px]'
             }`
       }
-      style={{ ...backgroundStyle, color: theme.textColor, fontFamily }}
+      style={{ ...backgroundStyle, color: readable.text, fontFamily }}
       dir={lang === 'en' ? 'ltr' : 'rtl'}
     >
       <div aria-hidden="true" className="page-composition-pattern pointer-events-none absolute inset-0" />
@@ -320,10 +326,10 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
 
           {(name || !isPublic || onIdentityClick) && identity('name', (
             <h1
-              className={`${NAME_SIZES.public[nameSize]} font-black mb-3 text-center ${
+              className={`${NAME_SIZES.public[nameSize]} font-black ${bio || !isPublic || onIdentityClick ? 'mb-2' : 'mb-6'} w-full leading-snug text-center ${
                 isHeroLayout ? 'mt-0 drop-shadow-md' : 'mt-4'
               }`}
-              style={{ color: data.customColors?.nameColor || theme.textColor, fontSize: data.typography?.namePx ? `${data.typography.namePx}px` : undefined }}
+              style={{ fontFamily: nameFontFamily, color: data.customColors?.nameColor || readable.text, textShadow: data.customColors?.nameColor ? undefined : readable.halo, fontSize: data.typography?.namePx ? `${data.typography.namePx}px` : undefined }}
             >
               {name || 'اسم الجهة'}
             </h1>
@@ -331,8 +337,8 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
 
           {(bio || !isPublic || onIdentityClick) && identity('bio', (
             <p
-              className={`${BIO_SIZES.public[bioSize]} opacity-90 mb-4 text-center max-w-sm whitespace-pre-line`}
-              style={{ color: data.customColors?.bioColor || theme.textColor, fontSize: data.typography?.bioPx ? `${data.typography.bioPx}px` : undefined }}
+              className={`${BIO_SIZES.public[bioSize]} opacity-90 ${data.username ? 'mb-2' : 'mb-6'} leading-relaxed text-center max-w-sm whitespace-pre-line`}
+              style={{ color: data.customColors?.bioColor || readable.text, textShadow: data.customColors?.bioColor ? undefined : readable.halo, fontSize: data.typography?.bioPx ? `${data.typography.bioPx}px` : undefined }}
             >
               <FormattedText text={bio || 'أضف تعريفًا قصيرًا بالجهة ونشاطها'} format={english?.bio ? undefined : data.typography?.bioFormat} />
             </p>
@@ -342,7 +348,8 @@ export function PageView({ data, variant, lang = 'ar', children, showIncomplete 
             <div
               className={`text-sm text-center mb-6`}
               style={{
-                color: data.customColors?.usernameColor || theme.textColor,
+                color: data.customColors?.usernameColor || readable.text,
+                textShadow: data.customColors?.usernameColor ? undefined : readable.halo,
                 opacity: data.customColors?.usernameColor ? 1 : 0.7,
               }}
               dir="ltr"

@@ -103,6 +103,8 @@ function screen({ existing = false, failSave = false, failSession = false, failV
   }).default;
   return { render: () => { cursor = 0; return Page(); }, routes, sessions, saved, verifies: () => verifies, sends: () => sends };
 }
+// The page holds the green «correct code» state briefly; tests skip that wait.
+global.window ??= { setTimeout: callback => { callback(); return 0; }, clearTimeout() {} };
 const tick = () => new Promise(resolve => setImmediate(resolve));
 async function enterCode(h) {
   walk(h.render(), node => node.type === 'input')[0].props.onChange({ target: { value: 'person@example.org' } });

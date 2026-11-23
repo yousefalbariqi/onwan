@@ -29,7 +29,7 @@ export function JourneyBuilder({ kind }: { kind: JourneyKind }) {
   const nonprofit = kind === 'nonprofit';
   return <>
     {!advanced ? <InlinePageEditor onAdvanced={() => setAdvanced(true)} onBack={() => navigate(path())} onContinue={() => { if (account?.pageStatus === 'draft') navigate(path('preview')); }} continueLabel={account?.pageStatus === 'draft' ? 'التالي: المعاينة' : account?.pageStatus === 'suspended' ? 'حفظ التعديلات' : 'نشر التعديلات'} /> : <>
-    <div className="bg-[#fffefa] p-2 text-center"><button type="button" onClick={() => setAdvanced(false)} className="rounded-full border border-[#e5dfd1] px-5 py-2 text-sm">العودة للتحرير المباشر</button></div>
+    <div className="bg-[#FFFFFF] p-2 text-center"><button type="button" onClick={() => setAdvanced(false)} className="rounded-full border border-[#e5dfd1] px-5 py-2 text-sm">العودة للتحرير المباشر</button></div>
     <Builder editor={customerEditorConfig} workspace={{
       kind,
       title: account?.pageStatus === 'published' ? (nonprofit ? 'محرر صفحة الجمعية' : 'محرر صفحتك') : (nonprofit ? 'تصميم الجمعية — مسودة خاصة' : 'تصميم صفحتك — مسودة خاصة'),

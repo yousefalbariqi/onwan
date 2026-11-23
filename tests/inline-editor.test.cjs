@@ -39,15 +39,16 @@ test('published renderer has normal links and no editing controls; inline contro
   assert.match(editorHtml, /تعديل الاسم/); assert.match(editorHtml, /تعديل الصورة/); assert.match(editorHtml, /تعديل النبذة/);
   assert.match(editorHtml, /أضف إلى صفحتك/); assert.match(editorHtml, /is-selected/);
 });
-function draftSource({ fail = false } = {}) {
-  const session = new Map(), records = new Map(), writes = [];
+function draftSource({ fail = false, creationToken = null } = {}) {
+  const session = new Map(), records = new Map(), writes = [], cloudWrites = [];
   const storage = { getItem: key => session.get(key) ?? null, setItem: (key, value) => session.set(key, value) };
   const templates = { readCreationDraft: () => JSON.parse(session.get('draft') || 'null'), saveCreationDraft: data => { session.set('draft', JSON.stringify(data)); session.set('onwan_guest_creation_stamp', String(Date.now())); return true; } };
   const api = load('src/app/lib/creationDraftSource.ts', {
     './draftRecovery': { readRecovery: async key => records.get(key) ?? null, writeRecovery: async (record, key) => { if (fail) throw Error('quota'); records.set(key, record); writes.push(record); } },
     './creationTemplates': templates,
+    './creationCloud': { creationSession: () => creationToken ? { token: creationToken } : null, readCloudCreation: async () => ({}), storeCreationSession() {}, writeCloudCreation: async data => { cloudWrites.push(data); return data; } },
   }, { sessionStorage: storage, crypto });
-  return { source: api.createGuestPageSource(), create: api.createGuestPageSource, session, records, writes };
+  return { source: api.createGuestPageSource(), create: api.createGuestPageSource, session, records, writes, cloudWrites };
 }
 test('guest source saves incomplete forms durably and resumes the same draft across editor modes', async () => {
   const h = draftSource();
@@ -61,7 +62,7 @@ test('guest snapshots are ordered and an IndexedDB failure is reported instead o
   const h = draftSource();
   await Promise.all([h.source.saveDraft({ name: 'first', links: [] }), h.create().saveDraft({ name: 'latest', links: [] })]);
   assert.equal((await h.create().load()).pageData.name, 'latest');
-  assert.ok(h.writes[1].sequence > h.writes[0].sequence);
+  assert.ok(h.writes.at(-1).sequence > h.writes[0].sequence);
   await assert.rejects(draftSource({ fail: true }).source.saveDraft({ name: 'file', links: [] }), /quota/);
 });
 
@@ -76,8 +77,11 @@ test('durable guest media wins over an older session copy and does not leak into
   await assert.rejects(h.create().load(), /اختر تصميمًا/);
 });
 
-function workspace({ failDraft = false, pending = false } = {}) {
+function workspace({ failDraft = false, pending = false, dirtyPage = false, localOnly = true } = {}) {
   let cursor = 0; const slots = [], actions = [];
+  let data = { name: 'اسمي', bio: '', profileImage: '', theme: { background: '#fff', textColor: '#111' }, wallpaper: { type: 'color', value: '#ffffff' }, profileStyle: { type: 'circle' }, buttonStyle: { shape: 'pill' }, links: [{ id: 'first' }, { id: 'last' }] };
+  let baseline = structuredClone(data);
+  if (dirtyPage) data = { ...data, bio: 'تعديل محلي' };
   const PageView = () => null, LinkEditor = () => null;
   const noop = () => null;
   const hooks = { ...React, useEffect() {}, useLayoutEffect() {}, useCallback: callback => callback, useRef: value => slots[cursor++] ??= { current: value }, useState: initial => {
@@ -86,20 +90,21 @@ function workspace({ failDraft = false, pending = false } = {}) {
   } };
   const Component = load('src/app/components/InlinePageEditor.tsx', {
     react: hooks,
-    '../context/PageContext': { usePageContext: () => ({
-      pageData: { name: 'اسمي', bio: '', profileImage: '', theme: { background: '#fff', textColor: '#111' }, buttonStyle: { shape: 'pill' }, links: [{ id: 'first' }, { id: 'last' }] },
+    '../context/PageContext': { FONT_OPTIONS: [{ id: 'cairo', name: 'Cairo', family: 'Cairo, sans-serif' }], usePageContext: () => ({
+      pageData: data, savedDraftData: baseline, enableManualDraftSaving() {},
+      discardDraftChanges: async () => { actions.push('discard'); data = structuredClone(baseline); },
       loadingPage: false, saving: false, conflict: false, draftState: 'saved', canUndo: true, canRedo: true,
-      saveDraft: async () => { actions.push('draft'); if (failDraft) throw Error('save failed'); },
+      saveDraft: async () => { actions.push('draft'); if (failDraft) throw Error('save failed'); baseline = structuredClone(data); },
       save: async () => { actions.push('save'); }, hasPendingChanges: () => pending,
       undo: () => actions.push('undo'), redo: () => actions.push('redo'), updatePageData() {}, moveLink() {},
     }) },
-    '../lib/editorPreview': { editorPreview: data => data },
+    '../lib/editorPreview': { editorPreview: data => data, withSampleLinks: data => data, draftHasContent: draft => Boolean(draft?.form?.title) },
     './PageView': { PageView }, './LinkEditor': { LinkEditor }, './TemporaryPasswordGate': { TemporaryPasswordGate: noop },
-    './HeaderEditor': { HeaderEditor: noop }, './FormattingTextarea': { FormattingTextarea: noop },
+    './MobileHeaderEditor': { MobileHeaderEditor: noop }, './FormattingTextarea': { FormattingTextarea: noop },
     './WallpaperEditor': { WallpaperEditor: noop }, './StyleEditor': { StyleEditor: noop },
     './CreationInlineTemplates': { CreationInlineTemplates: noop }, './TemplateGallery': { TemplateGallery: noop },
   }).InlinePageEditor;
-  return { actions, PageView, LinkEditor, render() { cursor = 0; return Component({ localOnly: true, onAdvanced: () => actions.push('advanced'), onBack: () => actions.push('back'), onContinue: () => actions.push('continue'), continueLabel: 'حفظ صفحتي' }); } };
+  return { actions, PageView, LinkEditor, render() { cursor = 0; return Component({ localOnly, onAdvanced: () => actions.push('advanced'), onBack: () => actions.push('back'), onContinue: () => actions.push('continue'), continueLabel: 'حفظ صفحتي' }); } };
 }
 function nodes(node, predicate, found = []) {
   if (!node || typeof node !== 'object') return found;
@@ -114,34 +119,36 @@ test('workspace has one add control, no repeated insertion slots, and appends th
   const page = nodes(tree, n => n.type === h.PageView)[0];
   assert.equal(nodes(page, n => n.props?.className === 'inline-editor__add').length, 1);
   assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__dock-actions').length, 0);
-  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__more-actions').length, 1);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__more-actions').length, 0);
   add[0].props.onClick(); tree = h.render();
   const editor = nodes(tree, n => n.type === h.LinkEditor)[0];
   assert.equal(editor.props.addRequest.afterId, 'last'); assert.equal(editor.props.focusId, null);
-  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__design-tools')[0].props.children.length, 6);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__design-tools')[0].props.children.length, 9);
 });
-test('preview removes editing controls and saves before changing mode; return and advanced preserve draft save', async () => {
+test('preview and clean navigation do not send draft writes', async () => {
   const h = workspace(); let tree = h.render();
-  nodes(tree, n => n.type === 'button' && n.props['aria-pressed'] === false)[0].props.onClick(); await settle();
+  nodes(tree, n => n.props?.className === 'inline-editor__preview-action')[0].props.onClick(); await settle();
   tree = h.render(); assert.ok(tree.props.className.includes('is-preview'));
   assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__dock').length, 0);
   assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__add').length, 0);
   assert.equal(nodes(tree, n => n.type === h.PageView)[0].props.onIdentityClick, undefined);
-  assert.deepEqual(h.actions, ['draft']);
+  assert.deepEqual(h.actions, []);
   nodes(tree, n => n.props?.['aria-label'] === 'العودة')[0].props.onClick(); await settle();
-  assert.deepEqual(h.actions.slice(-2), ['draft', 'back']);
+  assert.deepEqual(h.actions, ['back']);
 });
 test('header save retains completion checks and blocks navigation when newer changes remain', async () => {
   for (const pending of [false, true]) {
-    const h = workspace({ pending });
+    const h = workspace({ pending, localOnly: false });
     nodes(h.render(), n => n.props?.className === 'inline-editor__save')[0].props.onClick(); await settle();
     assert.equal(h.actions.includes('save'), true); assert.equal(h.actions.includes('continue'), !pending);
     if (pending) assert.ok(nodes(h.render(), n => n.props?.role === 'alert').length > 0);
   }
 });
-test('a failed draft save prevents leaving the editor and surfaces the error', async () => {
-  const h = workspace({ failDraft: true });
+test('dirty navigation is blocked without silently saving; a failed explicit save keeps the changes', async () => {
+  const h = workspace({ failDraft: true, dirtyPage: true });
   nodes(h.render(), n => n.props?.['aria-label'] === 'العودة')[0].props.onClick(); await settle();
+  assert.deepEqual(h.actions, []);
+  nodes(h.render(), n => n.props?.className === 'inline-editor__save')[0].props.onClick(); await settle();
   assert.deepEqual(h.actions, ['draft']);
   assert.ok(nodes(h.render(), n => n.props?.role === 'alert').length > 0);
 });
@@ -160,7 +167,7 @@ test('identity panel leaves a clear inert live preview, expands and closes witho
   assert.ok(h.render().props.className.includes('is-panel-expanded'));
   nodes(tree, n => n.props?.['aria-label'] === 'إغلاق اللوحة')[0].props.onClick(); await settle();
   assert.equal(h.render().props.className.includes('has-panel'), false);
-  assert.deepEqual(h.actions, ['draft']);
+  assert.deepEqual(h.actions, []);
 });
 
 
@@ -185,4 +192,128 @@ test('an interrupted exit still hides the panel before releasing its held frame'
   const order = [];
   await closeInlinePanel({ animate() { return { finished: Promise.reject(Error('interrupted')), cancel() { order.push('release'); } }; }, close() { order.push('hide'); } }, false);
   assert.deepEqual(order, ['hide', 'release']);
+});
+
+
+test('dirty header offers save/cancel; save restores next without navigating', async () => {
+  const h = workspace({ dirtyPage: true });
+  let tree = h.render();
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__cancel').length, 1);
+  nodes(tree, n => n.props?.className === 'inline-editor__save')[0].props.onClick(); await settle();
+  tree = h.render();
+  assert.deepEqual(h.actions, ['draft']);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__cancel').length, 0);
+  nodes(tree, n => n.props?.className === 'inline-editor__save')[0].props.onClick(); await settle();
+  assert.deepEqual(h.actions, ['draft', 'continue']);
+});
+test('confirmed cancel restores the saved snapshot without a draft write', async () => {
+  const h = workspace({ dirtyPage: true });
+  nodes(h.render(), n => n.props?.className === 'inline-editor__cancel')[0].props.onClick();
+  nodes(h.render(), n => n.props?.className === 'inline-editor__discard-confirm')[0].props.onClick(); await settle();
+  assert.deepEqual(h.actions, ['discard']);
+  assert.equal(nodes(h.render(), n => n.props?.className === 'inline-editor__cancel').length, 0);
+});
+test('local recovery keeps unsaved input separate from the last confirmed snapshot', async () => {
+  const h = draftSource();
+  await h.source.saveDraft({ name: 'saved', links: [] });
+  await h.source.backupDraft({ name: 'local edit', links: [] });
+  const loaded = await h.create().load();
+  assert.equal(loaded.pageData.name, 'local edit');
+  assert.equal(loaded.savedDraftData.name, 'saved');
+});
+
+
+test('guest browser backups and local cancel never call the cloud writer', async () => {
+  const h = draftSource();
+  await h.source.saveDraft({ name: 'confirmed', links: [] });
+  assert.equal(h.cloudWrites.length, 1);
+  for (const name of ['one', 'two', 'three']) await h.source.backupDraft({ name, links: [] });
+  assert.equal(h.cloudWrites.length, 1);
+  const loaded = await h.source.load();
+  assert.equal(loaded.pageData.name, 'three');
+  await h.source.backupDraft(loaded.savedDraftData);
+  assert.equal((await h.source.load()).pageData.name, 'confirmed');
+  assert.equal(h.cloudWrites.length, 1);
+});
+
+
+test('header contains only navigation when clean, and direct history/save/cancel while editing', () => {
+  for (const dirtyPage of [false, true]) {
+    const h = workspace({ dirtyPage });
+    const header = nodes(h.render(), n => n.type === 'header' && n.props.className === 'inline-editor__toolbar')[0];
+    const buttons = nodes(header, n => n.type === 'button');
+    assert.equal(buttons.length, dirtyPage ? 6 : 3);
+    assert.equal(nodes(header, n => n.type === 'details').length, 0);
+    assert.equal(nodes(header, n => n.props?.['aria-label'] === 'معاينة').length, 0);
+    assert.equal(nodes(header, n => n.props?.className === 'inline-editor__history').length, dirtyPage ? 1 : 0);
+    assert.equal(nodes(header, n => n.props?.['aria-label'] === 'العودة')[0].props.disabled, dirtyPage);
+  }
+});
+
+
+test('tapping the small preview closes the tools without saving or discarding, and the tool reopens', async () => {
+  const h = workspace({ dirtyPage: true });
+  let tree = h.render();
+  nodes(tree, n => n.props?.className === 'inline-editor__design-tools')[0].props.children[0].props.onClick();
+  tree = h.render();
+  assert.equal(nodes(tree, n => n.type === 'main')[0].props.inert, true);
+  const target = nodes(tree, n => n.props?.className === 'inline-editor__preview-dismiss')[0];
+  assert.equal(target.props['aria-label'], 'تكبير معاينة الصفحة وإغلاق لوحة الأدوات');
+  target.props.onClick(); await settle();
+  tree = h.render();
+  assert.equal(tree.props.className.includes('has-panel'), false);
+  assert.equal(nodes(tree, n => n.props?.className === 'inline-editor__cancel').length, 1);
+  assert.deepEqual(h.actions, []);
+  nodes(tree, n => n.props?.className === 'inline-editor__design-tools')[0].props.children[0].props.onClick();
+  assert.ok(h.render().props.className.includes('has-panel'));
+  assert.deepEqual(h.actions, []);
+});
+
+
+test('an idle cancelled page animation cannot block closing an expanded panel', { timeout: 1000 }, async () => {
+  const { settleInlinePageMotion } = load('src/app/lib/inlinePanelMotion.ts');
+  await settleInlinePageMotion({ playState: 'idle', finished: new Promise(() => {}) });
+});
+
+
+test('creation video uploads use the scoped creation credential instead of requiring account login', () => {
+  assert.equal(draftSource({ creationToken: 'creation-only-token' }).source.uploadToken(), 'creation-only-token');
+  assert.equal(draftSource().source.uploadToken(), null);
+});
+
+
+test('mobile dock matches the requested desktop section order', () => {
+  const h = workspace();
+  const nav = nodes(h.render(), n => n.props?.className === 'inline-editor__design-tools')[0];
+  assert.deepEqual(nav.props.children.map(button => button.props.children[1].props.children), ['المحتوى', 'الثيم', 'الصورة', 'الخلفية', 'النص', 'الأزرار', 'الألوان', 'المشاركة', 'الإعدادات']);
+});
+
+
+test('advanced editor is reachable from settings without a draft write', async () => {
+  const h = workspace({ dirtyPage: true });
+  nodes(h.render(), n => n.props?.className === 'inline-editor__design-tools')[0].props.children[8].props.onClick();
+  nodes(h.render(), n => n.props?.className === 'inline-editor__advanced-row')[0].props.onClick(); await settle();
+  assert.deepEqual(h.actions, ['advanced']);
+});
+
+test('prelaunch sharing and settings save before continuing and stay put if saving fails', async () => {
+  for (const index of [7, 8]) {
+    for (const failDraft of [false, true]) {
+      const h = workspace({ dirtyPage: true, failDraft });
+      nodes(h.render(), n => n.props?.className === 'inline-editor__design-tools')[0].props.children[index].props.onClick();
+      const preview = nodes(h.render(), n => n.props?.kind === (index === 7 ? 'sharing' : 'settings') && typeof n.props?.onContinue === 'function')[0];
+      assert.ok(preview); assert.equal(preview.props.needsSave, true);
+      preview.props.onContinue(); await settle();
+      assert.deepEqual(h.actions, failDraft ? ['draft'] : ['draft', 'continue']);
+      if (failDraft) assert.ok(nodes(h.render(), n => n.props?.role === 'alert').length);
+    }
+  }
+});
+test('clean prelaunch settings continue without another draft write', async () => {
+  const h = workspace();
+  nodes(h.render(), n => n.props?.className === 'inline-editor__design-tools')[0].props.children[8].props.onClick();
+  const preview = nodes(h.render(), n => n.props?.kind === 'settings' && typeof n.props?.onContinue === 'function')[0];
+  assert.equal(preview.props.needsSave, false);
+  preview.props.onContinue(); await settle();
+  assert.deepEqual(h.actions, ['continue']);
 });

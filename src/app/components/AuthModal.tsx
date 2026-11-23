@@ -167,12 +167,12 @@ export default function AuthModal({ mode: initialMode, username, initialEmail = 
         )}
 
         <div className="mb-5 text-center">
-          <h1 id="auth-modal-title" className="text-[26px] font-black leading-tight text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <h1 id="auth-modal-title" className="text-[26px] font-black leading-tight text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             {isSignup ? 'إنشاء حسابك' : 'تسجيل الدخول'}
           </h1>
-          <p className="mt-1 text-[15px] text-[#6e6e73]">{isSignup ? 'أكمل بياناتك للبدء في تجهيز صفحتك' : 'أدخل بيانات حسابك للمتابعة'}</p>
+          <p className="mt-1 text-[15px] text-[#737373]">{isSignup ? 'أكمل بياناتك للبدء في تجهيز صفحتك' : 'أدخل بيانات حسابك للمتابعة'}</p>
           {isSignup && username && (
-            <span className="mt-3 inline-block rounded-full bg-white px-3 py-1 text-[13px] font-bold text-[#1d1d1f] shadow-[0_1px_2px_rgba(0,0,0,0.06)]" dir="ltr">{pageHost(username)}</span>
+            <span className="mt-3 inline-block rounded-full bg-white px-3 py-1 text-[13px] font-bold text-[#111111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]" dir="ltr">{pageHost(username)}</span>
           )}
         </div>
 
@@ -196,20 +196,20 @@ export default function AuthModal({ mode: initialMode, username, initialEmail = 
                 {collectIdentity && (organizationName.trim() || editingLink) && (
                   <div className="px-4 py-3">
                     <div className="mb-1.5 flex items-center justify-between gap-2">
-                      <span className="text-[12px] font-medium text-[#8e8e93]">{nonprofit ? 'رابط جمعيتكم' : 'رابط صفحتك'}</span>
+                      <span className="text-[12px] font-medium text-[#737373]">{nonprofit ? 'رابط جمعيتكم' : 'رابط صفحتك'}</span>
                       {!editingLink && <button type="button" disabled={loading} onClick={startLinkEdit} className="text-[13px] font-bold text-[#F25A18]">تعديل</button>}
                     </div>
                     {!editingLink ? (
                       // The whole link stays visible: smaller type for long names, wrapping only as a last resort.
                       <button type="button" disabled={loading} onClick={startLinkEdit} aria-label="تعديل الرابط" className="flex w-full items-center gap-2 text-start">
-                        <Link2 className="h-5 w-5 shrink-0 text-[#FF6B2C]" />
+                        <Link2 className="h-5 w-5 shrink-0 text-[#C2410C]" />
                         <span dir="ltr" className={`min-w-0 flex-1 break-all font-black ${linkSize} ${linkTone}`}>{nonprofitUsername || '…'}.{ROOT_DOMAIN}</span>
                         {checkingLink && nonprofitUsername && <Loader2 aria-label="جارٍ التحقق من توفر الرابط" className="h-4 w-4 shrink-0 animate-spin text-[#737373]" />}
                       </button>
                     ) : (
-                      <div className={`flex items-center overflow-hidden rounded-xl bg-[#f7f7f7] ring-1 ${linkTaken ? 'ring-[#DC2626]' : 'ring-[#e5e5ea] focus-within:ring-[#FF6B2C]'}`} dir="ltr">
+                      <div className={`flex items-center overflow-hidden rounded-xl bg-[#f7f7f7] ring-1 ${linkTaken ? 'ring-[#DC2626]' : 'ring-[#E7E7E7] focus-within:ring-[#FF6B2C]'}`} dir="ltr">
                         <input autoFocus aria-label="رابط الصفحة" aria-invalid={linkTaken} value={customLink} disabled={loading} onChange={e => setCustomLink(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} maxLength={30} className="min-w-0 flex-1 bg-transparent px-3 py-3 text-[17px] font-bold focus:outline-none" />
-                        <span className="pr-3 text-[15px] text-[#8e8e93]">.{ROOT_DOMAIN}</span>
+                        <span className="pr-3 text-[15px] text-[#737373]">.{ROOT_DOMAIN}</span>
                       </div>
                     )}
                     <div role="status" aria-live="polite">
@@ -244,15 +244,15 @@ export default function AuthModal({ mode: initialMode, username, initialEmail = 
           )}
           {/* A login failure concerns both fields: shown here, below them and before Turnstile. */}
           {!isSignup && (errors.identifier || errors.password || loginEmailHint || errors.form) && (
-            <p role="alert" className="mt-3 px-1 text-[13px] text-[#ff3b30]">{errors.identifier || errors.password || loginEmailHint || errors.form}</p>
+            <p role="alert" className="mt-3 px-1 text-[13px] text-[#DC2626]">{errors.identifier || errors.password || loginEmailHint || errors.form}</p>
           )}
           <div className="mt-3"><TurnstileBox /></div>
-          {isSignup && errors.form && <p role="alert" className="mt-3 px-1 text-[13px] text-[#ff3b30]">{errors.form}</p>}
+          {isSignup && errors.form && <p role="alert" className="mt-3 px-1 text-[13px] text-[#DC2626]">{errors.form}</p>}
 
           <button
             type="submit"
             disabled={loading || !ready || !humanOk}
-            className={`mt-5 flex min-h-[52px] w-full items-center justify-center rounded-2xl ${primaryButton} text-[17px] font-bold text-white transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none`}
+            className={`mt-5 flex min-h-[52px] w-full items-center justify-center rounded-2xl ${primaryButton} text-[17px] font-bold text-white transition-transform active:scale-[0.98] disabled:bg-[#E7E7E7] disabled:text-[#737373] disabled:shadow-none`}
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             {loading ? <span className="flex items-center gap-2"><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />{isSignup ? 'جارٍ إنشاء الحساب…' : 'جارٍ تسجيل الدخول…'}</span> : isSignup ? 'إنشاء الحساب' : 'دخول'}
@@ -260,7 +260,7 @@ export default function AuthModal({ mode: initialMode, username, initialEmail = 
         </form>
 
         {isSignup ? (
-          <p className="mt-4 text-center text-[15px] text-[#6e6e73]">
+          <p className="mt-4 text-center text-[15px] text-[#737373]">
             لديك حساب؟{' '}
             <button type="button" onClick={() => (inEditor || collectIdentity ? (setErrors({}), setMode('login')) : navigate('/?auth=login'))} className={`font-bold ${accentText}`}>سجّل الدخول</button>
           </p>
@@ -283,7 +283,7 @@ export default function AuthModal({ mode: initialMode, username, initialEmail = 
 // Note 09: one look for every account page — the general one, and the «عنوان»
 // brand on the nonprofit pages (also used by the password reset there).
 export function authTheme(_nonprofit: boolean) {
-  return { surface: 'bg-[#F8F8F6]', accentText: 'text-[#FF6B2C]', primaryButton: 'bg-[#FF6B2C] shadow-[0_6px_16px_rgba(255,107,44,0.28)] hover:bg-[#F25A18]' };
+  return { surface: 'bg-[#F8F8F6]', accentText: 'text-[#C2410C]', primaryButton: 'bg-[#FF6B2C] shadow-[0_6px_16px_rgba(255,107,44,0.28)] hover:bg-[#F25A18]' };
 }
 
 // Note 07: the password rules as a live checklist under the fields.
@@ -291,28 +291,28 @@ export function PasswordRules({ password }: { password: string }) {
   return (
     <ul id="password-rules" className="mt-2 flex flex-wrap gap-x-3 gap-y-1 px-1 text-[12px]" aria-live="polite">
       {passwordChecks(password).map((item) => (
-        <li key={item.label} className={item.ok ? 'text-[#16A34A]' : 'text-[#8e8e93]'}>{item.ok ? '✓' : '•'} {item.label}</li>
+        <li key={item.label} className={item.ok ? 'text-[#16A34A]' : 'text-[#737373]'}>{item.ok ? '✓' : '•'} {item.label}</li>
       ))}
     </ul>
   );
 }
 
-export const inputClass = 'w-full bg-transparent py-3.5 text-[17px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none';
+export const inputClass = 'w-full bg-transparent py-3.5 text-[17px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none';
 // Stacked layout: label above, so the input keeps the full width and a long
 // email stays reviewable to its end without shrinking the font.
-export const inputClassStacked = 'w-full bg-transparent pb-2.5 text-[17px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none';
+export const inputClassStacked = 'w-full bg-transparent pb-2.5 text-[17px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none';
 
 // A grouped-list row. Default: label on the right, the field beside it. With
 // `stacked`, the label sits above and the field takes the whole width below —
 // used for the email, where seeing the full address matters more than the row.
 export function Row({ label, error, last = false, stacked = false, children }: { label?: string; error?: string; last?: boolean; stacked?: boolean; children: React.ReactNode }) {
   return (
-    <div className={last ? '' : 'border-b border-[#e5e5ea]'}>
+    <div className={last ? '' : 'border-b border-[#E7E7E7]'}>
       <label className={stacked ? 'block px-4 pt-2' : 'flex items-center gap-3 px-4'}>
-        {label && <span className={stacked ? 'mb-0.5 block text-[12px] font-medium text-[#8e8e93]' : 'min-w-[86px] shrink-0 whitespace-nowrap text-[15px] text-[#1d1d1f]'}>{label}</span>}
+        {label && <span className={stacked ? 'mb-0.5 block text-[12px] font-medium text-[#737373]' : 'min-w-[86px] shrink-0 whitespace-nowrap text-[15px] text-[#111111]'}>{label}</span>}
         <span className={stacked ? 'block min-w-0' : 'min-w-0 flex-1'}>{children}</span>
       </label>
-      {error && <p role="alert" className="px-4 pb-2.5 text-[13px] text-[#ff3b30]">{error}</p>}
+      {error && <p role="alert" className="px-4 pb-2.5 text-[13px] text-[#DC2626]">{error}</p>}
     </div>
   );
 }

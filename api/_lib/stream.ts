@@ -1,3 +1,5 @@
+import { videoOwnerMatches } from './videoOwnership.js';
+import { MAX_BACKGROUND_VIDEO_BYTES } from '../../shared/videoSources.js';
 import { getEnv } from './runtime.js';
 import { HttpError } from './http.js';
 
@@ -47,7 +49,8 @@ export function streamUrls(uid: string) {
 export async function streamStatus(uid: string, owner: string) {
   if (!/^[a-f0-9]{32}$/.test(uid)) throw new HttpError(400, 'معرّف فيديو غير صالح.');
   const video = await call<StreamVideo>(`/${uid}`);
-  if (video.meta?.owner !== owner) throw new HttpError(403, 'هذا الفيديو لا يتبع حسابك.');
+  if (!(await videoOwnerMatches(video.meta?.owner, owner))) throw new HttpError(403, 'هذا الفيديو لا يتبع حسابك.');
+  if (video.size && video.size > MAX_BACKGROUND_VIDEO_BYTES) throw new HttpError(413, 'حجم الفيديو يتجاوز الحد المعتمد: 20 MB.');
   if (video.status?.state === 'error') throw new HttpError(400, 'تعذّر تجهيز الفيديو. جرّب ملفًا آخر.');
   if (!video.readyToStream) return { ready: false as const };
   const downloads = await call<{ default?: { status?: string } }>(`/${uid}/downloads`, { method: 'POST' });
@@ -67,7 +70,7 @@ export async function verifyStreamVideo(value: string, owner: string) {
   const uid = streamUidFromUrl(value);
   if (!uid) return null;
   const video = await call<StreamVideo>(`/${uid}`);
-  if (video.meta?.owner !== owner) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
+  if (!(await videoOwnerMatches(video.meta?.owner, owner))) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
   return { size: video.size ?? null };
 }
 

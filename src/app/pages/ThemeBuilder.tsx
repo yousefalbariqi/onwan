@@ -17,7 +17,7 @@ import { adminLink } from '../lib/site';
 
 type ListResult = { templates: PageTemplate[]; more: boolean; categories: string[] };
 const STATUS_LABEL: Record<PageTemplate['status'], string> = { draft: 'مسودة', visible: 'ظاهر', hidden: 'مخفي' };
-const STATUS_TONE: Record<PageTemplate['status'], string> = { draft: 'bg-[#f2f2f7] text-[#3a3a3c]', visible: 'bg-[#34c759]/15 text-[#1f8a3b]', hidden: 'bg-[#FFF0E8] text-[#F25A18]' };
+const STATUS_TONE: Record<PageTemplate['status'], string> = { draft: 'bg-[#F5F5F3] text-[#262626]', visible: 'bg-[#16A34A]/15 text-[#15803D]', hidden: 'bg-[#FFF0E8] text-[#F25A18]' };
 const fieldClass = 'w-full rounded-xl border border-[#E7E7E7] bg-white px-3 py-2.5 text-[15px] focus:border-[#FF6B2C] focus:outline-none';
 
 export default function ThemeBuilder() {
@@ -163,8 +163,8 @@ function TemplateList({ onEdit }: { onEdit: (template: PageTemplate) => void }) 
           })}>{busy ? 'جارٍ تجهيز المسودات…' : 'إضافة الثيمات الثمانية إلى المكتبة كمسودات'}</button>
           {installed && <p role="status" className="text-sm text-emerald-700">{installed}</p>}
           <div className="flex flex-wrap gap-3 text-sm">
-            <label>محتوى المعاينة <select className="rounded-lg bg-[#f2f2f7] p-2" value={pilotScenario} onChange={event => setPilotScenario(event.target.value as typeof pilotScenario)}><option value="standard">متنوع</option><option value="long">اسم ووصف طويلان</option><option value="minimal">محتوى مختصر بلا شعار</option></select></label>
-            <label>عرض الهاتف <select className="rounded-lg bg-[#f2f2f7] p-2" value={pilotWidth} onChange={event => setPilotWidth(Number(event.target.value))}><option value={320}>320</option><option value={390}>390</option><option value={430}>430</option></select></label>
+            <label>محتوى المعاينة <select className="rounded-lg bg-[#F5F5F3] p-2" value={pilotScenario} onChange={event => setPilotScenario(event.target.value as typeof pilotScenario)}><option value="standard">متنوع</option><option value="long">اسم ووصف طويلان</option><option value="minimal">محتوى مختصر بلا شعار</option></select></label>
+            <label>عرض الهاتف <select className="rounded-lg bg-[#F5F5F3] p-2" value={pilotWidth} onChange={event => setPilotWidth(Number(event.target.value))}><option value={320}>320</option><option value={390}>390</option><option value={430}>430</option></select></label>
           </div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {PILOT_THEMES.map(pilot => <button key={pilot.name} type="button" className="min-w-0 space-y-2 text-start" disabled={busy} onClick={() => run(async () => {
@@ -183,7 +183,7 @@ function TemplateList({ onEdit }: { onEdit: (template: PageTemplate) => void }) 
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو التصنيف" aria-label="ابحث في القوالب" className="min-w-0 flex-1 bg-transparent py-2.5 focus:outline-none" />
           </label>
           {['', ...(result?.categories ?? [])].map((item) => (
-            <button key={item || 'all'} type="button" onClick={() => setCategory(item)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${category === item ? 'bg-[#111111] text-white' : 'bg-white text-[#3a3a3c] border border-[#E7E7E7]'}`}>{item || 'الكل'}</button>
+            <button key={item || 'all'} type="button" onClick={() => setCategory(item)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${category === item ? 'bg-[#111111] text-white' : 'bg-white text-[#262626] border border-[#E7E7E7]'}`}>{item || 'الكل'}</button>
           ))}
         </div>
 

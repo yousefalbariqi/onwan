@@ -15,6 +15,12 @@ export const TEMPLATE_SEARCH_METADATA: Record<TemplateGroup, Record<string, Temp
     bold: { primaryField: 'تجاري', specialties: ['متجر', 'شركة', 'مؤسسة تجارية', 'تسويق'], keywords: ['تجارة', 'متاجر', 'براند', 'منتجات', 'تسويقي', 'store', 'shop', 'brand', 'business', 'marketing'] },
     garden: { primaryField: 'هندسي', specialties: ['مكتب هندسي', 'معماري', 'تصميم داخلي', 'مقاولات', 'تشييد', 'بناء'], keywords: ['هندسة', 'مهندس', 'مقاول', 'مقاولون', 'ديكور', 'engineer', 'engineering', 'interior', 'contractor', 'construction'] },
     paper: { primaryField: 'خدمات مهنية', specialties: ['استشارات', 'محاسبة', 'تدريب', 'مكاتب مهنية', 'استشارات إدارية'], keywords: ['محاسب', 'مدرب', 'مستشار', 'مالي', 'accountant', 'accounting', 'training', 'consulting'] },
+    sunset: { primaryField: 'مطاعم ومقاهي', specialties: ['مطعم', 'مقهى', 'حلويات', 'ضيافة'], keywords: ['قهوة', 'كافيه', 'اكل', 'restaurant', 'cafe', 'food'] },
+    ocean: { primaryField: 'سياحة وسفر', specialties: ['سفر', 'فنادق', 'رحلات', 'نقل'], keywords: ['سياحة', 'فندق', 'شحن', 'travel', 'hotel', 'logistics'] },
+    clay: { primaryField: 'حرف ومنتجات', specialties: ['أسر منتجة', 'حرف يدوية', 'عطور', 'تراث'], keywords: ['منتج', 'يدوي', 'عود', 'craft', 'perfume', 'heritage'] },
+    mono: { primaryField: 'مال وأعمال', specialties: ['تمويل', 'شركات', 'تقنية'], keywords: ['مالية', 'شركة', 'startup', 'finance', 'tech', 'corporate'] },
+    blush: { primaryField: 'تجميل', specialties: ['صالون', 'أزياء', 'عناية'], keywords: ['مشغل', 'مكياج', 'موضة', 'beauty', 'salon', 'fashion'] },
+    lime: { primaryField: 'رياضة', specialties: ['نادي رياضي', 'فعاليات', 'ترفيه'], keywords: ['نادي', 'لياقة', 'فعالية', 'gym', 'sport', 'events'] },
   },
   personal: {
     calm: { primaryField: 'شخصي', specialties: ['تعريف شخصي', 'سيرة ذاتية'], keywords: ['شخصية', 'بسيط', 'هادئ', 'personal', 'minimal', 'profile'] },
@@ -23,6 +29,12 @@ export const TEMPLATE_SEARCH_METADATA: Record<TemplateGroup, Record<string, Temp
     bold: { primaryField: 'صناعة محتوى', specialties: ['تصوير', 'فنون', 'تصميم'], keywords: ['صانع محتوى', 'مصور', 'مصمم', 'ابداع', 'creator', 'photographer', 'artist', 'design'] },
     garden: { primaryField: 'صحة وحياة', specialties: ['تدريب', 'رياضة', 'تغذية'], keywords: ['مدرب', 'رياضي', 'تغذية', 'coach', 'fitness', 'wellness'] },
     paper: { primaryField: 'تعليم', specialties: ['بحث علمي', 'ملف أعمال'], keywords: ['معلم', 'باحث', 'اكاديمي', 'طالب', 'teacher', 'researcher', 'portfolio', 'cv'] },
+    sunset: { primaryField: 'سفر وحياة', specialties: ['مدونة سفر', 'أسلوب حياة'], keywords: ['سفر', 'مدون', 'يوميات', 'travel', 'lifestyle', 'blogger'] },
+    ocean: { primaryField: 'صوت وبودكاست', specialties: ['بودكاست', 'إلقاء', 'تعليق صوتي'], keywords: ['صوت', 'مذيع', 'podcast', 'voice', 'host'] },
+    clay: { primaryField: 'فن وحرفة', specialties: ['خط عربي', 'رسم', 'حرف يدوية'], keywords: ['خطاط', 'رسام', 'فنان', 'calligraphy', 'artist', 'craft'] },
+    mono: { primaryField: 'مهني', specialties: ['إدارة', 'ريادة أعمال'], keywords: ['مدير', 'رائد اعمال', 'مؤسس', 'founder', 'executive', 'business'] },
+    blush: { primaryField: 'جمال وأزياء', specialties: ['مكياج', 'موضة', 'عناية'], keywords: ['خبيرة تجميل', 'ازياء', 'beauty', 'fashion', 'makeup'] },
+    lime: { primaryField: 'ألعاب وترفيه', specialties: ['ألعاب', 'بث مباشر', 'موسيقى'], keywords: ['قيمر', 'لاعب', 'ستريمر', 'gaming', 'streamer', 'music'] },
   },
   nonprofit: {
     calm: { primaryField: 'مجتمعي', specialties: ['جمعيات', 'خدمة المجتمع'], keywords: ['جمعية', 'خيري', 'اهلي', 'أثر', 'community', 'charity', 'nonprofit'] },
@@ -31,6 +43,12 @@ export const TEMPLATE_SEARCH_METADATA: Record<TemplateGroup, Record<string, Temp
     bold: { primaryField: 'تطوع', specialties: ['مبادرات', 'حملات مجتمعية'], keywords: ['متطوع', 'فريق', 'حملة', 'volunteer', 'campaign'] },
     garden: { primaryField: 'استدامة', specialties: ['بيئة', 'أوقاف', 'زراعة'], keywords: ['وقف', 'بيئي', 'اخضر', 'sustainability', 'environment', 'waqf'] },
     paper: { primaryField: 'إغاثة', specialties: ['تبرعات', 'رعاية', 'مساعدات'], keywords: ['تبرع', 'اغاثي', 'داعم', 'donation', 'relief', 'care'] },
+    sunset: { primaryField: 'أسرة وطفولة', specialties: ['رعاية الأيتام', 'الأسرة', 'الطفولة'], keywords: ['ايتام', 'اطفال', 'اسر', 'family', 'children', 'orphans'] },
+    ocean: { primaryField: 'مياه وسقيا', specialties: ['سقيا', 'آبار', 'خدمات أساسية'], keywords: ['ماء', 'بئر', 'water', 'well'] },
+    clay: { primaryField: 'تراث وثقافة', specialties: ['تراث', 'ثقافة', 'مكتبات'], keywords: ['ثقافي', 'تراثي', 'culture', 'heritage', 'library'] },
+    mono: { primaryField: 'حوكمة', specialties: ['مؤسسات مانحة', 'أوقاف', 'مجالس'], keywords: ['حوكمة', 'مانح', 'governance', 'foundation', 'grant'] },
+    blush: { primaryField: 'صحة ورعاية', specialties: ['صحة المرأة', 'مرضى', 'رعاية صحية'], keywords: ['صحي', 'مريض', 'health', 'patients', 'women'] },
+    lime: { primaryField: 'شباب ورياضة', specialties: ['شباب', 'أندية', 'تمكين الشباب'], keywords: ['شبابي', 'رياضي', 'youth', 'sports', 'club'] },
   },
 };
 

@@ -11,3 +11,9 @@ export async function closeInlinePanel(element: HTMLDialogElement | null, reduce
   element.close();
   motion?.cancel();
 }
+
+// A cancelled Web Animation exposes a new, unresolved `finished` promise.
+// Only wait for an animation that is actually progressing.
+export async function settleInlinePageMotion(motion: Animation | null) {
+  if (motion?.playState === 'running') await motion.finished.catch(() => undefined);
+}

@@ -26,7 +26,6 @@ export default function CreationTemplates() {
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const screen = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
-  const searchToggle = useRef<HTMLButtonElement>(null);
   const drag = useRef<{ y: number; moved: boolean } | null>(null);
   const groupLabel = { personal: 'تصاميم أفراد', business: 'تصاميم أنشطة تجارية', nonprofit: 'تصاميم قطاع غير ربحي' }[group];
   const suggestions = { personal: ['تصوير', 'محتوى', 'أعمال'], business: ['محاماة', 'عيادة', 'هندسة'], nonprofit: ['جمعية', 'مبادرة', 'تبرع'] }[group];
@@ -41,15 +40,9 @@ export default function CreationTemplates() {
     resize(); viewport.addEventListener('resize', resize);
     return () => viewport.removeEventListener('resize', resize);
   }, []);
-  const openSearch = () => {
-    // Keep focus in the tap event so iOS can open the software keyboard.
-    flushSync(() => { setExpanded(true); setSearchOpen(true); });
-    searchInput.current?.focus({ preventScroll: true });
-  };
-  const closeSearch = () => {
-    searchInput.current?.blur(); setQuery(''); setSearchOpen(false); setExpanded(false);
-    window.requestAnimationFrame(() => searchToggle.current?.focus({ preventScroll: true }));
-  };
+  // Note 7: the field is always there; focusing it is what starts a search.
+  const openSearch = () => { setExpanded(true); setSearchOpen(true); };
+  const closeSearch = () => { searchInput.current?.blur(); setQuery(''); setSearchOpen(false); setExpanded(false); };
   const toggleSheet = () => { if (searchOpen) closeSearch(); else setExpanded(value => !value); };
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const templates = creationTemplates(group);
@@ -61,11 +54,15 @@ export default function CreationTemplates() {
   const sample = { ...content, links: content.links?.map(link => ({ ...link, url: link.url || 'https://example.com' })) };
   const preview = mergeWithDefaults(templatePreviewData(sample, active));
   useEffect(() => { const previous = document.title; document.title = 'اختر تصميم صفحتك — عنوان'; return () => { document.title = previous; }; }, []);
-  const choose = (id: string) => { setSelected(id); setError(''); saveTemplateChoice(group, id); };
+  const choose = (id: string) => {
+    setSelected(id); setError(''); saveTemplateChoice(group, id);
+    // Note 6: picking a result closes the keyboard so the page is seen in that design.
+    if (searchOpen) { searchInput.current?.blur(); setExpanded(false); }
+  };
   return <div ref={screen} className={`creation-themes${expanded ? ' is-expanded' : ''}${keyboardOpen ? ' is-keyboard' : ''}`} dir="rtl">
     <header className="creation-themes__header">
-      <Link to="/signup" className="creation-themes__back" aria-label="العودة لاختيار نوع الصفحة"><ArrowRight size={22} aria-hidden="true" /></Link>
-      <div className="creation-themes__progress" role="progressbar" aria-label="الخطوة 2 من 3: اختر التصميم" aria-valuemin={0} aria-valuemax={3} aria-valuenow={2}><span /></div>
+      <Link to="/signup?step=profile" className="creation-themes__back" aria-label="العودة لبياناتك"><ArrowRight size={22} aria-hidden="true" /></Link>
+      <div className="creation-themes__progress" role="progressbar" aria-label="الخطوة 3 من 4: اختر التصميم" aria-valuemin={0} aria-valuemax={4} aria-valuenow={3}><span /></div>
       <Link to="/" aria-label="عنوان — الرئيسية"><OnwanLogo /></Link>
     </header>
     <main className="creation-themes__layout">
@@ -89,25 +86,21 @@ export default function CreationTemplates() {
             onPointerCancel={() => { drag.current = null; }}
             onClick={() => { if (!drag.current?.moved) toggleSheet(); drag.current = null; }}><span aria-hidden="true" /></button>
           <div className="creation-themes__heading-row">
-            {searchOpen ? <div className="creation-themes__search" role="search" aria-label="البحث في التصاميم">
+            <h1 id="creation-themes-title" className="sr-only">اختر تصميمك</h1>
+            <div className="creation-themes__search" role="search" aria-label="البحث في التصاميم">
               <Search size={18} aria-hidden="true" />
-              <input ref={searchInput} type="search" aria-label="ابحث عن مجال أو اسم تصميم" placeholder="مجالك أو اسم التصميم…" value={query}
-                onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); closeSearch(); } }}
+              <input ref={searchInput} type="search" aria-label="ابحث عن مجال أو اسم تصميم" placeholder="ابحث بمجالك: محامي، مصور، مطعم…" value={query}
+                onFocus={openSearch} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); closeSearch(); } if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }}
                 aria-describedby="creation-search-status" autoComplete="off" maxLength={120} />
-              {query && <button type="button" onClick={() => { setQuery(''); searchInput.current?.focus(); }} aria-label="مسح البحث"><X size={16} aria-hidden="true" /></button>}
-              <button type="button" onClick={closeSearch} aria-label="إغلاق البحث والعودة للمعاينة"><ArrowRight size={19} aria-hidden="true" /></button>
-            </div> : <>
-              <div><h1 id="creation-themes-title">اختر تصميمك</h1><p>{groupLabel} <span aria-hidden="true">·</span> <Link to="/signup" aria-label="تغيير نوع الصفحة">تغيير النوع</Link></p></div>
-              <button ref={searchToggle} type="button" className="creation-themes__search-toggle" onClick={openSearch} aria-label="البحث عن تصميم أو مجال" aria-expanded={searchOpen}><Search size={20} aria-hidden="true" /></button>
-            </>}
+              {searchOpen && <button type="button" onClick={closeSearch} aria-label="إغلاق البحث"><X size={17} aria-hidden="true" /></button>}
+            </div>
           </div>
-          {searchOpen && <>
-            <h1 id="creation-themes-title" className="sr-only">البحث في التصاميم</h1>
-            {!query.trim() && <div className="creation-themes__suggestions" aria-label="مجالات مقترحة">{suggestions.map(value => <button type="button" key={value} onClick={() => setQuery(value)}>{value}</button>)}</div>}
-            <p id="creation-search-status" className="creation-themes__search-status" role="status" aria-live="polite">{query.trim() ? `${resultLabel} في ${groupLabel}` : 'ابحث باسم التصميم أو مجالك'}</p>
-          </>}
+          {searchOpen && !query.trim() && <div className="creation-themes__suggestions" aria-label="مجالات مقترحة">{suggestions.map(value => <button type="button" key={value} onClick={() => { setQuery(value); searchInput.current?.focus(); }}>{value}</button>)}</div>}
+          <p id="creation-search-status" className="creation-themes__search-status" role="status" aria-live="polite">
+            {query.trim() ? `${resultLabel} لـ «${query.trim()}»` : groupLabel} <span aria-hidden="true">·</span> <Link to="/signup" aria-label="تغيير تصنيف الصفحة">تغيير التصنيف</Link>
+          </p>
         </div>
-        <div id="creation-template-options" className="creation-themes__options" role="radiogroup" aria-label="التصاميم المتاحة">
+        <div id="creation-template-options" className="creation-themes__options" role="radiogroup" aria-label="التصاميم المتاحة" onScroll={event => { if (event.currentTarget.scrollTop > 12 && !expanded) setExpanded(true); }}>
           {results.map((template, index) => <button ref={node => { buttons.current[index] = node; }} key={template.id} type="button" role="radio" aria-checked={active.id === template.id} tabIndex={active.id === template.id || (!canContinue && index === 0) ? 0 : -1} aria-label={`تصميم ${template.name}`} className={`creation-themes__option${active.id === template.id ? ' is-selected' : ''}`} onClick={() => choose(template.id)} onKeyDown={event => {
             const delta = { ArrowLeft: 1, ArrowRight: -1, ArrowDown: 3, ArrowUp: -3 }[event.key];
             if (delta === undefined && event.key !== 'Home' && event.key !== 'End') return;
@@ -115,15 +108,15 @@ export default function CreationTemplates() {
             const next = event.key === 'Home' ? 0 : event.key === 'End' ? results.length - 1 : (index + delta + results.length) % results.length;
             choose(results[next].id); buttons.current[next]?.focus();
           }}><span className="creation-themes__thumbnail"><span className="creation-themes__swatch" aria-hidden="true" style={{
-              background: template.design.theme.background,
+              background: template.design.wallpaper.value,
               color: template.design.theme.textColor,
               fontFamily: template.design.typography.font === 'amiri' ? 'Amiri, serif' : 'Cairo, sans-serif',
             }}>
               <span className="creation-themes__font-sample">أب</span>
               <span className="creation-themes__button-sample" style={{
-                background: template.design.theme.buttonColor,
+                background: template.design.buttonStyle.border ? 'transparent' : template.design.theme.buttonColor,
                 borderRadius: template.design.buttonStyle.shape === 'pill' ? '999px' : template.design.buttonStyle.shape === 'square' ? '4px' : '14px',
-                border: template.design.buttonStyle.border ? `1px solid ${template.design.theme.textColor}` : 'none',
+                border: template.design.buttonStyle.border ? `1.5px solid ${template.design.theme.textColor}` : 'none',
                 boxShadow: template.design.buttonStyle.shadow ? `0 3px 0 ${template.design.theme.textColor}30` : 'none',
               }} />
             </span>{active.id === template.id && <span className="creation-themes__selected-mark"><Check size={13} strokeWidth={3} aria-hidden="true" /></span>}</span><span className="creation-themes__name">{template.name}</span></button>)}
@@ -131,6 +124,8 @@ export default function CreationTemplates() {
         </div>
         <footer className="creation-themes__footer">
           {error && <p role="alert" className="creation-themes__error">{error}</p>}
+          <div className="creation-themes__footer-row">
+          <div className="creation-themes__footer-progress" role="progressbar" aria-label="الخطوة 3 من 4: اختر التصميم" aria-valuemin={0} aria-valuemax={4} aria-valuenow={3}><span /></div>
           <button type="button" className="creation-themes__continue" disabled={!canContinue || continuing} onClick={async () => {
             if (!canContinue || continuePending.current) return;
             continuePending.current = true; setContinuing(true); setError('');
@@ -143,7 +138,8 @@ export default function CreationTemplates() {
               saveTemplateChoice(group, active.id); navigate('/signup?step=save');
             } catch (problem) { setError(problem instanceof Error ? problem.message : 'تعذر الاحتفاظ بالتصميم. حاول مجددًا.'); }
             finally { continuePending.current = false; setContinuing(false); }
-          }}>{continuing ? 'جارٍ تجهيز صفحتك…' : 'استخدم هذا التصميم'}<ArrowLeft size={20} aria-hidden="true" /></button>
+          }}>{continuing ? 'جارٍ التجهيز…' : 'التالي'}<ArrowLeft size={19} aria-hidden="true" /></button>
+          </div>
           <p className="sr-only" role="status" aria-live="polite">{canContinue ? `التصميم المختار: ${active.name}` : 'اختر تصميمًا من النتائج أو غيّر البحث'}</p>
         </footer>
       </section>

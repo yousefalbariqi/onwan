@@ -9,6 +9,7 @@ test('REQ-001: PDF accepts 10 MB, rejects one byte above; images enforce 1,000 K
   const module = { exports: {} };
   const code = ts.transpileModule(fs.readFileSync('api/media-upload.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   new Function('require', 'module', 'exports', 'crypto', code)(name => {
+    if (name.includes('/creationDraft')) return { requireCreationDraft: async () => null };
     if (name.includes('/auth')) return { getBearerToken: () => '', verifySessionToken: () => null };
     if (name.includes('/db')) return {};
     if (name.includes('/runtime')) return { getBinding: () => ({ head: async () => null, put: async () => { writes++; } }) };

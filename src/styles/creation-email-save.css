@@ -1,20 +1,20 @@
-.creation-email { min-height: 100svh; padding: max(48px, 8svh) 24px max(30px, env(safe-area-inset-bottom)); background: #fffefa; color: #111; font-family: 'Cairo', sans-serif; }
+.creation-email { min-height: 100svh; padding: max(48px, 8svh) 24px max(30px, env(safe-area-inset-bottom)); background: #FFFFFF; color: #111; font-family: 'Cairo', sans-serif; }
 .creation-email__content { max-width: 450px; margin: 0 auto; text-align: center; }
 .creation-email__logo { display: inline-flex; margin-bottom: 32px; text-decoration: none; }
 .creation-email h1 { margin: 0; font-size: clamp(29px, 7.5vw, 43px); line-height: 1.55; letter-spacing: -.035em; font-weight: 800; }
-.creation-email__description { max-width: 370px; margin: 16px auto 0; color: #777970; font-size: 14px; line-height: 2; }
+.creation-email__description { max-width: 370px; margin: 16px auto 0; color: #737373; font-size: 14px; line-height: 2; }
 .creation-email form, .creation-email__existing { margin-top: 42px; }
 .creation-email input { display: block; width: 100%; min-height: 62px; padding: 15px 19px; border: 1.5px solid #e0ded7; border-radius: 20px; background: #fff; color: #24271d; font-family: inherit; font-size: 16px; text-align: start; outline: none; }
 .creation-email input::placeholder { color: #92948a; }
 .creation-email input:focus { border-color: #ff6b2c; box-shadow: 0 0 0 3px #ff6b2c12; }
 .creation-email__button { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 58px; margin-top: 18px; padding: 14px 20px; border: 0; border-radius: 100px; background: #ff6b2c; color: #fff; font-size: 16px; font-weight: 700; text-decoration: none; cursor: pointer; }
 .creation-email__button:disabled { background: #e8e7e1; color: #a2a399; cursor: default; }
-.creation-email__login { margin: 27px 0 0; color: #777970; font-size: 13px; }
+.creation-email__login { margin: 27px 0 0; color: #737373; font-size: 13px; }
 .creation-email__login a { font-weight: 700; color: #30352a; text-underline-offset: 4px; }
 .creation-email__terms { margin: 32px auto 0; max-width: 360px; font-size: 10px; line-height: 2; color: #8a8c81; }
 .creation-email__terms a { color: #6b6f60; text-decoration: underline; text-underline-offset: 3px; }
 .creation-email__note { margin: 14px 0 0; font-size: 10px; color: #8a8c81; }
-.creation-email__error { margin: 12px 0 0; color: #b42318; font-size: 12px; line-height: 1.9; }
+.creation-email__error { margin: 12px 0 0; color: #DC2626; font-size: 12px; line-height: 1.9; }
 .creation-email__resend { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 20px; margin-top: 20px; }
 .creation-email__resend button, .creation-email__existing > a:last-child { border: 0; background: transparent; padding: 8px; font: 11px 'Cairo', sans-serif; color: #ad481c; text-underline-offset: 4px; cursor: pointer; }
 .creation-email__resend button:disabled { color: #a0a394; cursor: default; }
@@ -23,7 +23,7 @@
 @media (max-height: 650px) { .creation-email { padding-top: 26px; } .creation-email__logo { margin-bottom: 24px; } .creation-email form { margin-top: 28px; } }
 .creation-account { padding-top: 30px; }
 .creation-account__header { position: relative; }
-.creation-account__header > button { position: absolute; right: 0; top: 5px; border: 0; border-radius: 50%; padding: 10px; background: #f0eee8; cursor: pointer; }
+.creation-account__header > button { position: absolute; right: 0; top: 5px; border: 0; border-radius: 50%; padding: 10px; background: #F5F5F3; cursor: pointer; }
 .creation-account h1 { font-size: clamp(26px, 6.8vw, 35px); }
 .creation-account form { margin-top: 28px; text-align: right; }
 .creation-account__row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 0; border-bottom: 1px solid #eae7df; }
@@ -41,8 +41,28 @@
 .creation-account__consent input { width: 20px; min-height: 20px; height: 20px; flex-shrink: 0; accent-color: #ff6b2c; margin-top: 3px; }
 .creation-account__consent a { text-decoration: underline; text-underline-offset: 3px; }
 .creation-account__email-change { margin-top: 14px; font-size: 12px; }
-.creation-account__email-change p { color: #777970; line-height: 1.9; }
+.creation-account__email-change p { color: #737373; line-height: 1.9; }
 .creation-account__email-change input { margin-top: 8px; }
 .creation-account .creation-email__note { text-align: center; }
 .creation-email__back { display: flex; align-items: center; gap: 6px; min-height: 44px; margin: 0 0 14px auto; padding: 8px 0 8px 12px; border: 0; background: transparent; color: #30352a; font: 600 14px 'Cairo', sans-serif; cursor: pointer; }
 .creation-email__back:disabled { opacity: .5; cursor: default; }
+
+/* Brand pass: same header as the other steps, readable small print, calmer rhythm. */
+.creation-email:not(.creation-account) { padding-top: max(16px, calc(env(safe-area-inset-top) + 8px)); }
+.creation-email__content { position: relative; }
+.creation-email__logo { display: flex; justify-content: flex-end; min-height: 44px; align-items: center; margin-bottom: 36px; }
+.creation-email__back { position: absolute; inset-block-start: 0; inset-inline-start: 0; display: flex !important; align-items: center; justify-content: center; line-height: 0; width: 44px; height: 44px; margin: 0 !important; padding: 0 !important; overflow: hidden; border: 0; border-radius: 50%; background: #F5F5F3; color: #111; font-size: 0 !important; cursor: pointer; }
+.creation-email h1 { font-size: clamp(26px, 7vw, 34px); line-height: 1.5; }
+.creation-email form, .creation-email__existing { margin-top: 28px; }
+.creation-email form > label { display: block; margin-bottom: 12px; }
+.creation-email input { min-height: 54px; border-radius: 16px; }
+.creation-email__button { min-height: 52px; font-size: 16px; }
+.creation-email__terms, .creation-email__note { font-size: 12px; color: #737373; }
+.creation-email__terms { margin-top: 24px; }
+.creation-email__terms a { color: #525252; }
+.creation-email__resend button { font-size: 13px; }
+
+.creation-account__link-options { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 2px 0 8px; }
+.creation-account__link-options span { width: 100%; color: #737373; font-size: 12px; }
+.creation-account__link-options button { min-height: 40px; max-width: 100%; padding: 6px 13px; overflow: hidden; border: 1.5px solid #E7E7E7; border-radius: 100px; background: #fff; color: #111; font: 600 13px 'Cairo', sans-serif; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.creation-account__link-options button:active { border-color: #FF6B2C; background: #FFF0E8; color: #C2410C; }

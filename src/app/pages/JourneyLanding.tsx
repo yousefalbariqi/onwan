@@ -99,7 +99,7 @@ export default function JourneyLanding({ kind = 'nonprofit' }: { kind?: JourneyK
       </header>
       <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-7 px-4 pb-6 sm:px-6 lg:grid-cols-2 lg:gap-12">
         <div>
-          <h1 className="text-[2rem] font-bold tracking-[-0.02em] leading-[1.45] sm:text-5xl sm:leading-[1.5]">{nonprofit ? 'لرسالتكم أثر.' : 'كل ما يعرّف بك.'}<br /><span className="text-[#FF6B2C]">{nonprofit ? 'ولجمعيتكم عنوان.' : 'في رابط يحمل عنوانك.'}</span></h1>
+          <h1 className="font-brand text-[2rem] font-bold tracking-[-0.02em] leading-[1.45] sm:text-5xl sm:leading-[1.5]">{nonprofit ? 'لرسالتكم أثر.' : 'كل ما يعرّف بك.'}<br /><span className="text-[#FF6B2C]">{nonprofit ? 'ولجمعيتكم عنوان.' : 'في رابط يحمل عنوانك.'}</span></h1>
           <p className="mt-3 max-w-lg text-base leading-8 text-[#737373] sm:mt-5 sm:text-lg sm:leading-9"><span className="block font-bold text-[#111111]">حضور يليق بكم</span>{nonprofit ? 'نقرّبكم أكثر من المستفيدين والداعمين.' : 'اجمع تعريفك وروابطك وصورك وملفاتك في صفحة تحمل هويتك.'}</p>
           <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 sm:mt-8">
             {/* Note 30: one large filled start button for a new association. */}
@@ -113,8 +113,13 @@ export default function JourneyLanding({ kind = 'nonprofit' }: { kind?: JourneyK
           <Scene nonprofit={nonprofit} />
           <div className="relative isolate mx-6 w-[calc(100%_-_3rem)] max-w-[25rem] py-3">
             <div aria-hidden="true" className="pointer-events-none absolute inset-x-8 inset-y-1 -z-10 rounded-full bg-[#FF6B2C]/[0.08] blur-xl" />
-            <p className="whitespace-nowrap text-center text-[clamp(10px,2.65vw,14px)] font-medium leading-8 text-[#111111]">
-              {nonprofit ? 'عام من الحضور وأثر يصل أبعد بقيمة ' : 'اشتراك سنوي بقيمة '}<span className="relative inline-block font-bold text-[#FF6B2C] after:absolute after:inset-x-0 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-[#FF6B2C]/25">{nonprofit ? NONPROFIT_ANNUAL_PRICE_LABEL : PUBLIC_PLAN_PRICES.annual.toLocaleString('ar-SA')} ريال فقط في السنة</span>
+            {/* Note 1: the plan and above all the amount read at a glance. */}
+            <p className="flex flex-col items-center text-center text-[#111111]">
+              <span className="text-lg font-bold leading-8">{nonprofit ? 'عام من الحضور وأثر يصل أبعد' : 'اشتراك سنوي'}</span>
+              <span className="mt-1 flex items-baseline justify-center gap-2 text-[#FF6B2C]">
+                <span className="text-5xl font-black leading-tight">{nonprofit ? NONPROFIT_ANNUAL_PRICE_LABEL : PUBLIC_PLAN_PRICES.annual.toLocaleString('ar-SA')}</span>
+                <span className="text-base font-bold">ريال فقط في السنة</span>
+              </span>
             </p>
           </div>
         </div>

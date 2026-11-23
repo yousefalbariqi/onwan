@@ -11,3 +11,8 @@
 @import '@fontsource/tajawal/500.css';
 @import '@fontsource/tajawal/700.css';
 @import '@fontsource/tajawal/900.css';
+
+/* Brand: DG Shamael for Onwan's own headings only; customers' pages keep their chosen font. */
+@font-face { font-family: 'DG Shamael'; src: url('/fonts/DGShamael-Regular.ttf') format('truetype'); font-weight: 400 900; font-display: swap; }
+:is(.creation-start, .creation-themes, .creation-email) h1,
+.inline-editor__sheet-header h2, .image-sheet__header h3, .font-brand { font-family: 'DG Shamael', 'Cairo', sans-serif; font-weight: 400; letter-spacing: 0; }

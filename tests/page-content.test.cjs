@@ -56,6 +56,7 @@ function api() {
     if (name === '../../shared/textFormatting') return loadShared('shared/textFormatting.ts');
     if (name === '../../shared/pageTransfer') return loadShared('shared/pageTransfer.ts');
     if (name === '../../shared/fileSignatures') return loadShared('shared/fileSignatures.ts');
+    if (name === './videoOwnership') return { videoOwnerMatches: async (actual, owner) => actual === owner };
     if (name === './stream') return { streamUidFromUrl: () => null, verifyStreamVideo: async () => null };
     if (name === './runtime') return { getBinding: name => (name === 'MEDIA' && db.media ? db.media : undefined) };
     if (name === './db') return { pool };
@@ -277,6 +278,7 @@ test('upload endpoint authenticates, stores in the owner folder of R2 and enforc
     if (name === '../shared/videoSources') return loadVideos();
     if (name === '../shared/fileSignatures') return loadShared('shared/fileSignatures.ts');
     if (name === './_lib/mediaUploadLimits') return { beginMediaUpload: async () => 'event', storeLimitedUpload: async (media, owner, key, body, type) => media.put(key, body, { httpMetadata: { contentType: type } }) };
+    if (name === './_lib/creationDraft') return { requireCreationDraft: async () => null };
     if (name === './_lib/runtime') return { getBinding: () => media };
     if (name === './_lib/http') return http;
     if (name === './_lib/session') return { requireUser: async (req, res) => { if (signedIn) return { id: 'owner' }; http.sendJson(res, 401, {}); return null; } };
@@ -491,6 +493,9 @@ test('REQ-023: Stream videos — owner-bound uploads, ready only with the MP4, f
   const module = { exports: {} };
   const code = ts.transpileModule(fs.readFileSync('api/_lib/stream.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   new Function('require', 'module', 'exports', code)((name) => {
+    if (name.includes('videoSources')) return loadVideos();
+    if (name.includes('videoOwnership')) return { videoOwnerMatches: async (actual, owner) => actual === owner };
+    if (name.includes('db')) return { pool: {} };
     if (name.includes('runtime')) return { getEnv: (key) => env[key] };
     if (name.includes('http')) return { HttpError: class extends Error { constructor(status, message, code) { super(message); this.status = status; this.code = code; } } };
     throw new Error(name);

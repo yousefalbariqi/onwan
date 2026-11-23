@@ -20,7 +20,7 @@ export function FormattingTextarea({ value, format, onChange, ...props }: Props)
       props.onKeyDown?.(event);
       if ((event.ctrlKey || event.metaKey) && ['b', 'i', 'u'].includes(event.key.toLowerCase())) { event.preventDefault(); apply(({ b: 'bold', i: 'italic', u: 'underline' } as const)[event.key.toLowerCase() as 'b' | 'i' | 'u']); }
     }} />
-    <div className="flex min-h-8 flex-wrap items-center gap-1 text-[#6e6e73]">
+    <div className="flex min-h-8 flex-wrap items-center gap-1 text-[#737373]">
       <button type="button" title="تنسيق النص" aria-label="تنسيق النص" aria-expanded={focused || pinned} aria-pressed={pinned} onClick={() => setPinned(!pinned)} className="rounded-lg p-1.5 hover:bg-black/5"><Type size={17} /></button>
       {(focused || pinned) && <div role="toolbar" aria-label="أدوات تنسيق النص" className="flex flex-wrap items-center gap-0.5">
         {tools.map(tool => <button key={tool.label} type="button" title={tool.label} aria-label={tool.label} aria-pressed={'key' in tool ? selected.end > selected.start && Array.from({ length: selected.end - selected.start }, (_, i) => selected.start + i).every(i => format?.some(range => range.start <= i && range.end > i && range[tool.key])) : undefined} onMouseDown={event => event.preventDefault()} onClick={() => apply('key' in tool ? tool.key : 'align', 'align' in tool ? tool.align : undefined)} className="rounded-lg p-1.5 hover:bg-black/5 focus-visible:outline-2 aria-pressed:bg-black/10 aria-pressed:text-[#111111]"><tool.Icon size={17} /></button>)}

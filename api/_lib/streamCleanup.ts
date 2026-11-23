@@ -13,6 +13,7 @@ const UID = '[a-f0-9]{32}';
 const REFERENCED = `
   select distinct m[1] as uid from (
     select coalesce(wallpaper_json::text, '') || ' ' || coalesce(to_jsonb(pages)->>'draft_json', '') as t from pages
+    union all select page_json::text from creation_email_drafts where revoked_at is null
     union all select link_json::text from deleted_links
     union all select page_json::text from partner_orders where status in ('draft', 'awaiting_payment')
   ) s, regexp_matches(s.t, 'cloudflarestream\\.com/(${UID})/', 'g') m`;

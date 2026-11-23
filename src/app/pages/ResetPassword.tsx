@@ -77,7 +77,7 @@ function NonprofitReset({ nonprofit }: { nonprofit: boolean }) {
   const navigate = useNavigate();
   const { surface, accentText, primaryButton } = authTheme(true);
   const button = (label: string, disabled: boolean) => (
-    <button type="submit" disabled={flow.loading || disabled} className={`mt-5 flex min-h-[52px] w-full items-center justify-center rounded-2xl ${primaryButton} text-[17px] font-bold text-white transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+    <button type="submit" disabled={flow.loading || disabled} className={`mt-5 flex min-h-[52px] w-full items-center justify-center rounded-2xl ${primaryButton} text-[17px] font-bold text-white transition-transform active:scale-[0.98] disabled:bg-[#E7E7E7] disabled:text-[#737373] disabled:shadow-none`} style={{ fontFamily: 'Cairo, sans-serif' }}>
       {flow.loading ? <Loader2 className="h-5 w-5 animate-spin" /> : label}
     </button>
   );

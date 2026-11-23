@@ -94,11 +94,13 @@ export function reorderSectionItem<T extends SectionItem>(items: T[], id: string
     blocks.splice(to, 0, moved);
     return blocks.flat();
   }
+  // Dragged downwards it lands after the target, otherwise a one-row move changes nothing.
+  const movingDown = items.indexOf(item) < items.indexOf(target);
   const next = items.filter(value => value.id !== id);
   const index = next.findIndex(value => value.id === targetId);
   const key = target.display?.sectionId;
   const moved = { ...item, display: { ...item.display, sectionId: key } };
-  next.splice(index + (target.display?.kind === 'heading' && key ? 1 : 0), 0, moved);
+  next.splice(index + ((target.display?.kind === 'heading' && key) || movingDown ? 1 : 0), 0, moved);
   return arrangeSections(next);
 }
 

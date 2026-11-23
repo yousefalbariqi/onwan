@@ -44,16 +44,16 @@ function MiniPageTop({ shape, image, fit, position, background }: { shape: Shape
     ? <img src={image} alt="" className="h-full w-full" style={{ objectFit: fit, objectPosition: position }} />
     : null;
   const wide = shape === 'hero' || shape === 'hero_safe';
-  const frame = shape === 'circle' ? 'rounded-full' : shape === 'premium' ? 'rounded-full ring-2 ring-[#1d1d1f] ring-offset-1' : shape === 'rounded' ? 'rounded-lg' : 'rounded-none';
+  const frame = shape === 'circle' ? 'rounded-full' : shape === 'premium' ? 'rounded-full ring-2 ring-[#111111] ring-offset-1' : shape === 'rounded' ? 'rounded-lg' : 'rounded-none';
   const fade = { maskImage: 'linear-gradient(to bottom, #000 60%, transparent)', WebkitMaskImage: 'linear-gradient(to bottom, #000 60%, transparent)' };
   return (
     <span className="relative block h-[64px] w-full overflow-hidden rounded-lg ring-1 ring-black/5" style={{ background }} aria-hidden="true">
       {wide ? (
         <span className={`block h-[42px] w-full overflow-hidden ${shape === 'hero_safe' ? 'px-3 pt-1.5' : ''}`} style={shape === 'hero' ? fade : undefined}>
-          <span className="block h-full w-full overflow-hidden bg-[#c7c7cc]/60">{photo}</span>
+          <span className="block h-full w-full overflow-hidden bg-[#D4D4D4]/60">{photo}</span>
         </span>
       ) : (
-        <span className="flex justify-center pt-1.5"><span className={`block h-8 w-8 overflow-hidden bg-[#c7c7cc] ${frame}`}>{photo}</span></span>
+        <span className="flex justify-center pt-1.5"><span className={`block h-8 w-8 overflow-hidden bg-[#D4D4D4] ${frame}`}>{photo}</span></span>
       )}
       <span className={`absolute inset-x-0 flex flex-col items-center gap-1 ${wide ? 'top-[48px]' : 'top-[44px]'}`}>
         <span className="h-1.5 w-12 rounded-full bg-black/35" />
@@ -65,7 +65,7 @@ function MiniPageTop({ shape, image, fit, position, background }: { shape: Shape
 
 // Shape and fit of the profile photo; «الهوية» draws the position / zoom
 // sliders around the photo itself.
-export function ProfileImageControls() {
+export function ProfileImageControls({ showShapes = true }: { showShapes?: boolean } = {}) {
   const { pageData, updateProfileStyle } = usePageContext();
   const style = pageData.profileStyle;
   const fit = style.fit ?? (style.type === 'hero_safe' ? 'contain' : 'cover');
@@ -76,7 +76,7 @@ export function ProfileImageControls() {
     <div className="space-y-3" dir="rtl">
       {/* Note 41: one quiet grid — three to a row (two on very narrow screens),
           the preview doing the explaining, a short name under it. */}
-      <div className="grid grid-cols-2 gap-1.5 min-[360px]:grid-cols-3" role="group" aria-label="شكل الصورة">
+      {showShapes && <div className="grid grid-cols-2 gap-1.5 min-[360px]:grid-cols-3" role="group" aria-label="شكل الصورة">
         {PROFILE_SHAPES.map((shape) => {
           const active = isShapeActive(style.type, shape.id);
           return (
@@ -85,19 +85,19 @@ export function ProfileImageControls() {
               key={shape.id}
               aria-pressed={active}
               onClick={() => !active && updateProfileStyle({ type: shape.id })}
-              className={`flex flex-col items-stretch gap-0.5 rounded-xl p-0.5 transition-colors ${active ? 'bg-[#0a84ff]/10 ring-2 ring-[#0a84ff]' : 'hover:bg-[#f2f2f7]'}`}
+              className={`flex flex-col items-stretch gap-0.5 rounded-xl p-0.5 transition-colors ${active ? 'bg-[#111111]/5 ring-2 ring-[#111111]' : 'hover:bg-[#F5F5F3]'}`}
             >
               <MiniPageTop shape={shape.id} image={image} fit={shape.id === 'hero_safe' ? 'contain' : fit} position={`${style.positionX ?? 50}% ${style.positionY ?? 50}%`} background={pageBackground} />
-              <span className={`text-center text-[12px] leading-4 ${active ? 'font-bold text-[#0a84ff]' : 'text-[#3a3a3c]'}`}>{shape.label}</span>
+              <span className={`text-center text-[12px] leading-4 ${active ? 'font-bold text-[#C2410C]' : 'text-[#262626]'}`}>{shape.label}</span>
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {/* «بهامش» always shows the whole photo, so it has no fit choice. */}
       {image && style.type !== 'hero_safe' && (
         <div>
-          <p className="mb-1.5 text-[13px] font-bold text-[#6e6e73]" style={{ fontFamily: 'Cairo, sans-serif' }}>الصورة داخل الشكل</p>
+          <p className="mb-1.5 text-[13px] font-bold text-[#737373]" style={{ fontFamily: 'Cairo, sans-serif' }}>الصورة داخل الشكل</p>
           <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="الصورة داخل الشكل">
             {FITS.map((option) => {
               const active = fit === option.id;
@@ -108,15 +108,15 @@ export function ProfileImageControls() {
                   aria-checked={active}
                   key={option.id}
                   onClick={() => !active && updateProfileStyle({ fit: option.id, zoom: 1 })}
-                  className={`flex items-center gap-2.5 rounded-xl border-2 px-2 py-1.5 text-right transition-colors ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`}
+                  className={`flex items-center gap-2.5 rounded-xl border-2 px-2 py-1.5 text-right transition-colors ${active ? 'border-[#111111] bg-[#111111]/5' : 'border-transparent bg-[#F5F5F3]'}`}
                 >
                   {/* The photo itself in a small frame, filled or whole. */}
                   <span className={`block shrink-0 overflow-hidden ring-1 ring-black/10 ${fitFrame(style.type)}`} style={EMPTY_FRAME}>
                     <img src={image} alt="" className="h-full w-full" style={{ objectFit: option.id, objectPosition: `${style.positionX ?? 50}% ${style.positionY ?? 50}%` }} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-bold text-[#1d1d1f]">{option.label}</span>
-                    <span className="block text-[11px] text-[#8e8e93]">{option.hint}</span>
+                    <span className="block text-sm font-bold text-[#111111]">{option.label}</span>
+                    <span className="block text-[11px] text-[#737373]">{option.hint}</span>
                   </span>
                 </button>
               );

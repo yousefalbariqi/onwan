@@ -25,3 +25,18 @@ export function editorPreview(data: PageData): PageData {
   };
   return { ...data, links: saveSectionItem(data.links, item, form.kind === 'group' ? form.sectionMembers : undefined) };
 }
+
+// While a style panel is open on an empty page, show sample buttons so a chosen
+// look is visible at once. Visual only: never saved.
+const SAMPLE_TITLES = ['موقعنا الإلكتروني', 'تواصل معنا', 'خدماتنا'];
+export function withSampleLinks(data: PageData): PageData {
+  // Same test as PageView: a hidden or still-empty row shows nothing, so it doesn't count.
+  if (data.links.some(link => !link.hidden && (link.url || link.linkType === 'file' || ['heading', 'text'].includes(link.display?.kind ?? '')))) return data;
+  return { ...data, links: [...data.links, ...SAMPLE_TITLES.map((title, index) => ({ id: `onwan-sample-${index}`, title, url: 'https://example.com', platform: 'custom', linkType: 'url', hidden: false } as Link))] };
+}
+
+// An opened form the owner typed nothing into is not a draft worth keeping.
+export function draftHasContent(draft: { form?: any; rawLink?: string } | null | undefined) {
+  const form = draft?.form;
+  return Boolean(form?.title?.trim() || form?.url?.trim() || draft?.rawLink?.trim() || form?.fileName || form?.display?.body?.trim() || form?.display?.image || form?.customIcon || form?.sectionMembers?.length);
+}

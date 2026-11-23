@@ -7,6 +7,13 @@
 .otp-code input.otp-code__input { position: absolute; z-index: 1; inset: 0; display: block; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 16px; background: transparent; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent; font: 20px/1 sans-serif; direction: ltr; text-align: left; outline: none; box-shadow: none; cursor: text; }
 .otp-code input.otp-code__input:focus { border: 0; box-shadow: none; outline: none; }
 .otp-code input.otp-code__input::selection { background: transparent; }
-.otp-code.is-invalid .otp-code__boxes span { border-color: #b42318; background: #fff7f6; }
+.otp-code.is-invalid .otp-code__boxes span { border-color: #DC2626; background: #fff7f6; }
 .otp-code.is-disabled { opacity: .65; }
 @media (prefers-reduced-motion: reduce) { .otp-code__boxes span { transition: none; } }
+
+/* Note 25: a typed digit is black, a wrong code red, a correct code green. */
+.otp-code__boxes .is-filled { border-color: #111; background: #111; color: #fff; }
+.otp-code__boxes .is-filled.is-active { border-color: #ff6b2c; background: #111; box-shadow: 0 0 0 2px #ff6b2c33; }
+.otp-code.is-invalid .otp-code__boxes span.is-filled { border-color: #d92d20; background: #d92d20; color: #fff; box-shadow: none; }
+.otp-code.is-success .otp-code__boxes span { border-color: #16a34a; background: #16a34a; color: #fff; box-shadow: none; }
+.otp-code.is-success.is-disabled { opacity: 1; }

@@ -96,19 +96,19 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false, onBusyCh
               event.preventDefault();
               (document.getElementById(uploadId) as HTMLInputElement | null)?.click();
             }}
-            className="group relative flex min-w-0 flex-1 cursor-pointer justify-center overflow-hidden rounded-xl bg-[#f2f2f7] p-3 lg:[zoom:0.72] outline-none transition-[transform,box-shadow] hover:ring-2 hover:ring-[#0a84ff]/30 focus-visible:ring-2 focus-visible:ring-[#0a84ff] active:scale-[0.98]"
+            className="group relative flex min-w-0 flex-1 cursor-pointer justify-center overflow-hidden rounded-xl bg-[#F5F5F3] p-3 lg:[zoom:0.72] outline-none transition-[transform,box-shadow] hover:ring-2 hover:ring-[#111111] focus-visible:ring-2 focus-visible:ring-[#111111] active:scale-[0.98]"
           >
-            <ProfileImageDisplay profileImage={pageData.profileImage} name={pageData.name} profileStyle={pageData.profileStyle} textColor="#1d1d1f" backgroundColor="#f2f2f7" />
-            <span className="pointer-events-none absolute bottom-2 left-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#0a84ff] text-white shadow-[0_2px_8px_rgba(10,132,255,0.4)] transition-transform group-hover:scale-110" aria-hidden="true">
+            <ProfileImageDisplay profileImage={pageData.profileImage} name={pageData.name} profileStyle={pageData.profileStyle} textColor="#111111" backgroundColor="#F5F5F3" />
+            <span className="pointer-events-none absolute bottom-2 left-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#111111] text-white shadow-[0_2px_8px_rgba(17,17,17,0.4)] transition-transform group-hover:scale-110" aria-hidden="true">
               <Camera className="h-4 w-4" />
             </span>
           </label>
           {canAdjust && (logoZoomOut ? (
             // Note 10 (nonprofit editor): − / + beside the slider, down to 30 % so a wide logo fits whole.
             <div className="flex flex-col items-center gap-1">
-              <button type="button" aria-label="تكبير الشعار" onClick={() => updateProfileStyle({ zoom: zoomStep(style.zoom, 0.1) })} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f2f2f7] text-lg font-bold text-[#1d1d1f]">+</button>
+              <button type="button" aria-label="تكبير الشعار" onClick={() => updateProfileStyle({ zoom: zoomStep(style.zoom, 0.1) })} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F5F5F3] text-lg font-bold text-[#111111]">+</button>
               <VerticalSlider label="تكبير" min={MIN_LOGO_ZOOM} max={3} step={0.01} value={style.zoom ?? 1} icon="zoom" onChange={(value) => updateProfileStyle({ zoom: value })} />
-              <button type="button" aria-label="تصغير الشعار" onClick={() => updateProfileStyle({ zoom: zoomStep(style.zoom, -0.1) })} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f2f2f7] text-lg font-bold text-[#1d1d1f]">−</button>
+              <button type="button" aria-label="تصغير الشعار" onClick={() => updateProfileStyle({ zoom: zoomStep(style.zoom, -0.1) })} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F5F5F3] text-lg font-bold text-[#111111]">−</button>
             </div>
           ) : <VerticalSlider label="تكبير" min={1} max={3} step={0.01} value={style.zoom ?? 1} icon="zoom" onChange={(value) => updateProfileStyle({ zoom: value })} />)}
         </div>
@@ -116,16 +116,16 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false, onBusyCh
           <EndsSlider label="يمين / يسار" start="يمين" end="يسار" min={0} max={100} value={style.positionX ?? 50} onChange={(value) => updateProfileStyle({ positionX: value })} />
         )}
         {canAdjust && ((style.positionX ?? 50) !== 50 || (style.positionY ?? 50) !== 50 || (style.zoom ?? 1) !== 1) && (
-          <button type="button" onClick={() => updateProfileStyle({ positionX: 50, positionY: 50, zoom: 1 })} className="text-xs text-[#0a84ff]">إعادة الصورة إلى المنتصف</button>
+          <button type="button" onClick={() => updateProfileStyle({ positionX: 50, positionY: 50, zoom: 1 })} className="text-xs text-[#C2410C]">إعادة الصورة إلى المنتصف</button>
         )}
         <div className="flex items-center gap-4 text-[15px]">
-          <label htmlFor={uploadId} className="cursor-pointer text-[#0a84ff]">{pageData.profileImage ? 'تغيير الصورة' : 'إضافة شعار أو صورة'}</label>
+          <label htmlFor={uploadId} className="cursor-pointer text-[#C2410C]">{pageData.profileImage ? 'تغيير الصورة' : 'إضافة شعار أو صورة'}</label>
           {!!pageData.profileImage && (
-            <button onClick={() => updatePageData({ profileImage: '', extractedColors: [] })} className="text-[#ff3b30]">إزالة</button>
+            <button onClick={() => updatePageData({ profileImage: '', extractedColors: [] })} className="text-[#DC2626]">إزالة</button>
           )}
         </div>
         {preparing && <p role="status" className="text-xs text-[#737373]">جارٍ تجهيز الصورة…</p>}
-        {!!imageError && <p className="text-xs text-[#ff3b30]">{imageError}</p>}
+        {!!imageError && <p className="text-xs text-[#DC2626]">{imageError}</p>}
 
       </section>
 
@@ -138,11 +138,11 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false, onBusyCh
               const active = id === 'banner' ? isBanner : !isBanner;
               return (
                 <button key={id} type="button" role="radio" aria-checked={active} onClick={() => !active && updateProfileStyle({ type: id === 'banner' ? 'banner' : 'circle' })} className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-3 transition-colors ${active ? 'border-[#173c36]' : 'border-[#ececec]'}`}>
-                  <span className="relative block h-14 w-full overflow-hidden rounded-xl bg-[#f2f2f7]">
+                  <span className="relative block h-14 w-full overflow-hidden rounded-xl bg-[#F5F5F3]">
                     {id === 'banner' && <span className="absolute inset-x-0 top-0 block h-8 bg-[#c9d5c2]" />}
                     <span className="absolute left-1/2 top-1/2 block h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#6c8050]" style={id === 'banner' ? { top: '62%' } : undefined} />
                   </span>
-                  <span className="text-sm font-bold text-[#1d1d1f]">{label}</span>
+                  <span className="text-sm font-bold text-[#111111]">{label}</span>
                 </button>
               );
             })}
@@ -161,13 +161,13 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false, onBusyCh
               const request = ++imageRequest.current; setPreparing(true); onBusyChange?.(true);
               compressImage(file).then((image) => { if (request === imageRequest.current) updateProfileStyle({ bannerImage: image }); }).catch((problem) => { if (request === imageRequest.current) setBannerError(problem instanceof ImageProblem ? problem.message : 'تعذّر تجهيز الصورة. حاول مجددًا.'); }).finally(() => { if (request === imageRequest.current) { setPreparing(false); onBusyChange?.(false); } });
             }} />
-            <label htmlFor={bannerId} className="block cursor-pointer overflow-hidden rounded-2xl bg-[#f2f2f7]">
+            <label htmlFor={bannerId} className="block cursor-pointer overflow-hidden rounded-2xl bg-[#F5F5F3]">
               {style.bannerImage
                 ? <img src={style.bannerImage} alt="صورة البنر" className="aspect-[2.4/1] w-full object-cover" />
-                : <span className="flex aspect-[2.4/1] w-full items-center justify-center gap-2 text-sm font-bold text-[#6e6e73]"><Camera className="h-5 w-5" />رفع صورة البنر</span>}
+                : <span className="flex aspect-[2.4/1] w-full items-center justify-center gap-2 text-sm font-bold text-[#737373]"><Camera className="h-5 w-5" />رفع صورة البنر</span>}
             </label>
-            {style.bannerImage && <label htmlFor={bannerId} className="block cursor-pointer text-center text-sm font-bold text-[#0a84ff]">تغيير صورة البنر</label>}
-            {!!bannerError && <p className="text-xs text-[#ff3b30]">{bannerError}</p>}
+            {style.bannerImage && <label htmlFor={bannerId} className="block cursor-pointer text-center text-sm font-bold text-[#C2410C]">تغيير صورة البنر</label>}
+            {!!bannerError && <p className="text-xs text-[#DC2626]">{bannerError}</p>}
             <EndsSlider label="حجم الشعار" start="أصغر" end="أكبر" min={56} max={160} value={style.logoSize ?? 112} onChange={(value) => updateProfileStyle({ logoSize: value })} />
           </div>
         </Group>
@@ -179,7 +179,7 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false, onBusyCh
 
       <Group title="الاسم">
         <div className="px-4 py-1">
-          <input value={pageData.name} onChange={(e) => updatePageData({ name: e.target.value })} placeholder="اسمك" maxLength={80} className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} />
+          <input value={pageData.name} onChange={(e) => updatePageData({ name: e.target.value })} placeholder="اسمك" maxLength={80} className="w-full bg-transparent py-3 text-[17px] font-bold text-[#111111] placeholder:font-normal placeholder:text-[#D4D4D4] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} />
         </div>
       </Group>
 
@@ -192,15 +192,15 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false, onBusyCh
             placeholder="نبذة مختصرة"
             maxLength={300}
             rows={3}
-            className="w-full resize-none bg-transparent text-[15px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none"
+            className="w-full resize-none bg-transparent text-[15px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none"
           />
-          <span className="block text-left text-xs text-[#8e8e93]" dir="ltr">{pageData.bio.length}/300</span>
+          <span className="block text-left text-xs text-[#737373]" dir="ltr">{pageData.bio.length}/300</span>
         </div>
       </Group>
 
       <Group title="الاسم بالإنجليزية (اختياري)">
         <div dir="ltr" className="px-4 py-1">
-          <input value={pageData.translations?.en?.name || ''} onChange={(e) => updatePageData({ translations: { en: { ...pageData.translations?.en, name: e.target.value } } })} placeholder="Name" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" />
+          <input value={pageData.translations?.en?.name || ''} onChange={(e) => updatePageData({ translations: { en: { ...pageData.translations?.en, name: e.target.value } } })} placeholder="Name" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#111111] placeholder:font-normal placeholder:text-[#D4D4D4] focus:outline-none" />
         </div>
       </Group>
 
@@ -213,9 +213,9 @@ export function HeaderEditor({ logoZoomOut = false, logoBanner = false, onBusyCh
               placeholder="Short description"
               rows={2}
               maxLength={300}
-              className="w-full resize-none bg-transparent text-[15px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none"
+              className="w-full resize-none bg-transparent text-[15px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none"
             />
-            <span className="block text-right text-xs text-[#8e8e93]">{(pageData.translations?.en?.bio || '').length}/300</span>
+            <span className="block text-right text-xs text-[#737373]">{(pageData.translations?.en?.bio || '').length}/300</span>
           </div>
         </div>
       </Group>

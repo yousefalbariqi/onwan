@@ -8,7 +8,7 @@
 .creation-trial__fields > p { margin: 0 0 22px; font-size: 12px; line-height: 1.9; color: #7c7e73; }
 .creation-trial__fields label { display: grid; gap: 8px; margin-top: 18px; font-size: 12px; font-weight: 700; }
 .creation-trial__fields :is(input, textarea) { width: 100%; min-width: 0; border: 1px solid #e1ded5; border-radius: 14px; padding: 12px 14px; background: #fff; color: #292c24; font-size: 14px; font-weight: 400; }
-.creation-trial__image { display: flex; gap: 9px; align-items: center; background: #fff0e7; color: #ad4719; padding: 11px 16px; border: 0; border-radius: 100px; font-size: 12px; cursor: pointer; }
+.creation-trial__image { display: flex; gap: 9px; align-items: center; background: #FFF0E8; color: #ad4719; padding: 11px 16px; border: 0; border-radius: 100px; font-size: 12px; cursor: pointer; }
 .creation-trial__image:disabled { opacity: .5; }
 .creation-trial__links-title { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 12px; }
 .creation-trial__links-title h2 { margin: 0; font-size: 15px; font-weight: 700; }
@@ -20,7 +20,7 @@
 .creation-trial__preview { width: 100%; position: sticky; top: 24px; }
 .creation-trial__layout.is-preview { display: flex; justify-content: center; }
 .creation-trial__layout.is-preview .creation-trial__preview { width: 340px; max-width: 90%; }
-.creation-trial__error { color: #b42318 !important; }
+.creation-trial__error { color: #DC2626 !important; }
 .creation-trial__empty { display: grid; align-content: center; justify-items: center; gap: 18px; padding: 30px; text-align: center; }
 .creation-trial__empty a { color: #b94b1b; }
 .creation-trial :is(button, input, textarea, a):focus-visible { outline: 3px solid #b84517; outline-offset: 3px; }

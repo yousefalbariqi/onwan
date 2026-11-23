@@ -45,7 +45,7 @@ export function Reviews({ onOpen }: { onOpen: OpenCustomer }) {
       actions={
         <Tabs
           value={status}
-          onChange={setStatus}
+          onChange={value => setStatus(value as typeof status)}
           options={(['pending', 'accepted', 'rejected'] as const).map((id) => ({ id, label: REVIEW_STATUS[id] }))}
         />
       }
@@ -227,7 +227,7 @@ export function Requests({ onOpen }: { onOpen: OpenCustomer }) {
       actions={
         <Tabs
           value={status}
-          onChange={setStatus}
+          onChange={value => setStatus(value as typeof status)}
           options={[
             { id: 'open', label: 'المفتوحة' },
             { id: 'in_progress', label: 'قيد المعالجة' },

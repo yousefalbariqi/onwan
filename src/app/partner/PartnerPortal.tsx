@@ -44,10 +44,10 @@ function PartnerLogin({ onLogin }: { onLogin: (partner: PartnerAccount) => void 
     setPartnerToken(response.token);
     onLogin(response.partner);
   };
-  const field = 'block w-full bg-transparent px-4 py-3.5 text-[17px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none';
+  const field = 'block w-full bg-transparent px-4 py-3.5 text-[17px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none';
 
   return (
-    <div className="flex min-h-screen items-end justify-center bg-[#f2f2f7] sm:items-center sm:p-4" dir="rtl" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+    <div className="flex min-h-screen items-end justify-center bg-[#F5F5F3] sm:items-center sm:p-4" dir="rtl" style={{ fontFamily: 'Tajawal, sans-serif' }}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -60,23 +60,23 @@ function PartnerLogin({ onLogin }: { onLogin: (partner: PartnerAccount) => void 
         className="w-full max-w-[400px] space-y-5 px-5 pb-8 pt-10"
       >
         <div className="text-center">
-          <h1 className="text-[26px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>بوابة الشركاء</h1>
-          <p className="mt-1 text-[15px] text-[#6e6e73]">{method === 'code' ? 'نرسل رمز الدخول إلى بريدك' : 'ادخل بكلمة مرورك'}</p>
+          <h1 className="text-[26px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>بوابة الشركاء</h1>
+          <p className="mt-1 text-[15px] text-[#737373]">{method === 'code' ? 'نرسل رمز الدخول إلى بريدك' : 'ادخل بكلمة مرورك'}</p>
         </div>
-        <div className="divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-white">
+        <div className="divide-y divide-[#E7E7E7] overflow-hidden rounded-2xl bg-white">
           <input type="email" value={email} onChange={(e) => { setEmail(e.target.value.trim()); setSent(''); }} placeholder="البريد الإلكتروني" aria-label="البريد الإلكتروني" className={field} dir="ltr" style={{ textAlign: 'right' }} autoComplete="username" autoFocus />
           {method === 'password' && <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="كلمة المرور" aria-label="كلمة المرور" className={field} dir="ltr" autoComplete="current-password" />}
           {method === 'code' && sent && <input value={code} onChange={(e) => setCode(digitsOnly(e.target.value).slice(0, 4))} placeholder="• • • •" aria-label="رمز الدخول" inputMode="numeric" autoComplete="one-time-code" className={`${field} text-center text-2xl tracking-[0.6em]`} dir="ltr" />}
         </div>
-        {sent && method === 'code' && <p className="px-1 text-[13px] text-[#1f7a35]">{sent}</p>}
+        {sent && method === 'code' && <p className="px-1 text-[13px] text-[#15803D]">{sent}</p>}
         <TurnstileBox />
         <ErrorNote message={action.error} />
-        <button type="submit" disabled={action.busy || !humanOk || !email || (method === 'password' ? !password : Boolean(sent) && code.length !== 4)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+        <button type="submit" disabled={action.busy || !humanOk || !email || (method === 'password' ? !password : Boolean(sent) && code.length !== 4)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#111111] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] disabled:bg-[#E7E7E7] disabled:text-[#737373] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
           {action.busy ? 'لحظات…' : method === 'password' || sent ? 'دخول' : 'أرسل رمز الدخول'}
         </button>
         <div className="flex items-center justify-between px-1 text-[15px]">
-          <button type="button" onClick={() => { setMethod(method === 'code' ? 'password' : 'code'); setSent(''); setCode(''); }} className="text-[#0a84ff]">{method === 'code' ? 'لدي كلمة مرور' : 'الدخول برمز'}</button>
-          <Link to="/partners" className="font-bold text-[#0a84ff]">قدّم طلب شراكة</Link>
+          <button type="button" onClick={() => { setMethod(method === 'code' ? 'password' : 'code'); setSent(''); setCode(''); }} className="text-[#C2410C]">{method === 'code' ? 'لدي كلمة مرور' : 'الدخول برمز'}</button>
+          <Link to="/partners" className="font-bold text-[#C2410C]">قدّم طلب شراكة</Link>
         </div>
       </form>
     </div>

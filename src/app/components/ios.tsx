@@ -11,9 +11,9 @@ export const COLOR_DOTS = ['#000000', '#ffffff', '#6b7280', '#0066cc', '#059669'
 export function Group({ title, children, footer }: { title: string; children: ReactNode; footer?: string }) {
   return (
     <section>
-      <h3 className="mb-1.5 px-4 text-[13px] font-bold text-[#6e6e73]" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</h3>
-      <div className="divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-white">{children}</div>
-      {footer && <p className="mt-1.5 px-4 text-xs leading-5 text-[#8e8e93]">{footer}</p>}
+      <h3 className="mb-1.5 px-4 text-[13px] font-bold text-[#737373]" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</h3>
+      <div className="divide-y divide-[#E7E7E7] overflow-hidden rounded-2xl bg-white">{children}</div>
+      {footer && <p className="mt-1.5 px-4 text-xs leading-5 text-[#737373]">{footer}</p>}
     </section>
   );
 }
@@ -21,7 +21,7 @@ export function Group({ title, children, footer }: { title: string; children: Re
 export function Row({ label, children, stacked = false }: { label: string; children: ReactNode; stacked?: boolean }) {
   return (
     <div className={stacked ? 'space-y-2.5 px-4 py-3' : 'flex min-h-[48px] items-center justify-between gap-3 px-4 py-2'}>
-      <span className="text-[15px] text-[#1d1d1f]">{label}</span>
+      <span className="text-[15px] text-[#111111]">{label}</span>
       {children}
     </div>
   );
@@ -40,7 +40,7 @@ export function Segmented<T extends string>({ options, value, onChange, large = 
             type="button"
             aria-pressed={active}
             onClick={() => onChange(option.id)}
-            className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-1 font-bold leading-none transition-all ${large ? 'text-[14px]' : 'text-[13px]'} ${active ? 'bg-white text-[#1d1d1f] shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6e6e73]'}`}
+            className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-1 font-bold leading-none transition-all ${large ? 'text-[14px]' : 'text-[13px]'} ${active ? 'bg-white text-[#111111] shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#737373]'}`}
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             {Icon && <Icon className="h-3.5 w-3.5" />}
@@ -54,7 +54,7 @@ export function Segmented<T extends string>({ options, value, onChange, large = 
 
 export function Toggle({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) {
   return (
-    <button role="switch" aria-checked={on} aria-label={label} onClick={onChange} className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${on ? 'bg-[#34c759]' : 'bg-[#e9e9ee]'}`}>
+    <button role="switch" aria-checked={on} aria-label={label} onClick={onChange} className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${on ? 'bg-[#16A34A]' : 'bg-[#e9e9ee]'}`}>
       <span className={`absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)] transition-all ${on ? 'left-[2px]' : 'left-[22px]'}`} />
     </button>
   );
@@ -65,17 +65,17 @@ export function ColorDots({ value, onChange }: { value?: string; onChange: (colo
   const isCustom = !!value && !COLOR_DOTS.includes(value.toLowerCase());
   return (
     <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <button onClick={() => onChange(undefined)} className={`flex h-9 shrink-0 items-center rounded-full px-3 text-xs font-bold ${!value ? 'bg-[#1d1d1f] text-white' : 'bg-[#f2f2f7] text-[#3a3a3c]'}`}>تلقائي</button>
+      <button onClick={() => onChange(undefined)} className={`flex h-9 shrink-0 items-center rounded-full px-3 text-xs font-bold ${!value ? 'bg-[#111111] text-white' : 'bg-[#F5F5F3] text-[#262626]'}`}>تلقائي</button>
       {COLOR_DOTS.map((color) => {
         const active = value?.toLowerCase() === color;
         return (
-          <button key={color} onClick={() => onChange(color)} aria-label={color} className={`relative h-9 w-9 shrink-0 rounded-full ring-1 ring-black/10 ${active ? 'outline outline-2 outline-offset-2 outline-[#0a84ff]' : ''}`} style={{ backgroundColor: color }}>
+          <button key={color} onClick={() => onChange(color)} aria-label={color} className={`relative h-9 w-9 shrink-0 rounded-full ring-1 ring-black/10 ${active ? 'outline outline-2 outline-offset-2 outline-[#111111]' : ''}`} style={{ backgroundColor: color }}>
             {active && <Check className={`absolute inset-0 m-auto h-4 w-4 ${color === '#ffffff' ? 'text-black' : 'text-white'}`} />}
           </button>
         );
       })}
-      <label className={`relative flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full ${isCustom ? 'outline outline-2 outline-offset-2 outline-[#0a84ff]' : ''}`} style={{ background: isCustom ? value : 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }} aria-label="لون مخصص">
-        {!isCustom && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white"><Plus className="h-4 w-4 text-[#1d1d1f]" /></span>}
+      <label className={`relative flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full ${isCustom ? 'outline outline-2 outline-offset-2 outline-[#111111]' : ''}`} style={{ background: isCustom ? value : 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }} aria-label="لون مخصص">
+        {!isCustom && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white"><Plus className="h-4 w-4 text-[#111111]" /></span>}
         <input type="color" value={value || '#000000'} onChange={(e) => onChange(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
       </label>
     </div>
@@ -83,29 +83,29 @@ export function ColorDots({ value, onChange }: { value?: string; onChange: (colo
 }
 
 // Outer wrapper of every panel: the grey grouped background.
-export function Panel({ children }: { children: ReactNode }) {
-  return <div className="space-y-6 bg-[#f2f2f7] px-4 py-5" style={{ fontFamily: 'Tajawal, sans-serif' }}>{children}</div>;
+export function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`space-y-6 bg-[#F5F5F3] px-4 py-5 ${className}`} style={{ fontFamily: 'Tajawal, sans-serif' }}>{children}</div>;
 }
 
 // A text field laid out as a grouped-list row.
 export function FieldRow({ label, ...input }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="flex min-h-[48px] items-center gap-3 px-4">
-      <span className="w-20 shrink-0 text-[15px] text-[#1d1d1f]">{label}</span>
-      <input {...input} className="min-w-0 flex-1 bg-transparent py-3 text-[15px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
+      <span className="w-20 shrink-0 text-[15px] text-[#111111]">{label}</span>
+      <input {...input} className="min-w-0 flex-1 bg-transparent py-3 text-[15px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none" />
     </label>
   );
 }
 
 // A tappable row that leads somewhere (chevron on the left in RTL).
 export function NavRow({ label, value, onClick, tone = 'default' }: { label: string; value?: ReactNode; onClick: () => void; tone?: 'default' | 'blue' | 'red' }) {
-  const color = tone === 'blue' ? 'text-[#0a84ff]' : tone === 'red' ? 'text-[#ff3b30]' : 'text-[#1d1d1f]';
+  const color = tone === 'blue' ? 'text-[#C2410C]' : tone === 'red' ? 'text-[#DC2626]' : 'text-[#111111]';
   return (
     <button onClick={onClick} className="flex min-h-[48px] w-full items-center justify-between gap-3 px-4 py-2 text-right">
       <span className={`text-[15px] ${color}`}>{label}</span>
-      <span className="flex items-center gap-1 text-[15px] text-[#8e8e93]">
+      <span className="flex items-center gap-1 text-[15px] text-[#737373]">
         {value}
-        {tone === 'default' && <ChevronLeft className="h-4 w-4 text-[#c7c7cc]" />}
+        {tone === 'default' && <ChevronLeft className="h-4 w-4 text-[#D4D4D4]" />}
       </span>
     </button>
   );
@@ -116,7 +116,7 @@ export function NavRow({ label, value, onClick, tone = 'default' }: { label: str
 export function VerticalSlider({ label, min, max, step, value, onChange, topIsMin = false, icon }: { label: string; min: number; max: number; step: number; value: number; onChange: (value: number) => void; topIsMin?: boolean; icon?: 'zoom' }) {
   const LENGTH = 150;
   return (
-    <div className="flex shrink-0 flex-col items-center gap-1 text-[10px] text-[#6e6e73]">
+    <div className="flex shrink-0 flex-col items-center gap-1 text-[10px] text-[#737373]">
       {icon === 'zoom' ? <ZoomIn className="h-3.5 w-3.5" /> : <span>{topIsMin ? 'أعلى' : ''}</span>}
       <div className="relative w-7" style={{ height: LENGTH }}>
         <input
@@ -128,7 +128,7 @@ export function VerticalSlider({ label, min, max, step, value, onChange, topIsMi
           step={step}
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
-          className="absolute left-1/2 top-1/2 accent-[#0a84ff]"
+          className="absolute left-1/2 top-1/2 accent-[#FF6B2C]"
           style={{ width: LENGTH, transform: `translate(-50%, -50%) rotate(${topIsMin ? 90 : -90}deg)` }}
         />
       </div>
@@ -140,9 +140,9 @@ export function VerticalSlider({ label, min, max, step, value, onChange, topIsMi
 // A horizontal slider with its two ends named (e.g. يمين / يسار).
 export function EndsSlider({ label, start, end, min, max, step = 1, value, onChange }: { label: string; start: string; end: string; min: number; max: number; step?: number; value: number; onChange: (value: number) => void }) {
   return (
-    <label className="flex w-full items-center gap-3 px-1 text-xs text-[#6e6e73]">
+    <label className="flex w-full items-center gap-3 px-1 text-xs text-[#737373]">
       <span className="shrink-0">{start}</span>
-      <input aria-label={label} type="range" dir="rtl" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} className="min-w-0 flex-1 accent-[#0a84ff]" />
+      <input aria-label={label} type="range" dir="rtl" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} className="min-w-0 flex-1 accent-[#FF6B2C]" />
       <span className="shrink-0">{end}</span>
     </label>
   );
@@ -154,11 +154,11 @@ export function ConfirmSheet({ title, message, confirmLabel, cancelLabel, onConf
   return (
     <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={onCancel}>
       <div className="w-full max-w-[340px] overflow-hidden rounded-[22px] bg-white text-center shadow-2xl" onClick={(event) => event.stopPropagation()} role="alertdialog" aria-modal="true" aria-label={title}>
-        <p className="px-6 pb-1 pt-5 text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</p>
-        <p className="px-6 pb-4 text-sm leading-6 text-[#6e6e73]">{message}</p>
+        <p className="px-6 pb-1 pt-5 text-[17px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>{title}</p>
+        <p className="px-6 pb-4 text-sm leading-6 text-[#737373]">{message}</p>
         <div className="space-y-2 px-4 pb-4">
-          <button type="button" onClick={onConfirm} className={`block w-full rounded-xl py-3 text-[15px] font-bold text-white ${tone === 'danger' ? 'bg-[#ff3b30]' : 'bg-[#0a84ff]'}`}>{confirmLabel}</button>
-          <button type="button" onClick={onCancel} className="block w-full rounded-xl bg-[#f2f2f7] py-3 text-[15px] font-bold text-[#1d1d1f]">{cancelLabel}</button>
+          <button type="button" onClick={onConfirm} className={`block w-full rounded-xl py-3 text-[15px] font-bold text-white ${tone === 'danger' ? 'bg-[#DC2626]' : 'bg-[#111111]'}`}>{confirmLabel}</button>
+          <button type="button" onClick={onCancel} className="block w-full rounded-xl bg-[#F5F5F3] py-3 text-[15px] font-bold text-[#111111]">{cancelLabel}</button>
         </div>
       </div>
     </div>
@@ -167,9 +167,9 @@ export function ConfirmSheet({ title, message, confirmLabel, cancelLabel, onConf
 
 // The one main action of a screen: filled, wide, 52 pt.
 export function PrimaryButton({ children, onClick, disabled, busy, tone = 'blue', type = 'button' }: { children: ReactNode; onClick?: () => void; disabled?: boolean; busy?: boolean; tone?: 'blue' | 'green' | 'red'; type?: 'button' | 'submit' }) {
-  const color = tone === 'green' ? 'bg-emerald-600 shadow-[0_6px_16px_rgba(5,150,105,0.28)]' : tone === 'red' ? 'bg-[#ff3b30] shadow-[0_6px_16px_rgba(255,59,48,0.25)]' : 'bg-[#0a84ff] shadow-[0_6px_16px_rgba(10,132,255,0.28)]';
+  const color = tone === 'green' ? 'bg-emerald-600 shadow-[0_6px_16px_rgba(5,150,105,0.28)]' : tone === 'red' ? 'bg-[#DC2626] shadow-[0_6px_16px_rgba(255,59,48,0.25)]' : 'bg-[#111111] shadow-[0_6px_16px_rgba(17,17,17,0.28)]';
   return (
-    <button type={type} onClick={onClick} disabled={disabled || busy} className={`flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-[16px] font-bold text-white transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none ${color}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+    <button type={type} onClick={onClick} disabled={disabled || busy} className={`flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-[16px] font-bold text-white transition-transform active:scale-[0.98] disabled:bg-[#E7E7E7] disabled:text-[#737373] disabled:shadow-none ${color}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
       {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : children}
     </button>
   );
@@ -180,18 +180,18 @@ export function PrimaryButton({ children, onClick, disabled, busy, tone = 'blue'
 export function SettingsRow({ icon: Icon, tone, label, value, badge, onClick, danger = false }: { icon: LucideIcon; tone: string; label: string; value?: ReactNode; badge?: string; onClick?: () => void; danger?: boolean }) {
   const Row = onClick ? 'button' : 'div';
   return (
-    <Row {...(onClick ? { type: 'button' as const, onClick } : {})} className={`flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-right ${onClick ? 'active:bg-[#f2f2f7]' : ''}`}>
+    <Row {...(onClick ? { type: 'button' as const, onClick } : {})} className={`flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-right ${onClick ? 'active:bg-[#F5F5F3]' : ''}`}>
       <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-white ${tone}`}><Icon className="h-[18px] w-[18px]" /></span>
-      <span className={`min-w-0 flex-1 truncate text-[15px] ${danger ? 'text-[#ff3b30]' : 'text-[#1d1d1f]'}`}>{label}</span>
-      {badge && <span className="shrink-0 rounded-full bg-[#ff3b30] px-2 py-0.5 text-[11px] font-bold text-white">{badge}</span>}
-      {value !== undefined && <span className="max-w-[45%] shrink-0 truncate text-[15px] text-[#8e8e93]">{value}</span>}
-      {onClick && !danger && <ChevronLeft className="h-4 w-4 shrink-0 text-[#c7c7cc]" />}
+      <span className={`min-w-0 flex-1 truncate text-[15px] ${danger ? 'text-[#DC2626]' : 'text-[#111111]'}`}>{label}</span>
+      {badge && <span className="shrink-0 rounded-full bg-[#DC2626] px-2 py-0.5 text-[11px] font-bold text-white">{badge}</span>}
+      {value !== undefined && <span className="max-w-[45%] shrink-0 truncate text-[15px] text-[#737373]">{value}</span>}
+      {onClick && !danger && <ChevronLeft className="h-4 w-4 shrink-0 text-[#D4D4D4]" />}
     </Row>
   );
 }
 
 // A calm status line: one colour per meaning (info / good / warning / problem).
 export function Notice({ tone = 'info', children }: { tone?: 'info' | 'good' | 'warn' | 'bad'; children: ReactNode }) {
-  const color = tone === 'good' ? 'bg-[#34c759]/10 text-[#1f7a35]' : tone === 'warn' ? 'bg-[#ff9500]/12 text-[#9a5b00]' : tone === 'bad' ? 'bg-[#ff3b30]/10 text-[#c4251c]' : 'bg-[#f2f2f7] text-[#3a3a3c]';
+  const color = tone === 'good' ? 'bg-[#16A34A]/10 text-[#15803D]' : tone === 'warn' ? 'bg-[#ff9500]/12 text-[#9a5b00]' : tone === 'bad' ? 'bg-[#DC2626]/10 text-[#c4251c]' : 'bg-[#F5F5F3] text-[#262626]';
   return <p role={tone === 'bad' ? 'alert' : 'status'} className={`rounded-xl px-3.5 py-2.5 text-[13px] leading-6 ${color}`}>{children}</p>;
 }

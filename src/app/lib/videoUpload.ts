@@ -29,7 +29,7 @@ const wait = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, re
 async function uploadToStream(file: File, onProgress: (value: number) => void, signal: AbortSignal, token: string, onPhase?: (phase: 'uploading' | 'processing') => void) {
   let created: { uploadURL: string; uid: string };
   try {
-    created = await streamCall(token, { action: 'create' }, signal);
+    created = await streamCall(token, { action: 'create', size: file.size }, signal);
   } catch (error) {
     if ((error as { code?: string }).code === 'stream_off') return null;
     throw error;

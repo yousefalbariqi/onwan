@@ -1,8 +1,11 @@
+import './mobileContent.css';
 import { AutoSaveStatus } from './AutoSaveStatus';
 import { contentBack, type ContentScreen } from '../../../shared/contentNavigation';
 import { FormattingTextarea } from './FormattingTextarea';
 import { parseYouTubeVideoSource } from '../../../shared/videoSources';
 import { useEffect, useRef, useState, type ReactNode, type MutableRefObject } from 'react';
+import { draftHasContent } from '../lib/editorPreview';
+import { ImageProblem, compressImage, MAX_SOURCE_BYTES } from '../lib/compressImage';
 import { flushSync } from 'react-dom';
 import { Link, LinkDisplay, usePageContext } from '../context/PageContext';
 import {
@@ -116,10 +119,10 @@ const rawFromUrl = (url: string) => (url.startsWith('mailto:') ? url.slice(7) : 
 
 
 const KINDS: { id: ContentKind; label: string; hint: string; Icon: typeof Link2; tone: string }[] = [
-  { id: 'link', label: 'رابط', hint: 'المواقع الخارجية، ووسائل التواصل، ومقاطع الفيديو', Icon: Link2, tone: 'bg-[#0a84ff]/10 text-[#0a84ff]' },
-  { id: 'file', label: 'ملف', hint: 'الصور وملفات PDF', Icon: FileText, tone: 'bg-[#ff9500]/12 text-[#c76a00]' },
-  { id: 'text', label: 'نص', hint: 'عنوان أو نبذة داخل الصفحة', Icon: Type, tone: 'bg-[#34c759]/12 text-[#1f8a3b]' },
-  { id: 'group', label: 'مجموعة', hint: 'تنظيم عدة عناصر تحت عنوان', Icon: FolderOpen, tone: 'bg-[#af52de]/12 text-[#8e3bb8]' },
+  { id: 'link', label: 'زر', hint: 'واتساب، حساباتك، موقعك أو فيديو', Icon: Link2, tone: 'bg-[#111111]/5 text-[#C2410C]' },
+  { id: 'file', label: 'ملف', hint: 'صور منتجاتك، قائمة أسعار، كتالوج PDF', Icon: FileText, tone: 'bg-[#ff9500]/12 text-[#c76a00]' },
+  { id: 'text', label: 'نص', hint: 'عنوان أو جملة بين الأزرار', Icon: Type, tone: 'bg-[#16A34A]/12 text-[#15803D]' },
+  { id: 'group', label: 'مجموعة', hint: 'تجمع عدة أزرار تحت عنوان واحد', Icon: FolderOpen, tone: 'bg-[#af52de]/12 text-[#8e3bb8]' },
 ];
 
 const PLATFORM_HOSTS: [RegExp, string][] = [
@@ -276,11 +279,11 @@ function itemSubtitle(link: Link, links: Link[]) {
 
 function ItemIcon({ link }: { link: Link }) {
   const kind = link.display?.kind;
-  if (kind === 'text') return <Type className="h-5 w-5 text-[#1f8a3b]" />;
-  if (kind === 'video') return <PlayCircle className="h-5 w-5 text-[#ff3b30]" />;
-  if (kind === 'heading') return link.display?.sectionId ? <FolderOpen className="h-5 w-5 text-[#8e3bb8]" /> : <Type className="h-5 w-5 text-[#6e6e73]" />;
+  if (kind === 'text') return <Type className="h-5 w-5 text-[#15803D]" />;
+  if (kind === 'video') return <PlayCircle className="h-5 w-5 text-[#DC2626]" />;
+  if (kind === 'heading') return link.display?.sectionId ? <FolderOpen className="h-5 w-5 text-[#8e3bb8]" /> : <Type className="h-5 w-5 text-[#737373]" />;
   if (link.display?.layout === 'card' && link.display.image) return <img src={link.display.image} alt="" className="h-full w-full rounded-[10px] object-cover" />;
-  return <SocialIcon platform={link.linkType === 'file' && link.fileMimeType?.startsWith('image/') ? 'image' : link.platform || 'custom'} iconStyle={link.iconStyle || 'color'} customIcon={link.customIcon ?? (link.display?.kind === 'document' ? OFFICIAL_DOCUMENT_ICON : undefined)} color={link.customIcon?.startsWith('icon:') ? '#3a3a3c' : undefined} className="h-5 w-5" />;
+  return <SocialIcon platform={link.linkType === 'file' && link.fileMimeType?.startsWith('image/') ? 'image' : link.platform || 'custom'} iconStyle={link.iconStyle || 'color'} customIcon={link.customIcon ?? (link.display?.kind === 'document' ? OFFICIAL_DOCUMENT_ICON : undefined)} color={link.customIcon?.startsWith('icon:') ? '#262626' : undefined} className="h-5 w-5" />;
 }
 
 // Note 45: tiny drawings, one quiet style (current colour, rounded bars), that
@@ -291,7 +294,7 @@ function KindArt({ id, Icon }: { id: ContentKind; Icon: typeof Link2 }) {
     <span className="relative block h-8 w-11" aria-hidden="true">
       <span className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm"><SocialIcon platform="instagram" iconStyle="color" className="h-3 w-3" /></span>
       <span className="absolute right-3.5 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm"><SocialIcon platform="whatsapp" iconStyle="color" className="h-3 w-3" /></span>
-      <span className="absolute right-7 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm"><PlayCircle className="h-3 w-3 text-[#ff3b30]" /></span>
+      <span className="absolute right-7 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm"><PlayCircle className="h-3 w-3 text-[#DC2626]" /></span>
       <span className="absolute bottom-0 right-1 flex h-3 w-9 items-center justify-center rounded-full bg-current opacity-80"><Link2 className="h-2 w-2 text-white" /></span>
     </span>
   );
@@ -329,9 +332,9 @@ function Advanced({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <section>
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex min-h-11 w-full items-center justify-between rounded-2xl bg-white px-4 text-[15px] text-[#1d1d1f]">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex min-h-11 w-full items-center justify-between rounded-2xl bg-white px-4 text-[15px] text-[#111111]">
         خيارات إضافية
-        <ChevronDown className={`h-4 w-4 text-[#8e8e93] transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 text-[#737373] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && <div className="mt-4 space-y-6">{children}</div>}
     </section>
@@ -341,7 +344,7 @@ function Advanced({ children }: { children: ReactNode }) {
 // `onPendingChange`: the editor window is told while a form holds unadded
 // input, so closing it never drops that input silently.
 // `focusId` (note 22): an item tapped in the preview opens here for completing.
-export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef, externalSave = false, draftSave = false, inline = false, addRequest, onCommitted, onBusyChange }: { onBusyChange?: (busy: boolean) => void; inline?: boolean; addRequest?: { requestId: number; afterId: string | null }; onCommitted?: () => void; saveActionRef?: MutableRefObject<(() => Promise<void>) | null>; externalSave?: boolean; draftSave?: boolean; onPendingChange?: (pending: boolean) => void; focusId?: string | null; onFocused?: () => void } = {}) {
+export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef, externalSave = false, draftSave = false, inline = false, mobileOverview = false, addRequest, onCommitted, onBusyChange }: { onBusyChange?: (busy: boolean) => void; mobileOverview?: boolean; inline?: boolean; addRequest?: { requestId: number; afterId: string | null }; onCommitted?: () => void; saveActionRef?: MutableRefObject<(() => Promise<void>) | null>; externalSave?: boolean; draftSave?: boolean; onPendingChange?: (pending: boolean) => void; focusId?: string | null; onFocused?: () => void } = {}) {
   const { pageData, saveDraft, saving, draftState, conflict, updatePageData, addLink, removeLink, updateLink, moveLink, reorderLink } = usePageContext();
   const links = pageData.links;
   const limitReached = links.length >= MAX_LINKS;
@@ -352,7 +355,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   const [saveError, setSaveError] = useState('');
   const [commitTick, setCommitTick] = useState(0);
   useEffect(() => { if (commitTick) onCommitted?.(); }, [commitTick]);
-  const [screen, setScreen] = useState<Screen>(() => pageData.editorForm?.screen ?? { name: inline ? 'choose' : 'list' });
+  const [screen, setScreen] = useState<Screen>(() => pageData.editorForm?.screen ?? { name: inline && !mobileOverview ? 'choose' : 'list' });
   const insertionAnchor = useRef<string | null | undefined>(pageData.editorForm?.insertionAfter);
   const lastAddRequest = useRef<number | undefined>(undefined);
   const [form, setForm] = useState<FormState>(() => pageData.editorForm?.form ?? emptyForm('link'));
@@ -370,6 +373,9 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   const [iconCrop, setIconCrop] = useState<string | null>(null);
   const [actionsFor, setActionsFor] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | { kind: 'leave' } | { kind: 'deleteGroup'; link: Link; count: number }>(null);
+  const [contentQuery, setContentQuery] = useState('');
+  const [ordering, setOrdering] = useState(false);
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -381,9 +387,17 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     if (firstScreen.current) { firstScreen.current = false; return; }
     // Scroll only the editor panel; scrollIntoView also moves the outer desktop.
     topRef.current?.closest('[data-builder-panel-scroll]')?.scrollTo({ top: 0 });
+    // Editor phase 2: steps slide inside the same sheet (forward moves left in RTL).
+    if (inline && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const offset = screen.name === 'form' ? -18 : 18;
+      topRef.current?.parentElement?.animate?.([{ opacity: .35, transform: `translateX(${offset}px)` }, { opacity: 1, transform: 'translateX(0)' }], { duration: 200, easing: 'cubic-bezier(.22, .68, 0, 1)' });
+    }
   }, [screen]);
 
+  // A new item joins the page as soon as it is valid; its title stays «جديد» until reopened.
+  const formIsNew = useRef(false);
   const openForm = (next: FormState, id?: string) => {
+    formIsNew.current = !id;
     autoCommitted.current = '';
     autoItemId.current = id;
     setForm(next);
@@ -398,6 +412,14 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     setIconQuery('');
     setActionsFor(null);
     setScreen({ name: 'form', id });
+  };
+
+  const openQuickLink = (parsed: { url: string; mode: LinkMode; platform: string }) => {
+    const next = { ...emptyForm('link'), ...parsed };
+    openForm({ ...next, title: suggestedTitle(next) });
+    // A pasted link is new input, so it joins the page like a typed one.
+    formStart.current = JSON.stringify(emptyForm('link'));
+    setContentQuery('');
   };
 
   // Note 23: the item tapped in the preview opens its form. Unadded input in
@@ -426,7 +448,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   useEffect(() => {
     if (!addRequest || addRequest.requestId === lastAddRequest.current) return;
     lastAddRequest.current = addRequest.requestId;
-    if (screen.name === 'form' && formChanged && !isReady(form)) {
+    if (screen.name === 'form' && formChanged && !isReady(form) && draftHasContent({ form, rawLink })) {
       setSaveError('لديك عنصر غير مكتمل محفوظ كمسودة. أكمله قبل إضافة عنصر آخر.');
       return;
     }
@@ -451,7 +473,8 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   const leaveForm = () => {
     if (!draftSave) { if (contentBack(screen, formChanged).confirmDiscard) setConfirm({ kind: 'leave' }); else backFromForm(); return; }
     if (formChanged && !isReady(form)) {
-      setSaveError('ما كتبته محفوظ كمسودة. أكمل البيانات المطلوبة للعودة إلى قائمة المحتوى.');
+      // Nothing typed: just go back. Something typed: ask before dropping it.
+      if (draftHasContent({ form, rawLink })) setConfirm({ kind: 'leave' }); else backFromForm();
       return;
     }
     if (formChanged) submit(); else backFromForm();
@@ -562,23 +585,30 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     // An official document stays a PDF (the server checks it too).
     if (form.display.kind === 'document' && file.type !== 'application/pdf') { setFileError('الوثيقة الرسمية تُرفع بصيغة PDF.'); return; }
     const isPdf = file.type === 'application/pdf';
-    if (file.size > (isPdf ? MAX_PDF_SIZE : MAX_FILE_SIZE)) { setFileError(isPdf ? 'حجم ملف PDF كبير. الحد الأقصى 10MB.' : 'حجم الصورة كبير. الحد الأقصى 3MB.'); return; }
+    // Phone photos are made small automatically; a GIF would lose its motion, so it keeps its own limit.
+    const isGif = file.type === 'image/gif';
+    if (file.size > (isPdf ? MAX_PDF_SIZE : isGif ? MAX_FILE_SIZE : MAX_SOURCE_BYTES)) { setFileError(isPdf ? 'ملف PDF أكبر من 10 ميجا. اختر ملفًا أصغر.' : isGif ? 'الصورة المتحركة أكبر من 3 ميجا. اختر صورة أصغر.' : 'الصورة أكبر من 10 ميجا. اختر صورة أصغر.'); return; }
     setFileError('');
     const request = ++fileRequest.current; setReadingFile(true); onBusyChange?.(true);
     try {
-      const url = await readFileAsDataUrl(file);
+      const url = isPdf || isGif ? await readFileAsDataUrl(file) : await compressImage(file);
       if (request !== fileRequest.current) return;
+      const mime = url.match(/^data:([^;,]+)/)?.[1] ?? file.type;
+      const bytes = isPdf || isGif ? file.size : Math.ceil(((url.length - url.indexOf(',') - 1) * 3) / 4);
       setForm((prev) => ({
         ...prev,
         url,
         fileName: file.name,
-        fileMimeType: file.type,
-        fileSize: file.size,
+        fileMimeType: mime,
+        fileSize: bytes,
         // The file's own name is a good first title; it stays editable.
-        title: prev.titleTouched ? prev.title : file.name.replace(/\.[^.]+$/, '').slice(0, 120),
+        // A camera file name means nothing to visitors.
+        title: prev.titleTouched ? prev.title : /^(img|image|photo|dsc|pxl|screenshot)[\s_-]*\d*/i.test(file.name) && !isPdf ? 'صورة' : file.name.replace(/\.[^.]+$/, '').slice(0, 120),
+        // A new picture is shown as a picture, not as a button with a small icon.
+        display: !isPdf && formIsNew.current ? { ...prev.display, layout: 'card', image: url } : !isPdf && prev.display.image === prev.url ? { ...prev.display, image: url, positionX: 50, positionY: 50, zoom: undefined } : prev.display,
       }));
-    } catch {
-      if (request === fileRequest.current) setFileError('تعذر قراءة الملف. حاول مرة أخرى.');
+    } catch (problem) {
+      if (request === fileRequest.current) setFileError(problem instanceof ImageProblem ? problem.message : 'تعذر قراءة الملف. حاول مرة أخرى.');
     } finally { if (request === fileRequest.current) { setReadingFile(false); onBusyChange?.(false); } }
   };
 
@@ -637,57 +667,57 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
     const compact = [...new Set([...suggestions, selected])].filter(Boolean).map((id) => LINK_ICONS.find((icon) => icon.id === id)).filter((icon): icon is (typeof LINK_ICONS)[number] => Boolean(icon));
     const library = query ? LINK_ICONS.filter((icon) => `${icon.label} ${icon.id}`.toLowerCase().includes(query)) : iconsExpanded ? LINK_ICONS : compact;
     const platforms = SOCIAL_PLATFORMS.filter((item) => !['file', 'email', 'whatsapp', 'custom'].includes(item.id) && (!query || `${item.name} ${item.id}`.toLowerCase().includes(query)));
-    const tile = (active: boolean) => `flex flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 transition-colors ${active ? 'border-[#0a84ff] bg-[#0a84ff]/5' : 'border-transparent bg-[#f2f2f7]'}`;
+    const tile = (active: boolean) => `flex flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 transition-colors ${active ? 'border-[#111111] bg-[#111111]/5' : 'border-transparent bg-[#F5F5F3]'}`;
 
     return (
       <Group title="الأيقونة">
         <button type="button" aria-expanded={iconsOpen} onClick={() => setIconsOpen(!iconsOpen)} className="flex min-h-[52px] w-full items-center gap-3 px-4 text-right">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-[#f2f2f7]">
-            <SocialIcon platform={isFile && form.fileMimeType.startsWith('image/') ? 'image' : platform} iconStyle="color" customIcon={canCustom ? form.customIcon || undefined : undefined} color={form.customIcon.startsWith('icon:') ? '#3a3a3c' : undefined} className="h-5 w-5" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-[#F5F5F3]">
+            <SocialIcon platform={isFile && form.fileMimeType.startsWith('image/') ? 'image' : platform} iconStyle="color" customIcon={canCustom ? form.customIcon || undefined : undefined} color={form.customIcon.startsWith('icon:') ? '#262626' : undefined} className="h-5 w-5" />
           </span>
-          <span className="min-w-0 flex-1 text-[15px] text-[#1d1d1f]">{form.customIcon && canCustom ? 'أيقونة مختارة' : !isFile && form.platform !== 'website' && form.platform !== 'custom' ? `${platformName(form.platform)} · تلقائيًا` : 'الأيقونة الافتراضية'}</span>
-          <span className="text-sm font-bold text-[#0a84ff]">{iconsOpen ? 'إخفاء' : 'تغيير'}</span>
+          <span className="min-w-0 flex-1 text-[15px] text-[#111111]">{form.customIcon && canCustom ? 'أيقونة مختارة' : !isFile && form.platform !== 'website' && form.platform !== 'custom' ? `${platformName(form.platform)} · تلقائيًا` : 'أيقونة تلقائية'}</span>
+          <span className="text-sm font-bold text-[#C2410C]">{iconsOpen ? 'إخفاء' : 'تغيير'}</span>
         </button>
         {iconsOpen && (
           <div className="space-y-3 p-3">
             <div className="relative">
-              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8e8e93]" />
-              <input type="search" aria-label="البحث في الأيقونات" placeholder="ابحث عن أيقونة أو منصة…" value={iconQuery} onChange={(event) => setIconQuery(event.target.value)} className="h-10 w-full rounded-xl bg-[#f2f2f7] pl-3 pr-9 text-sm focus:outline-none" />
+              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737373]" />
+              <input type="search" aria-label="البحث في الأيقونات" placeholder="ابحث عن أيقونة أو منصة…" value={iconQuery} onChange={(event) => setIconQuery(event.target.value)} className="h-10 w-full rounded-xl bg-[#F5F5F3] pl-3 pr-9 text-sm focus:outline-none" />
             </div>
             {!isFile && form.mode !== 'whatsapp' && form.mode !== 'email' && platforms.length > 0 && (
               <div>
-                <p className="mb-2 text-xs text-[#6e6e73]">شعار منصة</p>
+                <p className="mb-2 text-xs text-[#737373]">شعار منصة</p>
                 <div className="grid grid-cols-4 gap-2">
                   {[{ id: 'website', name: 'موقع' }, ...platforms.map((item) => ({ id: item.id as string, name: item.id === 'twitter' ? 'X' : item.name }))].map((item) => (
                     <button key={item.id} type="button" aria-pressed={form.platform === item.id} onClick={() => pickPlatform(item.id)} className={`${tile(form.platform === item.id)} min-h-16`}>
                       <SocialIcon platform={item.id} iconStyle="color" className="h-5 w-5" />
-                      <span className="max-w-full truncate text-[10px] text-[#6e6e73]">{item.name}</span>
+                      <span className="max-w-full truncate text-[10px] text-[#737373]">{item.name}</span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
             <div>
-              <p className="mb-2 text-xs text-[#6e6e73]">{query ? 'من المكتبة' : iconsExpanded ? 'كل الأيقونات' : 'مقترحة لهذا العنصر'}</p>
+              <p className="mb-2 text-xs text-[#737373]">{query ? 'من المكتبة' : iconsExpanded ? 'كل الأيقونات' : 'مقترحة لهذا العنصر'}</p>
               <div className="grid grid-cols-4 gap-2">
                 <button type="button" onClick={() => update({ customIcon: '' })} aria-pressed={!form.customIcon} className={`${tile(!form.customIcon)} min-h-16`}>
                   <SocialIcon platform={isFile ? 'file' : platform} iconStyle="color" className="h-5 w-5" />
-                  <span className="text-[10px] text-[#6e6e73]">الافتراضية</span>
+                  <span className="text-[10px] text-[#737373]">الافتراضية</span>
                 </button>
                 {library.map(({ id, label, Icon }) => (
                   <button key={id} type="button" onClick={() => update({ customIcon: `icon:${id}` })} aria-pressed={form.customIcon === `icon:${id}`} aria-label={label} className={`${tile(form.customIcon === `icon:${id}`)} min-h-16`}>
-                    <Icon className="h-5 w-5 text-[#3a3a3c]" />
-                    <span className="max-w-full truncate text-[10px] text-[#6e6e73]">{label}</span>
+                    <Icon className="h-5 w-5 text-[#262626]" />
+                    <span className="max-w-full truncate text-[10px] text-[#737373]">{label}</span>
                   </button>
                 ))}
               </div>
-              {!library.length && <p className="py-2 text-center text-xs text-[#6e6e73]">لا توجد أيقونة مطابقة.</p>}
+              {!library.length && <p className="py-2 text-center text-xs text-[#737373]">لا توجد أيقونة مطابقة.</p>}
               {!query && LINK_ICONS.length > compact.length && (
-                <button type="button" aria-expanded={iconsExpanded} onClick={() => setIconsExpanded(!iconsExpanded)} className="mt-2 flex w-full items-center justify-center gap-1 text-xs font-bold text-[#0a84ff]">
+                <button type="button" aria-expanded={iconsExpanded} onClick={() => setIconsExpanded(!iconsExpanded)} className="mt-2 flex w-full items-center justify-center gap-1 text-xs font-bold text-[#C2410C]">
                   <ChevronDown className={`h-3.5 w-3.5 transition-transform ${iconsExpanded ? 'rotate-180' : ''}`} />{iconsExpanded ? 'عرض أقل' : 'عرض المزيد'}
                 </button>
               )}
-              <label className="mt-3 flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0a84ff]/10 text-sm font-bold text-[#0a84ff] focus-within:ring-2 focus-within:ring-[#0a84ff]">
+              <label className="mt-3 flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#111111]/5 text-sm font-bold text-[#C2410C] focus-within:ring-2 focus-within:ring-[#111111]">
                 {uploaded ? <img src={form.customIcon} alt="" className="h-6 w-6 rounded-md object-contain" /> : <Upload className="h-4 w-4" />}
                 {uploaded ? 'تغيير الشعار المرفق' : 'إرفاق شعار خاص'}
                 <input type="file" aria-label="إرفاق شعار خاص" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => {
@@ -700,7 +730,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
                 }} />
               </label>
             </div>
-            {!!iconError && <p className="text-xs text-[#ff3b30]">{iconError}</p>}
+            {!!iconError && <p className="text-xs text-[#DC2626]">{iconError}</p>}
           </div>
         )}
       </Group>
@@ -710,8 +740,8 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   const groupSelect = form.kind !== 'group' && !(form.kind === 'text' && form.textStyle === 'heading') && groups.length > 0 && (
     <Group title="المجموعة">
       <label className="flex min-h-[48px] items-center gap-3 px-4">
-        <span className="shrink-0 text-[15px] text-[#1d1d1f]">ضمن</span>
-        <select aria-label="مجموعة العنصر" value={form.display.sectionId ?? ''} onChange={(event) => update({ display: { ...form.display, sectionId: event.target.value || undefined } })} className="min-w-0 flex-1 rounded-lg bg-[#f2f2f7] px-2 py-2 text-[15px]">
+        <span className="shrink-0 text-[15px] text-[#111111]">ضمن</span>
+        <select aria-label="مجموعة العنصر" value={form.display.sectionId ?? ''} onChange={(event) => update({ display: { ...form.display, sectionId: event.target.value || undefined } })} className="min-w-0 flex-1 rounded-lg bg-[#F5F5F3] px-2 py-2 text-[15px]">
           <option value="">بدون مجموعة</option>
           {groups.map((item) => <option key={item.id} value={item.display!.sectionId}>{item.title || 'مجموعة بلا اسم'}{item.hidden ? ' (مخفية)' : ''}</option>)}
         </select>
@@ -721,7 +751,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
 
   const englishTitle = hasEnglish && form.kind !== 'text' && (
     <Group title="بالإنجليزية (اختياري)">
-      <div dir="ltr" className="px-4 py-1"><input value={form.titleEn} maxLength={255} onChange={(event) => update({ titleEn: event.target.value })} placeholder="Title in English" className="w-full bg-transparent py-3 text-[15px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" /></div>
+      <div dir="ltr" className="px-4 py-1"><input value={form.titleEn} maxLength={255} onChange={(event) => update({ titleEn: event.target.value })} placeholder="Title in English" className="w-full bg-transparent py-3 text-[15px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none" /></div>
     </Group>
   );
 
@@ -751,28 +781,28 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
               value={rawLink}
               onChange={(event) => changeLink(event.target.value)}
               placeholder="رابط، بريد إلكتروني، أو رقم واتساب ‎+966…"
-              className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-right placeholder:text-[#c7c7cc] focus:outline-none"
+              className="min-h-12 min-w-0 flex-1 rounded-xl border border-[#dddcd5] bg-white px-3 py-3 text-[16px] text-[#111111] placeholder:text-right placeholder:text-[13px] placeholder:text-[#77776f] focus:border-[#ff6b2c] focus:outline-none"
             />
           </div>
-          {linkError && <p role="alert" className="px-4 py-2 text-xs text-[#ff3b30]">{linkError}</p>}
+          {linkError && <p role="alert" className="px-4 py-2 text-xs text-[#DC2626]">{linkError}</p>}
           {!!form.url && (
             <div className="flex items-center justify-between gap-2 px-4 py-2.5 text-xs">
-              <span className="flex items-center gap-2 font-bold text-[#1f8a3b]"><Check className="h-4 w-4" />{form.mode === 'email' ? 'بريد إلكتروني' : form.mode === 'whatsapp' ? 'واتساب' : form.platform === 'website' || form.platform === 'custom' ? 'رابط موقع' : platformName(form.platform)}</span>
+              <span className="flex items-center gap-2 font-bold text-[#15803D]"><Check className="h-4 w-4" />{form.mode === 'email' ? 'بريد إلكتروني' : form.mode === 'whatsapp' ? 'واتساب' : form.platform === 'website' || form.platform === 'custom' ? 'رابط موقع' : platformName(form.platform)}</span>
             </div>
           )}
-          {typeHint && <p className="-mt-1 px-4 pb-2.5 text-xs leading-5 text-[#8e8e93]">{typeHint}</p>}
+          {typeHint && <p className="-mt-1 px-4 pb-2.5 text-xs leading-5 text-[#737373]">{typeHint}</p>}
           {youtube && (
-            <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#1d1d1f]">
+            <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#111111]">
               <span>تشغيل الفيديو داخل الصفحة</span>
-              <input type="checkbox" checked={form.display.kind === 'video'} onChange={(event) => update({ display: { ...form.display, kind: event.target.checked ? 'video' : undefined, layout: undefined } })} className="h-5 w-5 accent-[#0a84ff]" />
+              <input type="checkbox" checked={form.display.kind === 'video'} onChange={(event) => update({ display: { ...form.display, kind: event.target.checked ? 'video' : undefined, layout: undefined } })} className="h-5 w-5 accent-[#FF6B2C]" />
             </label>
           )}
           {/* Note 37: the video's title and YouTube link, set right here with the video. */}
           {youtube && form.display.kind === 'video' && (
             <>
-              <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#1d1d1f]">
+              <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#111111]">
                 <span>إظهار العنوان ورابط يوتيوب</span>
-                <input type="checkbox" checked={Boolean(form.display.caption)} onChange={(event) => update({ display: { ...form.display, caption: event.target.checked ? 'below' : undefined } })} className="h-5 w-5 accent-[#0a84ff]" />
+                <input type="checkbox" checked={Boolean(form.display.caption)} onChange={(event) => update({ display: { ...form.display, caption: event.target.checked ? 'below' : undefined } })} className="h-5 w-5 accent-[#FF6B2C]" />
               </label>
               {form.display.caption && (
                 <div className="px-4 py-2.5"><Segmented options={[{ id: 'below', label: 'تحت المقطع' }, { id: 'above', label: 'فوق المقطع' }] as const} value={form.display.caption} onChange={(caption) => update({ display: { ...form.display, caption } })} /></div>
@@ -782,12 +812,12 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
         </Group>
         {/* N: a plain-text, always-available how-to — no video. */}
         <div className="-mt-3">
-          <button type="button" aria-expanded={helpOpen} onClick={() => setHelpOpen(!helpOpen)} className="flex items-center gap-1.5 px-4 text-xs font-bold text-[#0a84ff]">
+          <button type="button" aria-expanded={helpOpen} onClick={() => setHelpOpen(!helpOpen)} className="flex items-center gap-1.5 px-4 text-xs font-bold text-[#C2410C]">
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${helpOpen ? 'rotate-180' : ''}`} />كيف أحصل على الرابط؟
           </button>
           {helpOpen && (
-            <div className="mt-2 space-y-1.5 rounded-2xl bg-white px-4 py-3 text-xs leading-6 text-[#6e6e73]">
-              <p className="font-bold text-[#1d1d1f]">من أي حساب أو قناة تواصل اجتماعي:</p>
+            <div className="mt-2 space-y-1.5 rounded-2xl bg-white px-4 py-3 text-xs leading-6 text-[#737373]">
+              <p className="font-bold text-[#111111]">من أي حساب أو قناة تواصل اجتماعي:</p>
               <ol className="list-decimal space-y-1 pr-4">
                 <li>افتح حسابك أو قناتك في التطبيق أو المتصفح.</li>
                 <li>اضغط زر المشاركة (Share) أو «نسخ الرابط».</li>
@@ -803,11 +833,11 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
         {!!form.url && (
           <Group title="العنوان">
             {editingTitle || !form.title.trim() ? (
-              <div className="px-4 py-1"><input aria-label="عنوان الزر" autoFocus={autoFocusFields && editingTitle} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="عنوان الزر" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+              <div className="px-4 py-1"><input aria-label="عنوان الزر" autoFocus={autoFocusFields && editingTitle} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="عنوان الزر" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#111111] placeholder:font-normal placeholder:text-[#D4D4D4] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
             ) : (
               <div className="flex min-h-[48px] items-center justify-between gap-3 px-4">
-                <span className="min-w-0 truncate text-[16px] font-bold text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{form.title}</span>
-                <button type="button" onClick={() => setEditingTitle(true)} className="shrink-0 text-xs font-bold text-[#0a84ff]">تغيير العنوان</button>
+                <span className="min-w-0 truncate text-[16px] font-bold text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>{form.title}</span>
+                <button type="button" onClick={() => setEditingTitle(true)} className="shrink-0 text-xs font-bold text-[#C2410C]">تغيير العنوان</button>
               </div>
             )}
           </Group>
@@ -825,23 +855,23 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
 
   const renderFileFields = () => (
     <>
-      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-[#c7c7cc] bg-white px-4 py-7 text-center focus-within:border-[#0a84ff]">
+      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-[#D4D4D4] bg-white px-4 py-7 text-center focus-within:border-[#111111]">
         {form.url ? (
           <>
-            <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-[#f2f2f7]">
+            <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-[#F5F5F3]">
               {form.fileMimeType.startsWith('image/') ? <img src={form.url} alt="" className="h-full w-full object-cover" /> : <FileText className="h-6 w-6 text-[#c76a00]" />}
             </span>
-            <span className="flex max-w-full items-center gap-1.5 text-xs text-[#6e6e73]">
+            <span className="flex max-w-full items-center gap-1.5 text-xs text-[#737373]">
               <span className="min-w-0 truncate" dir="ltr">{form.fileName || 'ملف'}</span>
               {form.fileSize ? <><span aria-hidden="true">·</span><span className="shrink-0" dir="ltr">{formatFileSize(form.fileSize)}</span></> : null}
             </span>
-            <span className="text-sm font-bold text-[#0a84ff]">تغيير الملف</span>
+            <span className="text-sm font-bold text-[#C2410C]">تغيير الملف</span>
           </>
         ) : (
           <>
             <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ff9500]/12 text-[#c76a00]"><Upload className="h-5 w-5" /></span>
-            <span className="text-[15px] font-bold text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>اختيار صورة أو ملف PDF</span>
-            <span className="text-xs text-[#8e8e93]">PDF حتى 10MB · الصور تُحفظ حتى 1,000KB بعد الضغط</span>
+            <span className="text-[15px] font-bold text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>اختيار صورة أو ملف PDF</span>
+            <span className="text-xs text-[#737373]">حتى 10 ميجا، ونجهّز الصور تلقائيًا</span>
           </>
         )}
         <input type="file" aria-label="اختيار الملف" accept={ALLOWED_FILE_TYPES.join(',')} className="sr-only" onChange={(event) => {
@@ -850,12 +880,12 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
           if (file) void pickFile(file);
         }} />
       </label>
-      {!!fileError && <p role="alert" className="flex items-center gap-1 px-4 text-xs text-[#ff3b30]"><AlertCircle className="h-4 w-4" />{fileError}</p>}
+      {!!fileError && <p role="alert" className="flex items-center gap-1 px-4 text-xs text-[#DC2626]"><AlertCircle className="h-4 w-4" />{fileError}</p>}
       <Group title="العنوان" footer="النص الذي يراه زوارك على الزر.">
-        <div className="px-4 py-1"><input aria-label="عنوان الملف" maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="مثل: الملف التعريفي" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+        <div className="px-4 py-1"><input aria-label="عنوان الملف" maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value, titleTouched: true })} placeholder="مثل: الملف التعريفي" className="w-full bg-transparent py-3 text-[16px] font-bold text-[#111111] placeholder:font-normal placeholder:text-[#D4D4D4] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
       </Group>
       {/* Note 44: display and group in view for files too; the rest stays folded. */}
-      {!!form.url && <LinkAppearanceEditor display={form.display} onChange={(display) => update({ display })} />}
+      {!!form.url && <LinkAppearanceEditor display={form.display} fileImage={form.fileMimeType.startsWith('image/') ? form.url : undefined} onChange={(display) => update({ display })} />}
       {groupSelect}
       {renderIconChooser()}
       {englishTitle && <Advanced>{englishTitle}</Advanced>}
@@ -867,13 +897,13 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
       <Segmented options={[{ id: 'body', label: 'نبذة' }, { id: 'heading', label: 'عنوان' }] as const} value={form.textStyle} onChange={(textStyle) => update({ textStyle })} />
       {form.textStyle === 'heading' ? (
         <Group title="العنوان" footer="عنوان يفصل بين أجزاء صفحتك.">
-          <div className="px-4 py-1"><input aria-label="نص العنوان" autoFocus={autoFocusFields} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+          <div className="px-4 py-1"><input aria-label="نص العنوان" autoFocus={autoFocusFields} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#111111] placeholder:font-normal placeholder:text-[#D4D4D4] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
         </Group>
       ) : (
         <Group title="النبذة">
           <div className="px-4 py-3">
-            <FormattingTextarea format={form.display.bodyFormat} aria-label="نص النبذة" autoFocus={autoFocusFields} rows={5} maxLength={2000} value={form.display.body ?? ''} onChange={(body, bodyFormat) => update({ display: { ...form.display, kind: 'text', body, bodyFormat: bodyFormat.length ? bodyFormat : undefined } })} placeholder="اكتب نبذة أو إعلانًا أو شرحًا يظهر في صفحتك…" className="w-full resize-y bg-transparent text-[16px] leading-relaxed text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
-            <span className="block text-left text-xs text-[#8e8e93]" dir="ltr">{form.display.body?.length ?? 0}/2000</span>
+            <FormattingTextarea format={form.display.bodyFormat} aria-label="نص النبذة" autoFocus={autoFocusFields} rows={5} maxLength={2000} value={form.display.body ?? ''} onChange={(body, bodyFormat) => update({ display: { ...form.display, kind: 'text', body, bodyFormat: bodyFormat.length ? bodyFormat : undefined } })} placeholder="اكتب نبذة أو إعلانًا أو شرحًا يظهر في صفحتك…" className="w-full resize-y bg-transparent text-[16px] leading-relaxed text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none" />
+            <span className="block text-left text-xs text-[#737373]" dir="ltr">{form.display.body?.length ?? 0}/2000</span>
           </div>
         </Group>
       )}
@@ -881,11 +911,11 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
         <Advanced>
           {hasEnglish && (form.textStyle === 'heading' ? (
             <Group title="بالإنجليزية (اختياري)">
-              <div dir="ltr" className="px-4 py-1"><input value={form.titleEn} maxLength={255} onChange={(event) => update({ titleEn: event.target.value })} placeholder="Heading in English" className="w-full bg-transparent py-3 text-[15px] placeholder:text-[#c7c7cc] focus:outline-none" /></div>
+              <div dir="ltr" className="px-4 py-1"><input value={form.titleEn} maxLength={255} onChange={(event) => update({ titleEn: event.target.value })} placeholder="Heading in English" className="w-full bg-transparent py-3 text-[15px] placeholder:text-[#D4D4D4] focus:outline-none" /></div>
             </Group>
           ) : (
             <Group title="بالإنجليزية (اختياري)">
-              <div dir="ltr" className="px-4 py-3"><textarea rows={4} maxLength={2000} value={form.display.bodyEn ?? ''} onChange={(event) => update({ display: { ...form.display, bodyEn: event.target.value } })} placeholder="Optional English paragraph" className="w-full resize-y bg-transparent text-[15px] placeholder:text-[#c7c7cc] focus:outline-none" /></div>
+              <div dir="ltr" className="px-4 py-3"><textarea rows={4} maxLength={2000} value={form.display.bodyEn ?? ''} onChange={(event) => update({ display: { ...form.display, bodyEn: event.target.value } })} placeholder="Optional English paragraph" className="w-full resize-y bg-transparent text-[15px] placeholder:text-[#D4D4D4] focus:outline-none" /></div>
             </Group>
           ))}
           {groupSelect}
@@ -900,13 +930,13 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
       <>
         <Group title="اسم المجموعة">
           {!form.noName && (
-            <div className="px-4 py-1"><input aria-label="اسم المجموعة" autoFocus={autoFocusFields && !form.title} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#1d1d1f] placeholder:font-normal placeholder:text-[#c7c7cc] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
+            <div className="px-4 py-1"><input aria-label="اسم المجموعة" autoFocus={autoFocusFields && !form.title} maxLength={120} value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="مثل: خدماتنا" className="w-full bg-transparent py-3 text-[17px] font-bold text-[#111111] placeholder:font-normal placeholder:text-[#D4D4D4] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }} /></div>
           )}
           {/* P: «بدون اسم» — the group is saved with no title, and its items show
               directly on the page with no empty title bar above them. */}
-          <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#1d1d1f]">
-            <span>بدون اسم <span className="text-xs text-[#8e8e93]">— تظهر العناصر مباشرة</span></span>
-            <input type="checkbox" checked={form.noName} onChange={(event) => update({ noName: event.target.checked })} className="h-5 w-5 accent-[#0a84ff]" />
+          <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-3 px-4 text-[15px] text-[#111111]">
+            <span>بدون اسم <span className="text-xs text-[#737373]">— تظهر العناصر مباشرة</span></span>
+            <input type="checkbox" checked={form.noName} onChange={(event) => update({ noName: event.target.checked })} className="h-5 w-5 accent-[#FF6B2C]" />
           </label>
         </Group>
         {/* P: «طريقة العرض» shown directly, not behind «خيارات إضافية». */}
@@ -915,9 +945,9 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
             {([['list', 'قائمة'], ['grid', 'شبكة'], ['carousel', 'شرائح أفقية']] as const).map(([id, label]) => {
               const active = (form.display.sectionLayout ?? 'list') === id;
               return (
-                <button key={id} type="button" role="radio" aria-checked={active} onClick={() => update({ display: { ...form.display, sectionLayout: id } })} className={`flex flex-col items-center gap-1.5 rounded-xl px-1 py-2.5 transition-colors ${active ? 'bg-[#0a84ff]/10 text-[#0a84ff] ring-2 ring-[#0a84ff]' : 'bg-[#f2f2f7] text-[#8e8e93]'}`}>
+                <button key={id} type="button" role="radio" aria-checked={active} onClick={() => update({ display: { ...form.display, sectionLayout: id } })} className={`flex flex-col items-center gap-1.5 rounded-xl px-1 py-2.5 transition-colors ${active ? 'bg-[#111111]/5 text-[#C2410C] ring-2 ring-[#111111]' : 'bg-[#F5F5F3] text-[#737373]'}`}>
                   <span className="flex h-9 items-center"><LayoutArt id={id} /></span>
-                  <span className={`text-[12px] ${active ? 'font-bold' : 'text-[#3a3a3c]'}`}>{label}</span>
+                  <span className={`text-[12px] ${active ? 'font-bold' : 'text-[#262626]'}`}>{label}</span>
                 </button>
               );
             })}
@@ -935,14 +965,14 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
               update({ sectionMembers: members });
             };
             return (
-              <div key={item.id} className="flex min-h-[48px] items-center gap-2 px-3 py-1.5 text-[15px] text-[#1d1d1f]">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-[#f2f2f7]"><ItemIcon link={item} /></span>
+              <div key={item.id} className="flex min-h-[48px] items-center gap-2 px-3 py-1.5 text-[15px] text-[#111111]">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-[#F5F5F3]"><ItemIcon link={item} /></span>
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 <span className="flex shrink-0 flex-col">
-                  <button type="button" disabled={index === 0} onClick={() => move(-1)} aria-label={`نقل «${item.title}» للأعلى`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#3a3a3c] active:bg-[#f2f2f7] disabled:text-[#d1d1d6]"><ArrowUp className="h-4 w-4" /></button>
-                  <button type="button" disabled={index === form.sectionMembers.length - 1} onClick={() => move(1)} aria-label={`نقل «${item.title}» للأسفل`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#3a3a3c] active:bg-[#f2f2f7] disabled:text-[#d1d1d6]"><ArrowDown className="h-4 w-4" /></button>
+                  <button type="button" disabled={index === 0} onClick={() => move(-1)} aria-label={`نقل «${item.title}» للأعلى`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#262626] active:bg-[#F5F5F3] disabled:text-[#D4D4D4]"><ArrowUp className="h-4 w-4" /></button>
+                  <button type="button" disabled={index === form.sectionMembers.length - 1} onClick={() => move(1)} aria-label={`نقل «${item.title}» للأسفل`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#262626] active:bg-[#F5F5F3] disabled:text-[#D4D4D4]"><ArrowDown className="h-4 w-4" /></button>
                 </span>
-                <button type="button" onClick={() => update({ sectionMembers: form.sectionMembers.filter((value) => value !== item.id) })} aria-label={`إخراج «${item.title}» من المجموعة`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#ff3b30] active:bg-[#f2f2f7]">−</button>
+                <button type="button" onClick={() => update({ sectionMembers: form.sectionMembers.filter((value) => value !== item.id) })} aria-label={`إخراج «${item.title}» من المجموعة`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#DC2626] active:bg-[#F5F5F3]">−</button>
               </div>
             );
           })}
@@ -952,10 +982,10 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
             {candidates.filter((item) => !form.sectionMembers.includes(item.id)).map((item) => {
               const elsewhere = item.display?.sectionId && item.display.sectionId !== form.display.sectionId ? groups.find((group) => group.display?.sectionId === item.display?.sectionId) : undefined;
               return (
-                <button key={item.id} type="button" onClick={() => update({ sectionMembers: [...form.sectionMembers, item.id] })} className="flex min-h-[48px] w-full items-center gap-3 px-4 py-2 text-right text-[15px] text-[#1d1d1f]">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0a84ff] text-white"><Plus className="h-4 w-4" /></span>
+                <button key={item.id} type="button" onClick={() => update({ sectionMembers: [...form.sectionMembers, item.id] })} className="flex min-h-[48px] w-full items-center gap-3 px-4 py-2 text-right text-[15px] text-[#111111]">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#111111] text-white"><Plus className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                  {elsewhere && <span className="shrink-0 text-[11px] text-[#8e8e93]">في «{elsewhere.title || 'بلا اسم'}»</span>}
+                  {elsewhere && <span className="shrink-0 text-[11px] text-[#737373]">في «{elsewhere.title || 'بلا اسم'}»</span>}
                 </button>
               );
             })}
@@ -970,7 +1000,7 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
   const kindInfo = KINDS.find((item) => item.id === form.kind)!;
 
   return (
-    <Panel>
+    <Panel className={mobileOverview ? 'mobile-content-panel' : undefined}>
       {draftSave && !externalSave && <AutoSaveStatus />}
       {readingFile && <p role="status" className="text-sm text-[#737373]">جارٍ تجهيز الملف…</p>}
       {saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
@@ -1001,20 +1031,77 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
         />
       )}
 
-      {screen.name === 'list' && (
+      {mobileOverview && screen.name !== 'form' && <div className="mobile-content" dir="rtl">
+        <form className="mobile-content__search" onSubmit={event => {
+          event.preventDefault();
+          const parsed = parseLinkInput(contentQuery);
+          if (parsed && !('error' in parsed) && !limitReached) {
+            openQuickLink(parsed);
+          }
+        }}>
+          <Search size={21} aria-hidden="true" />
+          <input aria-label="ألصق رابطًا أو ابحث عن نوع محتوى" placeholder="ألصق رابطًا أو ابحث عن محتوى…" value={contentQuery} onChange={event => setContentQuery(event.target.value)} onPaste={event => {
+            const value = event.clipboardData.getData('text');
+            const parsed = parseLinkInput(value);
+            if (parsed && !('error' in parsed) && !limitReached) {
+              event.preventDefault(); openQuickLink(parsed);
+            }
+          }} />
+          {contentQuery && <button type="button" aria-label="مسح البحث" onClick={() => setContentQuery('')}>×</button>}
+        </form>
+        <div className="mobile-content__kinds" aria-label="أنواع المحتوى">
+          {KINDS.filter(item => !contentQuery || `${item.label} ${item.hint}`.includes(contentQuery.trim()) || Boolean(parseLinkInput(contentQuery) && !('error' in parseLinkInput(contentQuery)!))).map(({ id, label, hint, Icon, tone }) => <button key={id} type="button" disabled={limitReached} onClick={() => {
+            const parsed = id === 'link' ? parseLinkInput(contentQuery) : null;
+            if (parsed && !('error' in parsed)) openQuickLink(parsed); else { openForm(emptyForm(id)); setContentQuery(''); }
+          }}><span className={tone}><Icon size={22} strokeWidth={1.9} /></span><b>{id === 'file' ? 'صورة أو ملف' : label}</b><small>{hint}</small></button>)}
+        </div>
+        {contentQuery && !KINDS.some(item => `${item.label} ${item.hint}`.includes(contentQuery.trim())) && (() => { const parsed = parseLinkInput(contentQuery); return !parsed || 'error' in parsed; })() && <p role="status" className="mobile-content__hint">لا يوجد نوع مطابق. جرّب زر، ملف، نص أو مجموعة.</p>}
+        {/* Editor phase 4: «إضافة» shows only what can be added; the list stays in «المحتوى». */}
+        {screen.name !== 'choose' && <>
+        <header className="mobile-content__list-heading"><h3>المحتوى <span>{links.length}</span></h3><button type="button" aria-pressed={ordering} onClick={() => { setOrdering(!ordering); setActionsFor(null); }}>{ordering ? 'تم' : 'ترتيب بالأسهم'}</button></header>
+        {limitReached && <p role="status" className="mobile-content__hint">وصلت إلى الحد ({MAX_LINKS}). احذف عنصرًا لتضيف غيره.</p>}
+        {!links.length && <p className="mobile-content__empty">أضف أول محتوى لصفحتك من الخيارات أعلاه.</p>}
+        <div className="mobile-content__items">
+          {links.map((link, index) => {
+            const section = link.display?.sectionId;
+            const group = link.display?.kind === 'heading' && Boolean(section);
+            const member = Boolean(section && !group);
+            if (member && !ordering && !openGroups.includes(section!)) return null;
+            const expandedGroup = Boolean(section && openGroups.includes(section));
+            return <div key={link.id} data-item-id={link.id} className={`mobile-content__item ${member ? 'is-member' : ''} ${link.hidden ? 'is-hidden' : ''} ${overId === link.id ? 'is-over' : ''} ${dragId === link.id ? 'is-dragging' : ''}`}>
+              <div className="mobile-content__row">
+                {<span {...dragHandlers(link.id)} className="mobile-content__grip" aria-hidden="true"><GripVertical size={20} /></span>}
+                <button type="button" className="mobile-content__edit" onClick={() => openForm(formFromLink(link, links), link.id)}>
+                  <span className="mobile-content__icon"><ItemIcon link={link} /></span><span><strong>{link.title || (group ? 'مجموعة بلا اسم' : 'عنصر بلا عنوان')}</strong><small>{itemSubtitle(link, links)}</small></span>
+                </button>
+                {ordering ? <div className="mobile-content__arrows"><button type="button" disabled={index === 0} aria-label={`نقل «${link.title}» للأعلى`} onClick={() => moveLink(link.id, 'up')}><ArrowUp size={18} /></button><button type="button" disabled={index === links.length - 1} aria-label={`نقل «${link.title}» للأسفل`} onClick={() => moveLink(link.id, 'down')}><ArrowDown size={18} /></button></div> : <>
+                  <button type="button" className="mobile-content__visibility" role="switch" aria-checked={!link.hidden} aria-label={`إظهار «${link.title}» للزوار`} onClick={() => updateLink(link.id, { hidden: !link.hidden })}><span /></button>
+                  <button type="button" className="mobile-content__more" aria-label={`خيارات «${link.title}»`} aria-expanded={actionsFor === link.id} onClick={() => setActionsFor(actionsFor === link.id ? null : link.id)}>خيارات</button>
+                </>}
+              </div>
+              {group && !ordering && <button type="button" className="mobile-content__group" aria-expanded={expandedGroup} onClick={() => setOpenGroups(expandedGroup ? openGroups.filter(id => id !== section) : [...openGroups, section!])}>{expandedGroup ? 'إخفاء عناصر المجموعة' : 'عرض عناصر المجموعة'}<ChevronDown size={16} /></button>}
+              {actionsFor === link.id && !ordering && <div className="mobile-content__actions"><button type="button" onClick={() => openForm(formFromLink(link, links), link.id)}>تعديل</button><button type="button" onClick={() => deleteItem(link)}><Trash2 size={16} />حذف</button></div>}
+            </div>;
+          })}
+        </div>
+        {ordering && <p className="mobile-content__hint">اسحب من المقبض أو استخدم السهمين. تظهر عناصر المجموعات أثناء الترتيب.</p>}
+        </>}
+      </div>}
+
+      {!mobileOverview && screen.name === 'list' && (
         <>
           <div className="space-y-2">
             <button
               type="button"
               onClick={() => setScreen({ name: 'choose' })}
               disabled={limitReached}
-              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none"
+              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#111111] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(17,17,17,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#E7E7E7] disabled:text-[#737373] disabled:shadow-none"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               <Plus className="h-5 w-5" strokeWidth={2.5} />
               إضافة محتوى
             </button>
-            <p className="px-1 text-center text-xs text-[#8e8e93]">
+            <p className="px-1 text-center text-xs text-[#737373]">
               {limitReached ? `وصلت إلى الحد (${MAX_LINKS}). احذف عنصرًا لتضيف غيره.` : `${links.length} من ${MAX_LINKS}`}
             </p>
           </div>
@@ -1022,13 +1109,13 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
 
           {links.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl bg-white px-6 py-10 text-center">
-              <span className="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-[#0a84ff]/10 text-[#0a84ff]"><Link2 className="h-7 w-7" /></span>
-              <p className="text-[16px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>صفحتك جاهزة لأول عنصر</p>
-              <p className="text-sm leading-6 text-[#6e6e73]">أضف حساباتك أو موقعك أو ملفًا يحتاجه زوارك، وسيظهر هنا بالترتيب الذي تختاره.</p>
+              <span className="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-[#111111]/5 text-[#C2410C]"><Link2 className="h-7 w-7" /></span>
+              <p className="text-[16px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>صفحتك جاهزة لأول عنصر</p>
+              <p className="text-sm leading-6 text-[#737373]">أضف حساباتك أو موقعك أو ملفًا يحتاجه زوارك، وسيظهر هنا بالترتيب الذي تختاره.</p>
             </div>
           ) : (
             <section>
-              <div className="divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-white" onPointerLeave={() => dragId && setOverId(null)}>
+              <div className="divide-y divide-[#E7E7E7] overflow-hidden rounded-2xl bg-white" onPointerLeave={() => dragId && setOverId(null)}>
                 {links.map((link) => {
                   const sectionKey = link.display?.sectionId;
                   const isMember = Boolean(sectionKey && link.display?.kind !== 'heading');
@@ -1036,15 +1123,15 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
                   const index = siblings.findIndex((item) => item.id === link.id);
                   const showActions = actionsFor === link.id;
                   return (
-                    <div key={link.id} data-item-id={link.id} className={`transition-colors ${overId === link.id ? 'bg-[#0a84ff]/10' : ''} ${dragId === link.id ? 'opacity-50' : ''} ${isMember ? 'border-r-[3px] border-r-[#af52de]/30 pr-3' : ''}`}>
+                    <div key={link.id} data-item-id={link.id} className={`transition-colors ${overId === link.id ? 'bg-[#111111]/5' : ''} ${dragId === link.id ? 'opacity-50' : ''} ${isMember ? 'border-r-[3px] border-r-[#af52de]/30 pr-3' : ''}`}>
                       <div className="flex min-h-[52px] items-center gap-1 pl-1.5 pr-1">
-                        <span {...dragHandlers(link.id)} className="flex h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center text-[#c7c7cc] active:cursor-grabbing" aria-label={`اسحب لنقل «${link.title}»`} role="button" tabIndex={-1}>
+                        <span {...dragHandlers(link.id)} className="flex h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center text-[#D4D4D4] active:cursor-grabbing" aria-label={`اسحب لنقل «${link.title}»`} role="button" tabIndex={-1}>
                           <GripVertical className="h-5 w-5" />
                         </span>
                         <button type="button" onClick={() => openForm(formFromLink(link, links), link.id)} className={`flex min-w-0 flex-1 items-center gap-3 py-2 text-right ${link.hidden && !isIncomplete(link) ? 'opacity-45' : ''}`}>
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-[#f2f2f7]"><ItemIcon link={link} /></span>
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-[#F5F5F3]"><ItemIcon link={link} /></span>
                           <span className="min-w-0 flex-1">
-                            <span className={`block truncate text-[15px] text-[#1d1d1f] ${link.display?.kind === 'heading' ? 'font-bold' : ''}`}>{link.title || (link.display?.kind === 'heading' && link.display.sectionId ? 'مجموعة بلا اسم' : '')}</span>
+                            <span className={`block truncate text-[15px] text-[#111111] ${link.display?.kind === 'heading' ? 'font-bold' : ''}`}>{link.title || (link.display?.kind === 'heading' && link.display.sectionId ? 'مجموعة بلا اسم' : '')}</span>
                             {/* Note 43: a row shows its logo and title only; details wait in its
                                 form. Only what still needs doing is said under the title. */}
                             {isIncomplete(link) && <span className="flex items-center gap-1 truncate text-xs font-bold text-amber-700"><span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />{itemSubtitle(link, links)}</span>}
@@ -1054,40 +1141,40 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
                         </button>
                         {/* Note (8): one step up or down per tap; dragging still works. */}
                         <span className="flex shrink-0 flex-col">
-                          <button type="button" disabled={index <= 0} onClick={() => moveLink(link.id, 'up')} aria-label={`نقل «${link.title}» للأعلى`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#3a3a3c] active:bg-[#f2f2f7] disabled:text-[#d1d1d6]"><ArrowUp className="h-4 w-4" /></button>
-                          <button type="button" disabled={index === siblings.length - 1} onClick={() => moveLink(link.id, 'down')} aria-label={`نقل «${link.title}» للأسفل`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#3a3a3c] active:bg-[#f2f2f7] disabled:text-[#d1d1d6]"><ArrowDown className="h-4 w-4" /></button>
+                          <button type="button" disabled={index <= 0} onClick={() => moveLink(link.id, 'up')} aria-label={`نقل «${link.title}» للأعلى`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#262626] active:bg-[#F5F5F3] disabled:text-[#D4D4D4]"><ArrowUp className="h-4 w-4" /></button>
+                          <button type="button" disabled={index === siblings.length - 1} onClick={() => moveLink(link.id, 'down')} aria-label={`نقل «${link.title}» للأسفل`} className="flex h-6 w-9 items-center justify-center rounded-md text-[#262626] active:bg-[#F5F5F3] disabled:text-[#D4D4D4]"><ArrowDown className="h-4 w-4" /></button>
                         </span>
-                        <button type="button" onClick={() => updateLink(link.id, { hidden: !link.hidden })} aria-label={link.hidden ? `إظهار «${link.title}»` : `إخفاء «${link.title}» دون حذفه`} className="flex h-11 w-10 shrink-0 items-center justify-center rounded-full text-[#8e8e93] active:bg-[#f2f2f7]">
+                        <button type="button" onClick={() => updateLink(link.id, { hidden: !link.hidden })} aria-label={link.hidden ? `إظهار «${link.title}»` : `إخفاء «${link.title}» دون حذفه`} className="flex h-11 w-10 shrink-0 items-center justify-center rounded-full text-[#737373] active:bg-[#F5F5F3]">
                           {link.hidden ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                         </button>
-                        <button type="button" onClick={() => setActionsFor(showActions ? null : link.id)} aria-expanded={showActions} aria-label={`خيارات «${link.title}»`} className={`flex h-11 w-10 shrink-0 items-center justify-center rounded-full ${showActions ? 'bg-[#f2f2f7] text-[#1d1d1f]' : 'text-[#8e8e93]'}`}>
+                        <button type="button" onClick={() => setActionsFor(showActions ? null : link.id)} aria-expanded={showActions} aria-label={`خيارات «${link.title}»`} className={`flex h-11 w-10 shrink-0 items-center justify-center rounded-full ${showActions ? 'bg-[#F5F5F3] text-[#111111]' : 'text-[#737373]'}`}>
                           <MoreHorizontal className="h-5 w-5" />
                         </button>
                       </div>
                       {showActions && (
                         <div className="px-3 pb-3">
-                          <button type="button" onClick={() => deleteItem(link)} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-[#ff3b30]/10 text-sm font-bold text-[#ff3b30]"><Trash2 className="h-4 w-4" />حذف</button>
+                          <button type="button" onClick={() => deleteItem(link)} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-[#DC2626]/10 text-sm font-bold text-[#DC2626]"><Trash2 className="h-4 w-4" />حذف</button>
                         </div>
                       )}
                     </div>
                   );
                 })}
               </div>
-              <p className="mt-1.5 px-4 text-xs leading-5 text-[#8e8e93]">اضغط على أي عنصر لتعديله، ورتّبه بالسهمين ↑↓ أو اسحبه من المقبض. العين تخفيه عن الزوار دون حذفه.</p>
+              <p className="mt-1.5 px-4 text-xs leading-5 text-[#737373]">اضغط على أي عنصر لتعديله، ورتّبه بالسهمين ↑↓ أو اسحبه من المقبض. العين تخفيه عن الزوار دون حذفه.</p>
             </section>
           )}
         </>
       )}
 
-      {screen.name === 'choose' && (
+      {!mobileOverview && screen.name === 'choose' && (
         <>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={backToList} className="flex h-10 items-center gap-1 rounded-full pl-3 text-[15px] text-[#0a84ff]"><ChevronRight className="h-5 w-5" />رجوع</button>
+            <button type="button" onClick={backToList} className="flex h-10 items-center gap-1 rounded-full pl-3 text-[15px] text-[#C2410C]"><ChevronRight className="h-5 w-5" />رجوع</button>
           </div>
-          <h3 className="px-1 text-xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>ماذا تريد أن تضيف؟</h3>
+          <h3 className="px-1 text-xl font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>ماذا تريد أن تضيف؟</h3>
           {inline && <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'رابط', kind: 'link' as const, preset: {} },
+              { label: 'زر', kind: 'link' as const, preset: {} },
               { label: 'صورة', kind: 'file' as const, preset: { display: { layout: 'card' as const } } },
               { label: 'مقطع فيديو', kind: 'link' as const, preset: { platform: 'youtube', display: { kind: 'video' as const } } },
               { label: 'ملف أو وثيقة', kind: 'file' as const, preset: {} },
@@ -1102,23 +1189,23 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
                 {/* Note 45: a tiny drawing of what gets added, in the same box size. */}
                 <span className={`flex h-11 w-14 items-center justify-center overflow-hidden rounded-xl ${tone}`}><KindArt id={id} Icon={Icon} /></span>
                 <span>
-                  <span className="block text-[16px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{label}</span>
-                  <span className="mt-0.5 block text-xs leading-5 text-[#6e6e73]">{hint}</span>
+                  <span className="block text-[16px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>{label}</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-[#737373]">{hint}</span>
                 </span>
               </button>
             ))}
           </div>}
-          <p className="px-1 text-xs leading-5 text-[#8e8e93]">المجموعات اختيارية؛ يمكنك إضافة أي محتوى مباشرة دون إنشاء مجموعة.</p>
+          <p className="px-1 text-xs leading-5 text-[#737373]">المجموعات اختيارية؛ يمكنك إضافة أي محتوى مباشرة دون إنشاء مجموعة.</p>
         </>
       )}
 
       {screen.name === 'form' && (
         <>
           <div className="flex items-center justify-between gap-2">
-            <button type="button" onClick={leaveForm} className="flex h-10 items-center gap-1 rounded-full pl-3 text-[15px] text-[#0a84ff]"><ChevronRight className="h-5 w-5" />رجوع</button>
-            <span className="flex items-center gap-2 text-[15px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <button type="button" onClick={leaveForm} className="flex h-10 items-center gap-1 rounded-full pl-3 text-[15px] text-[#C2410C]"><ChevronRight className="h-5 w-5" />رجوع</button>
+            <span className="flex items-center gap-2 text-[15px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>
               <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${kindInfo.tone}`}><kindInfo.Icon className="h-4 w-4" /></span>
-              {editing ? `تعديل ${kindInfo.label}` : `${kindInfo.label} جديد${form.kind === 'group' ? 'ة' : ''}`}
+              {editing && !formIsNew.current ? `تعديل ${kindInfo.label}` : `${kindInfo.label} جديد${form.kind === 'group' ? 'ة' : ''}`}
             </span>
             <span className="w-16" />
           </div>
@@ -1129,15 +1216,15 @@ export function LinkEditor({ onPendingChange, focusId, onFocused, saveActionRef,
           {form.kind === 'group' && renderGroupFields()}
 
           <div className="space-y-3 pt-1">
-            {(!draftSave || inline) && <button type="button" onClick={() => submit()} disabled={!isReady(form)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#0a84ff] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#c7c7cc] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            {!draftSave && <button type="button" onClick={() => submit()} disabled={!isReady(form)} className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#111111] text-[16px] font-bold text-white shadow-[0_6px_16px_rgba(17,17,17,0.28)] transition-transform active:scale-[0.98] disabled:bg-[#E7E7E7] disabled:text-[#737373] disabled:shadow-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
               {editing ? 'تطبيق التعديل' : 'إضافة إلى الصفحة'}
             </button>}
             {editing && (
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => updateLink(editing.id, { hidden: !editing.hidden })} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white text-sm font-bold text-[#1d1d1f]">
+                <button type="button" onClick={() => updateLink(editing.id, { hidden: !editing.hidden })} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white text-sm font-bold text-[#111111]">
                   {editing.hidden ? <><Eye className="h-4 w-4" />إظهار للزوار</> : <><EyeOff className="h-4 w-4" />إخفاء عن الزوار</>}
                 </button>
-                <button type="button" onClick={() => deleteItem(editing)} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white text-sm font-bold text-[#ff3b30]"><Trash2 className="h-4 w-4" />حذف</button>
+                <button type="button" onClick={() => deleteItem(editing)} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white text-sm font-bold text-[#DC2626]"><Trash2 className="h-4 w-4" />حذف</button>
               </div>
             )}
           </div>

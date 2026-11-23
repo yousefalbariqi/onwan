@@ -158,14 +158,14 @@ export function ProfileImageDisplay({
     return (
       <div className="relative w-full" style={{ paddingBottom: logo / 2 }}>
         <div className="aspect-[2.4/1] w-full overflow-hidden rounded-t-3xl bg-black/5 sm:aspect-[3.2/1]">
-          {profileStyle.bannerImage && <img src={profileStyle.bannerImage} alt="" className="h-full w-full object-cover" />}
+          {profileStyle.bannerImage && <img src={profileStyle.bannerImage} alt="" className="h-full w-full object-cover" style={{ objectPosition: `${profileStyle.bannerX ?? 50}% ${profileStyle.bannerY ?? 50}%`, transform: (profileStyle.bannerZoom ?? 1) > 1 ? `scale(${Math.min(3, profileStyle.bannerZoom ?? 1)})` : undefined, transformOrigin: `${profileStyle.bannerX ?? 50}% ${profileStyle.bannerY ?? 50}%` }} />}
         </div>
         <div
           className={`absolute bottom-0 flex items-center justify-center overflow-hidden rounded-full border-4 border-white shadow-xl ${transparent ? '' : 'bg-white'}`}
           style={{ width: logo, height: logo, left: `clamp(8px, calc(${100 - x}% - ${logo / 2}px), calc(100% - ${logo + 8}px))`, clipPath: 'circle(50%)' }}
         >
           {profileImage
-            ? <img src={displaySrc} alt={name} className="h-full w-full" style={{ objectFit: 'contain', transform: imageStyle.transform }} />
+            ? <img src={displaySrc} alt={name} className="h-full w-full" style={{ objectFit: transparent ? 'contain' : fit, objectPosition: imageStyle.objectPosition, transform: imageStyle.transform, transformOrigin: imageStyle.transformOrigin }} />
             : <User className="h-1/2 w-1/2 opacity-50" style={{ color: textColor }} />}
         </div>
       </div>

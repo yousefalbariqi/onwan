@@ -6,7 +6,7 @@ import type { PageData } from '../context/PageContext';
 export const HEADING_SIZES = { small: 'text-base', medium: 'text-lg', large: 'text-xl' } as const;
 export const PARAGRAPH_SIZES = { small: 'text-sm', medium: 'text-base', large: 'text-lg' } as const;
 export const MEDIA_RADII = { none: 'rounded-none', small: 'rounded-md', medium: 'rounded-xl', large: 'rounded-3xl' } as const;
-export const ITEM_SPACING = { compact: 'space-y-2', normal: 'space-y-4', relaxed: 'space-y-6' } as const;
+export const ITEM_SPACING = { compact: 'space-y-2', normal: 'space-y-3', relaxed: 'space-y-4' } as const;
 export const GRID_SPACING = { compact: 'gap-2', normal: 'gap-3', relaxed: 'gap-4' } as const;
 
 export type MediaRadius = keyof typeof MEDIA_RADII;

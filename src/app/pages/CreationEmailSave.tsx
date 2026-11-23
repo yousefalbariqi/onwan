@@ -18,6 +18,7 @@ export default function CreationEmailSave() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [wait, setWait] = useState(0);
+  const [codeOk, setCodeOk] = useState(false);
   const verified = useRef<(CreationSession & { pageData?: any }) | null>(null);
   const running = useRef(false);
   const humanOk = useHumanOk();
@@ -43,6 +44,9 @@ export default function CreationEmailSave() {
         const result = await verifyCreationCode(email.trim().toLowerCase(), code, clientKey);
         if (result.existingAccount) { setStage('existing'); return; }
         verified.current = { ...result, pageData: local?.pageData || result.pageData };
+        // Note 25: the code turns green for a moment before moving on.
+        setCodeOk(true);
+        await new Promise(resolve => window.setTimeout(resolve, 450));
       }
       const session = verified.current!;
       storeCreationSession(session);
@@ -66,12 +70,12 @@ export default function CreationEmailSave() {
     <h1>{stage === 'email' ? 'خلّنا نحفظ صفحتك!' : stage === 'existing' ? 'أهلًا بعودتك!' : 'تحقق من بريدك'}</h1>
     <p className="creation-email__description">{stage === 'email' ? 'أدخل بريدك عشان تقدر ترجع وتكمل تصميمك بأي وقت.' : stage === 'existing' ? 'بريدك مرتبط بحساب موجود. سجّل الدخول أو استعد الوصول لحسابك، وتصميمك المختار محفوظ على هذا الجهاز.' : <>أدخل الرمز المكوّن من ٤ أرقام المرسل إلى <bdi>{email}</bdi></>}</p>
     {stage === 'existing' ? <div className="creation-email__existing"><Link className="creation-email__button" to={login}>تسجيل الدخول</Link><Link to={`/reset-password?email=${encodeURIComponent(email.trim())}`}>استعادة الوصول للحساب</Link></div> : <form noValidate onSubmit={event => { event.preventDefault(); void (stage === 'email' ? send() : complete()); }}>
-      {stage === 'email' ? <label><span className="sr-only">البريد الإلكتروني</span><input type="email" inputMode="email" autoComplete="email" placeholder="البريد الإلكتروني" aria-label="البريد الإلكتروني" dir="ltr" value={email} onChange={event => { setEmail(event.target.value.trim()); setError(''); }} disabled={busy} maxLength={255} /></label> : <VerificationCodeInput value={code} onChange={value => { setCode(value); setError(''); }} invalid={Boolean(error)} describedBy={error ? 'creation-code-error' : undefined} disabled={busy || Boolean(verified.current)} />}
+      {stage === 'email' ? <label><span className="sr-only">البريد الإلكتروني</span><input type="email" inputMode="email" autoComplete="email" placeholder="البريد الإلكتروني" aria-label="البريد الإلكتروني" dir="ltr" value={email} onChange={event => { setEmail(event.target.value.trim()); setError(''); }} disabled={busy} maxLength={255} /></label> : <VerificationCodeInput value={code} onChange={value => { setCode(value); setError(''); }} invalid={Boolean(error) && !codeOk} success={codeOk} describedBy={error ? 'creation-code-error' : undefined} disabled={busy || Boolean(verified.current)} />}
 
       {error && <p id="creation-code-error" role="alert" className="creation-email__error">{error}</p>}
       {stage === 'email' && <TurnstileBox />}
       <button type="submit" className="creation-email__button" disabled={busy || (stage === 'email' ? !isValidEmailAddress(email.trim()) || !humanOk : code.length !== 4 && !verified.current)}>{busy ? <><Loader2 size={20} className="animate-spin" />{stage === 'saving' ? 'جارٍ حفظ صفحتك…' : 'لحظة…'}</> : verified.current ? 'إعادة محاولة الحفظ' : 'متابعة'}</button>
-      {stage !== 'email' && !verified.current && <div className="creation-email__resend"><button type="button" disabled={busy || wait > 0 || !humanOk} onClick={() => void send()}>{wait > 0 ? `إعادة الإرسال بعد ${wait} ثانية` : 'إعادة إرسال الرمز'}</button><button type="button" disabled={busy} onClick={() => { setStage('email'); setCode(''); setError(''); clearCreationSession(); }}>تغيير البريد</button><TurnstileBox /></div>}
+      {stage !== 'email' && !verified.current && <div className="creation-email__resend"><button type="button" disabled={busy || wait > 0 || !humanOk} onClick={() => void send()}>{wait > 0 ? `إعادة الإرسال بعد ${wait} ثانية` : 'إعادة إرسال الرمز'}</button><button type="button" disabled={busy} onClick={() => { setStage('email'); setCode(''); setError(''); setCodeOk(false); clearCreationSession(); }}>تغيير البريد</button><TurnstileBox /></div>}
     </form>}
     <p className="creation-email__login">لديك حساب؟ <Link to={login}>سجّل الدخول</Link></p>
     <p className="creation-email__terms">بالمتابعة، توافق على <Link to="/terms">الشروط والأحكام</Link> و<Link to="/privacy">سياسة الخصوصية</Link>.</p>

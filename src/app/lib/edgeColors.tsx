@@ -24,9 +24,15 @@ function colourAt(x: number, y: number, edge: 'top' | 'bottom') {
 }
 
 function apply() {
-  const width = window.innerWidth;
-  const top = colourAt(width / 2, 2, 'top');
-  const bottom = colourAt(width / 2, window.innerHeight - 2, 'bottom') ?? top;
+  // Sample the page itself: just inside the safe areas (which are transparent
+  // #root padding) and at the side edge, so a card scrolling past the middle
+  // of the screen never tints the status bar.
+  const root = document.getElementById('root');
+  const insets = root ? getComputedStyle(root) : null;
+  const insetTop = parseFloat(insets?.paddingTop ?? '0') || 0;
+  const insetBottom = parseFloat(insets?.paddingBottom ?? '0') || 0;
+  const top = colourAt(1, insetTop + 1, 'top');
+  const bottom = colourAt(1, window.innerHeight - insetBottom - 2, 'bottom') ?? top;
   if (!top) return;
   let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (!meta) {

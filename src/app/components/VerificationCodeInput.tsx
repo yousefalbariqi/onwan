@@ -6,9 +6,9 @@ export const normalizeVerificationCode = (value: string, length = 4): string => 
 
 // One native text control owns typing, selection, paste and OS code suggestions.
 // The boxes are only a presentation of its string value.
-export function VerificationCodeInput({ value, onChange, length = 4, disabled = false, invalid = false, describedBy, autoFocus = false }: {
+export function VerificationCodeInput({ value, onChange, length = 4, disabled = false, invalid = false, success = false, describedBy, autoFocus = false }: {
   value: string; onChange: (value: string) => void; length?: number; disabled?: boolean;
-  invalid?: boolean; describedBy?: string; autoFocus?: boolean;
+  invalid?: boolean; success?: boolean; describedBy?: string; autoFocus?: boolean;
 }) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -20,10 +20,10 @@ export function VerificationCodeInput({ value, onChange, length = 4, disabled = 
     onChange(next); setCursor(caret);
     window.requestAnimationFrame(() => input.current?.setSelectionRange(caret, caret));
   };
-  return <div className={`otp-code${invalid ? ' is-invalid' : ''}${disabled ? ' is-disabled' : ''}`} dir="ltr">
+  return <div className={`otp-code${invalid ? ' is-invalid' : ''}${success ? ' is-success' : ''}${disabled ? ' is-disabled' : ''}`} dir="ltr">
     <label className="sr-only" htmlFor={id}>رمز التحقق المكوّن من {length} أرقام</label>
     <div className="otp-code__boxes" style={{ gridTemplateColumns: `repeat(${length}, minmax(0, 1fr))` }} aria-hidden="true">
-      {Array.from({ length }, (_, index) => <span key={index} className={focused && Math.min(cursor, length - 1) === index ? 'is-active' : ''}>{value[index] || ''}</span>)}
+      {Array.from({ length }, (_, index) => <span key={index} className={`${value[index] ? 'is-filled' : ''}${focused && Math.min(cursor, length - 1) === index ? ' is-active' : ''}`}>{value[index] || ''}</span>)}
     </div>
     <input id={id} ref={input} className="otp-code__input" type="text" inputMode="numeric" autoComplete="one-time-code"
       name="verification-code" dir="ltr" value={value} disabled={disabled} autoFocus={autoFocus} spellCheck={false} autoCapitalize="off"

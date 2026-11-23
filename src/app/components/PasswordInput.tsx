@@ -29,7 +29,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttribut
         onClick={toggle}
         aria-label={visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
         aria-pressed={visible}
-        className="absolute inset-y-0 left-0 flex w-11 items-center justify-center text-[#8e8e93] hover:text-[#3a3a3c] focus-visible:text-[#0a84ff] focus-visible:outline-none"
+        className="absolute inset-y-0 left-0 flex w-11 items-center justify-center text-[#737373] hover:text-[#262626] focus-visible:text-[#C2410C] focus-visible:outline-none"
       >
         {visible ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
       </button>

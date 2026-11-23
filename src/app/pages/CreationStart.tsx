@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ArrowLeft, ArrowRight, Check, HeartHandshake, Store, UserRound, Clapperboard } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { CreationCategoryArt } from '../components/CreationCategoryArt';
 import { OnwanLogo } from '../components/OnwanLogo';
 import { CREATION_CATEGORIES, readCreationCategory, saveCreationCategory, type CreationCategory } from '../lib/creationStart';
 import '../../styles/creation-start.css';
 
 // Presentation order only; category IDs and template selection remain unchanged.
 const DISPLAY_CATEGORIES = ['personal', 'business', 'creator', 'nonprofit'].map(id => CREATION_CATEGORIES.find(item => item.id === id)!);
-const ICONS = { person: UserRound, video: Clapperboard, store: Store, heart: HeartHandshake };
 
 // Stage one is intentionally independent of account kind, authentication and billing.
 export default function CreationStart() {
@@ -32,12 +32,12 @@ export default function CreationStart() {
   return <div className="creation-start" dir="rtl">
     <div className="creation-start__frame">
       <header className="creation-start__header">
-        <Link to="/" aria-label="عنوان — الرئيسية"><OnwanLogo /></Link>
         <Link to="/" className="creation-start__back" aria-label="العودة للرئيسية"><ArrowRight size={22} aria-hidden="true" /></Link>
+        <Link to="/" aria-label="عنوان — الرئيسية"><OnwanLogo /></Link>
       </header>
-      <div className="creation-start__progress" aria-label="الخطوة 1 من 3: نوع الصفحة">
-        <div className="creation-start__step"><span>لنبدأ بصفحتك</span><span>الخطوة 1 من 3</span></div>
-        <div className="creation-start__segments" aria-hidden="true"><span className="is-current" /><span /><span /></div>
+      <div className="creation-start__progress" aria-label="الخطوة 1 من 4: نوع الصفحة">
+        <div className="creation-start__step"><span>لنبدأ بصفحتك</span><span>الخطوة 1 من 4</span></div>
+        <div className="creation-start__segments" aria-hidden="true"><span className="is-current" /><span /><span /><span /></div>
       </div>
       <main className="creation-start__main">
         <div className="creation-start__intro">
@@ -46,12 +46,11 @@ export default function CreationStart() {
         </div>
         <div className="creation-start__grid" role="radiogroup" aria-labelledby="creation-category-question" dir="rtl">
           {DISPLAY_CATEGORIES.map((item, index) => {
-            const Icon = ICONS[item.icon];
             const active = selected === item.id;
             return <button key={item.id} ref={element => { choices.current[index] = element; }} type="button" role="radio" aria-checked={active}
               tabIndex={active || (!selected && index === 0) ? 0 : -1} onKeyDown={event => move(event, index)} onClick={() => select(item.id)}
               className={`creation-start__choice creation-start__choice--${item.id}${active ? ' is-selected' : ''}`} dir="rtl">
-              <span className="creation-start__art" aria-hidden="true"><span className="creation-start__icon"><Icon size={44} strokeWidth={1.8} /></span></span>
+              <span className="creation-start__art" aria-hidden="true"><CreationCategoryArt category={item.id} /></span>
               <span className="creation-start__choice-label">{item.label}</span>
               <span className="creation-start__check" aria-hidden="true">{active && <Check size={12} strokeWidth={2.5} />}</span>
             </button>;
@@ -62,9 +61,9 @@ export default function CreationStart() {
             if (!selected) return;
             saveCreationCategory(selected);
             setConfirmed(true);
-            navigate('/signup?step=templates');
-          }}><span>شاهد التصاميم المناسبة</span><ArrowLeft size={21} aria-hidden="true" /></button>
-          <p className="creation-start__hint" role="status" aria-live="polite">{confirmed ? `اختيارك محفوظ: ${CREATION_CATEGORIES.find(item => item.id === selected)?.label}` : 'بدون تسجيل. اختر ما يناسبك وجرّب.'}</p>
+            navigate('/signup?step=profile');
+          }}><span>التالي</span><ArrowLeft size={21} aria-hidden="true" /></button>
+          <p className="sr-only" role="status" aria-live="polite">{confirmed ? `اختيارك محفوظ: ${CREATION_CATEGORIES.find(item => item.id === selected)?.label}` : ''}</p>
         </div>
       </main>
     </div>

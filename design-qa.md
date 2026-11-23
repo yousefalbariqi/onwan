@@ -38,3 +38,15 @@ Latest approved flow replaces the disabled payment CTA with “انشر صفحت
 Fresh in-app browser attempt returned “The browser access host is unavailable”. Visual approval remains blocked. The backend now has a successful isolated PostgreSQL integration test proving full draft publication, public retrieval, unpaid state, idempotent retry and later settlement, without real customer data or live cache effects. External-database publication testing was rejected by automatic review and replaced with the isolated test.
 
 Manual-launch final checks: 130 automated tests plus one isolated PostgreSQL integration test passed. Production build and Worker typecheck passed. Phase34/35 were applied to the configured application database; visual approval is still unavailable and application code was not deployed.
+
+## 2026-11-18 — Photo and name reference adaptation
+
+final result: blocked (formal pixel comparison only)
+
+Implemented the attached two reference images' hierarchy within the existing HeaderEditor: three layout families; photo card with add/crop/remove; name; optional title-only font; title colour; formatted biography. User-requested differences: black selection/switch accents, no paid badges or plan gating, existing Onwan typography/content and original media adjustment controls retained. Biography keeps the existing 300-character contract rather than lowering it to the reference's 160.
+
+Visual evidence: native Safari Responsive Design Mode at 383 CSS px, 852 and 1200 CSS px tall (2× device ratio, browser display scaled to 59%/42%). Observed actual controls and selected Amiri after enabling the title-font switch. Found and corrected an avatar flex minimum-size issue (oval frame), duplicate outer padding, and an unnecessary image-shape row between photo and name. A later capture showed the corrected round avatar, three black selected/unselected layout cards, photo actions, name, switch, colour control and biography. Source-specific icons are replaced by the existing product image renderer/Lucide controls.
+
+No formal side-by-side pixel pass is claimed: source images are conversation attachments without a standalone local artifact for normalized paired-image comparison. The current implementation was visually inspected but the strict paired-image gate remains blocked. Native scrolling also returned noWindowsAvailable; a taller responsive viewport was used to inspect the complete content instead. Physical iPhone keyboard/upload and Chrome remain unverified.
+
+48 targeted editor, persistence, media, formatting and title-font checks pass; production build passes. Title font tests prove the name uses its independent family while body typography stays unchanged. Regression coverage also ensures a cancelled/idle Web Animation cannot hold panel closure indefinitely.

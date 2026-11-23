@@ -195,8 +195,41 @@ test('an isolated source cannot acknowledge newer edits or silently fall back to
   await assert.rejects(save, /تغييرات أحدث/); await e.flush();
   assert.equal(e.value.draftState, 'error');
   assert.equal(e.value.pageData.bio, 'newest');
+  assert.equal(e.value.savedDraftData.bio, 'first', 'cancel targets the version actually acknowledged, not newer local input');
   assert.equal(e.api.calls.length, 0);
   const readonly = await editor({ source: { load: source.load, save: source.save } });
   await assert.rejects(readonly.value.saveDraft(), /غير متاح/);
   assert.equal(readonly.api.calls.length, 0);
+});
+
+
+test('manual identity mode keeps repeated edits local until one explicit draft save', async () => {
+  const e = await editor();
+  e.value.enableManualDraftSaving(); await e.flush();
+  for (const bio of ['one', 'two', 'three']) {
+    e.value.updatePageData({ bio }); await e.flush(); await e.advance(10000);
+  }
+  assert.equal(e.api.calls.length, 0);
+  const publishedBio = e.value.savedPageData.bio;
+  await e.value.saveDraft(); await e.flush();
+  assert.equal(e.api.calls.length, 1);
+  assert.equal(e.api.calls[0].draft, true);
+  assert.equal(e.value.savedDraftData.bio, 'three');
+  assert.equal(e.value.savedPageData.bio, publishedBio);
+  await e.advance(30000); assert.equal(e.api.calls.length, 1);
+  e.value.updatePageData({ bio: 'discard me' }); await e.flush();
+  await e.value.discardDraftChanges(); await e.flush(); await e.advance(10000);
+  assert.equal(e.value.pageData.bio, 'three'); assert.equal(e.api.calls.length, 1);
+});
+test('manual guest mode backs up locally without calling the cloud draft saver', async () => {
+  const writes = [], backups = [];
+  const e = await editor({ source: { load: async () => ({ pageData: { name: 'saved', bio: '', links: [] } }), save: async data => ({ pageData: data }), saveDraft: async data => { writes.push(data); return { pageData: data }; }, backupDraft: async data => { backups.push(data); } } });
+  e.value.enableManualDraftSaving(); await e.flush();
+  e.value.updatePageData({ name: 'local' }); await e.flush(); await e.advance(10000);
+  assert.equal(writes.length, 0); assert.equal(backups.at(-1).name, 'local');
+  await e.value.saveDraft(); await e.flush();
+  assert.equal(writes.length, 1); assert.equal(e.value.savedDraftData.name, 'local');
+  e.value.updatePageData({ name: 'discard' }); await e.flush();
+  await e.value.discardDraftChanges(); await e.flush();
+  assert.equal(backups.at(-1).name, 'local'); assert.equal(writes.length, 1);
 });

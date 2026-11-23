@@ -71,8 +71,8 @@ function remainingDays(expiresAt: string | null) {
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex min-h-[48px] items-center justify-between gap-3 px-4 text-[15px]">
-      <span className="shrink-0 text-[#1d1d1f]">{label}</span>
-      <span className="min-w-0 truncate text-[#8e8e93]">{value}</span>
+      <span className="shrink-0 text-[#111111]">{label}</span>
+      <span className="min-w-0 truncate text-[#737373]">{value}</span>
     </div>
   );
 }
@@ -181,8 +181,8 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
                   ? `الاسم محجوز لك مؤقتًا${account.nameHoldExpiresAt ? ` حتى ${formatDate(account.nameHoldExpiresAt)}` : ''}، ويُثبَّت بعد الدفع.`
                   : 'انتهى حجز اسمك وأخذه مستخدم آخر. اختر اسمًا جديدًا لتكمل التسجيل.'}>
                   <label className="flex min-h-[48px] items-center gap-1 px-4" dir="ltr">
-                    <input value={newName} onChange={(e) => setNewName(e.target.value.toLowerCase().replace(/\s+/g, ''))} placeholder="new-name" maxLength={30} aria-label="الاسم الجديد" className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
-                    <span className="shrink-0 text-[15px] text-[#8e8e93]">.{ROOT_DOMAIN}</span>
+                    <input value={newName} onChange={(e) => setNewName(e.target.value.toLowerCase().replace(/\s+/g, ''))} placeholder="new-name" maxLength={30} aria-label="الاسم الجديد" className="min-w-0 flex-1 bg-transparent py-3 text-[16px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none" />
+                    <span className="shrink-0 text-[15px] text-[#737373]">.{ROOT_DOMAIN}</span>
                   </label>
                 </Group>
                 <PrimaryButton busy={nameBusy} disabled={!USERNAME_PATTERN.test(newName)} onClick={changeName}>تغيير الاسم</PrimaryButton>
@@ -206,7 +206,7 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
               <InfoRow label="الانتهاء" value={formatDate(subscription.expiresAt)} />
             </Group>
             <PrimaryButton tone={hasRenewalInvoice || expired ? 'red' : 'blue'} onClick={() => navigate('/renewal')}>{hasRenewalInvoice ? 'عرض فاتورة التجديد' : 'تجديد الاشتراك'}</PrimaryButton>
-            <p className="px-4 text-center text-xs text-[#8e8e93]">التجديد التلقائي يتاح بعد ربط بوابة الدفع وحفظ موافقتك عليه.</p>
+            <p className="px-4 text-center text-xs text-[#737373]">التجديد التلقائي يتاح بعد ربط بوابة الدفع وحفظ موافقتك عليه.</p>
           </>
         ) : (
           <>
@@ -222,7 +222,7 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
               <>
                 <Group title="تأكيد البريد" footer="أدخل الرمز الذي وصلك على بريدك.">
                   <div className="px-4" dir="ltr">
-                    <input value={code} onChange={(e) => setCode(digitsOnly(e.target.value))} maxLength={4} inputMode="numeric" autoComplete="one-time-code" placeholder="• • • •" aria-label="رمز التأكيد" className="w-full bg-transparent py-3 text-center text-2xl tracking-[0.6em] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
+                    <input value={code} onChange={(e) => setCode(digitsOnly(e.target.value))} maxLength={4} inputMode="numeric" autoComplete="one-time-code" placeholder="• • • •" aria-label="رمز التأكيد" className="w-full bg-transparent py-3 text-center text-2xl tracking-[0.6em] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none" />
                   </div>
                 </Group>
                 <PrimaryButton busy={emailBusy} disabled={code.length !== 4} onClick={() => runEmailAction(async () => {
@@ -231,14 +231,14 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
                   setToast('تم تأكيد البريد');
                   return { tone: 'good', text: 'تم تأكيد البريد.' };
                 })}>تأكيد البريد</PrimaryButton>
-                <button type="button" disabled={emailBusy} onClick={() => runEmailAction(async () => ({ tone: 'info', text: (await sendEmailCode()).message }))} className="block w-full text-center text-sm text-[#0a84ff] disabled:text-[#c7c7cc]">أرسل رمزًا جديدًا</button>
+                <button type="button" disabled={emailBusy} onClick={() => runEmailAction(async () => ({ tone: 'info', text: (await sendEmailCode()).message }))} className="block w-full text-center text-sm text-[#C2410C] disabled:text-[#D4D4D4]">أرسل رمزًا جديدًا</button>
                 {emailNotice && <Notice tone={emailNotice.tone}>{emailNotice.text}</Notice>}
               </>
             )}
             <Group title="بيانات الدخول" footer="أي تغيير يحتاج رمزًا نرسله إلى بريدك المسجل.">
-              <SettingsRow icon={Mail} tone="bg-[#0a84ff]" label="البريد الإلكتروني" value={<span dir="ltr">{account.email || '—'}</span>} badge={account.emailVerified ? undefined : 'غير مؤكد'} onClick={() => go('change-email')} />
-              <SettingsRow icon={Smartphone} tone="bg-[#34c759]" label="رقم الجوال" value={<span dir="ltr">{account.phone}</span>} onClick={() => go('change-phone')} />
-              <SettingsRow icon={KeyRound} tone="bg-[#8e8e93]" label="كلمة المرور" value="••••••••" onClick={() => go('change-password')} />
+              <SettingsRow icon={Mail} tone="bg-[#111111]" label="البريد الإلكتروني" value={<span dir="ltr">{account.email || '—'}</span>} badge={account.emailVerified ? undefined : 'غير مؤكد'} onClick={() => go('change-email')} />
+              <SettingsRow icon={Smartphone} tone="bg-[#16A34A]" label="رقم الجوال" value={<span dir="ltr">{account.phone}</span>} onClick={() => go('change-phone')} />
+              <SettingsRow icon={KeyRound} tone="bg-[#737373]" label="كلمة المرور" value="••••••••" onClick={() => go('change-password')} />
             </Group>
           </>
         );
@@ -262,7 +262,7 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
           <>
             <Group title="نوع الطلب">
               <label className="flex min-h-[48px] items-center px-4">
-                <select value={requestType} onChange={(e) => { setRequestType(e.target.value as RequestType); setRequestNotice(null); }} aria-label="نوع الطلب" className="w-full bg-transparent py-3 text-[16px] text-[#1d1d1f] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <select value={requestType} onChange={(e) => { setRequestType(e.target.value as RequestType); setRequestNotice(null); }} aria-label="نوع الطلب" className="w-full bg-transparent py-3 text-[16px] text-[#111111] focus:outline-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
                   {REQUEST_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                 </select>
               </label>
@@ -270,13 +270,13 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
             {selectedRequest?.note && <Notice tone="warn">{selectedRequest.note}</Notice>}
             <Group title="التفاصيل">
               <div className="px-4 py-2">
-                <textarea value={requestMessage} onChange={(e) => setRequestMessage(e.target.value)} rows={4} maxLength={4000} aria-label="تفاصيل الطلب" placeholder={requestType === 'change_subdomain' ? 'اكتب الاسم الجديد المطلوب…' : 'اكتب تفاصيل طلبك…'} className="w-full resize-none bg-transparent py-1 text-[16px] leading-7 text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none" />
+                <textarea value={requestMessage} onChange={(e) => setRequestMessage(e.target.value)} rows={4} maxLength={4000} aria-label="تفاصيل الطلب" placeholder={requestType === 'change_subdomain' ? 'اكتب الاسم الجديد المطلوب…' : 'اكتب تفاصيل طلبك…'} className="w-full resize-none bg-transparent py-1 text-[16px] leading-7 text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none" />
               </div>
             </Group>
             <PrimaryButton busy={requestBusy} disabled={requestMessage.trim().length < 3} onClick={sendRequest}>إرسال الطلب</PrimaryButton>
             {requestNotice && <Notice tone={requestNotice.tone}>{requestNotice.text}</Notice>}
             {!!SUPPORT_WHATSAPP && (
-              <a href={`https://wa.me/${SUPPORT_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center justify-center gap-2 text-[15px] font-bold text-[#1f8a3b]">
+              <a href={`https://wa.me/${SUPPORT_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center justify-center gap-2 text-[15px] font-bold text-[#15803D]">
                 <MessageCircle className="h-4 w-4" />
                 أو راسلنا على واتساب
               </a>
@@ -289,12 +289,12 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
     }
   };
 
-  const statusTone = account.pageStatus === 'published' ? 'bg-[#34c759]/12 text-[#1f7a35]' : account.pageStatus === 'suspended' ? 'bg-[#ff9500]/12 text-[#9a5b00]' : 'bg-[#e5e5ea] text-[#3a3a3c]';
+  const statusTone = account.pageStatus === 'published' ? 'bg-[#16A34A]/12 text-[#15803D]' : account.pageStatus === 'suspended' ? 'bg-[#ff9500]/12 text-[#9a5b00]' : 'bg-[#E7E7E7] text-[#262626]';
   const subscriptionValue = subscription ? `${PLAN_NAMES[subscription.plan]} · ${expired ? 'منتهٍ' : SUBSCRIPTION_STATUS[subscription.status]}` : 'لا يوجد';
   const backTarget: Page = page.startsWith('change-') ? 'account' : 'root';
 
   return (
-    <div className="space-y-6 bg-[#f2f2f7] px-4 py-5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+    <div className="space-y-6 bg-[#F5F5F3] px-4 py-5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
       <div ref={topRef} className="-mt-5 h-0" aria-hidden="true" />
 
       {page === 'root' ? (
@@ -303,12 +303,12 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
           {/* Summary card, like the Apple ID card at the top of Settings. */}
           <section className="rounded-2xl bg-white p-4">
             <div className="flex items-center gap-3">
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e5e5ea] text-[#8e8e93]">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E7E7E7] text-[#737373]">
                 {pageData.profileImage ? <img src={pageData.profileImage} alt="" className="h-full w-full object-cover" /> : <UserRound className="h-7 w-7" />}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{pageData.name || 'صفحتك'}</span>
-                <span className="block truncate text-[13px] text-[#8e8e93]" dir="ltr" style={{ textAlign: 'right' }}>{pageData.username ? pageHost(pageData.username) : '—'}</span>
+                <span className="block truncate text-[17px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>{pageData.name || 'صفحتك'}</span>
+                <span className="block truncate text-[13px] text-[#737373]" dir="ltr" style={{ textAlign: 'right' }}>{pageData.username ? pageHost(pageData.username) : '—'}</span>
               </span>
               <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${statusTone}`}>{PAGE_STATUS[account.pageStatus]}</span>
             </div>
@@ -322,7 +322,7 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
           {/* Only what needs attention, one line each. */}
           {(hasRenewalInvoice || expired || renewalSoon || account.pageStatus === 'suspended' || !account.emailVerified || !account.nameFixed) && (
             <Group title="يحتاج انتباهك">
-              {(hasRenewalInvoice || expired) && <SettingsRow icon={AlertTriangle} tone="bg-[#ff3b30]" label={hasRenewalInvoice ? 'فاتورة تجديد بانتظار السداد' : 'انتهى الاشتراك'} onClick={() => go('subscription')} />}
+              {(hasRenewalInvoice || expired) && <SettingsRow icon={AlertTriangle} tone="bg-[#DC2626]" label={hasRenewalInvoice ? 'فاتورة تجديد بانتظار السداد' : 'انتهى الاشتراك'} onClick={() => go('subscription')} />}
               {renewalSoon && <SettingsRow icon={CalendarDays} tone="bg-[#ff9500]" label={`متبقي ${daysLeft} ${daysLeft === 1 ? 'يوم' : 'يومًا'} على الاشتراك`} onClick={() => go('subscription')} />}
               {account.pageStatus === 'suspended' && <SettingsRow icon={AlertTriangle} tone="bg-[#ff9500]" label="الصفحة موقوفة من الإدارة" onClick={() => go('page')} />}
               {!account.emailVerified && <SettingsRow icon={Mail} tone="bg-[#ff9500]" label="أكّد بريدك الإلكتروني" onClick={() => go('account')} />}
@@ -331,32 +331,32 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
           )}
 
           <Group title="صفحتك">
-            <SettingsRow icon={Link2} tone="bg-[#0a84ff]" label="الصفحة" value={PAGE_STATUS[account.pageStatus]} onClick={() => go('page')} />
-            <SettingsRow icon={CreditCard} tone="bg-[#34c759]" label="الاشتراك" value={subscriptionValue} onClick={() => go('subscription')} />
+            <SettingsRow icon={Link2} tone="bg-[#111111]" label="الصفحة" value={PAGE_STATUS[account.pageStatus]} onClick={() => go('page')} />
+            <SettingsRow icon={CreditCard} tone="bg-[#16A34A]" label="الاشتراك" value={subscriptionValue} onClick={() => go('subscription')} />
             <SettingsRow icon={BarChart3} tone="bg-[#ff9500]" label="زيارات الصفحة" value={overview ? `${overview.stats.last30.toLocaleString('ar-u-nu-latn')} هذا الشهر` : undefined} onClick={() => go('visits')} />
           </Group>
 
           <Group title="الحساب">
-            <SettingsRow icon={UserRound} tone="bg-[#8e8e93]" label="الحساب وتسجيل الدخول" value={<span dir="ltr">{account.email || account.phone}</span>} onClick={() => go('account')} />
+            <SettingsRow icon={UserRound} tone="bg-[#737373]" label="الحساب وتسجيل الدخول" value={<span dir="ltr">{account.email || account.phone}</span>} onClick={() => go('account')} />
           </Group>
 
           {overview && (
             <Group title="خدمات عنوان">
               <SettingsRow icon={Sparkles} tone="bg-[#af52de]" label="صمّم لي" value={overview.design.package?.state === 'in_progress' ? 'قيد التنفيذ' : overview.design.package?.state === 'pending_payment' ? 'بانتظار الدفع' : overview.design.package?.state === 'done' ? 'مكتملة' : undefined} onClick={() => go('design')} />
-              {account.nameFixed && <SettingsRow icon={Globe} tone="bg-[#0a84ff]" label="دومين خاص" value={overview.domain.current ? DOMAIN_STATUS[overview.domain.current.status] ?? '' : undefined} onClick={() => go('domain')} />}
-              <SettingsRow icon={Nfc} tone="bg-[#1d1d1f]" label="قطع NFC" value={overview.nfc.orders.length ? `${overview.nfc.orders.length} طلب` : undefined} onClick={() => go('nfc')} />
+              {account.nameFixed && <SettingsRow icon={Globe} tone="bg-[#111111]" label="دومين خاص" value={overview.domain.current ? DOMAIN_STATUS[overview.domain.current.status] ?? '' : undefined} onClick={() => go('domain')} />}
+              <SettingsRow icon={Nfc} tone="bg-[#111111]" label="قطع NFC" value={overview.nfc.orders.length ? `${overview.nfc.orders.length} طلب` : undefined} onClick={() => go('nfc')} />
             </Group>
           )}
 
           <Group title="المساعدة">
-            <SettingsRow icon={MessageCircle} tone="bg-[#34c759]" label="التواصل مع الإدارة" onClick={() => go('support')} />
+            <SettingsRow icon={MessageCircle} tone="bg-[#16A34A]" label="التواصل مع الإدارة" onClick={() => go('support')} />
           </Group>
 
           <Group title="التصميم" footer="يعيد الثيم والخلفية والأزرار والخط إلى الشكل الافتراضي، ولا يمس الاسم أو الوصف أو الشعار أو المحتوى.">
             <SettingsRow icon={Palette} tone="bg-[#ff2d55]" label="استعادة التصميم الافتراضي" onClick={() => setConfirm('reset')} />
           </Group>
 
-          <button type="button" onClick={() => onLogout ? onLogout() : (isDirty ? setConfirm('logout') : doLogout())} className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-white text-[15px] text-[#ff3b30] active:bg-[#f2f2f7]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <button type="button" onClick={() => onLogout ? onLogout() : (isDirty ? setConfirm('logout') : doLogout())} className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-white text-[15px] text-[#DC2626] active:bg-[#F5F5F3]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             <LogOut className="h-4 w-4" />
             تسجيل الخروج
           </button>
@@ -364,11 +364,11 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
       ) : (
         <>
           <div className="space-y-1">
-            <button type="button" onClick={() => go(backTarget)} className="flex h-10 items-center gap-1 rounded-full pl-3 text-[15px] text-[#0a84ff]">
+            <button type="button" onClick={() => go(backTarget)} className="flex h-10 items-center gap-1 rounded-full pl-3 text-[15px] text-[#C2410C]">
               <ChevronRight className="h-5 w-5" />
               {backTarget === 'account' ? 'الحساب' : 'الإعدادات'}
             </button>
-            <h3 className="px-1 text-[26px] font-black leading-tight text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{TITLES[page]}</h3>
+            <h3 className="px-1 text-[26px] font-black leading-tight text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>{TITLES[page]}</h3>
           </div>
           {renderPage()}
         </>
@@ -391,8 +391,8 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
 
       {toast && (
         <div className="pointer-events-none fixed inset-x-0 top-4 z-[80] flex justify-center px-4" role="status">
-          <span className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-[#1d1d1f] shadow-[0_8px_24px_rgba(0,0,0,0.14)] ring-1 ring-black/5">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#34c759] text-white"><Check className="h-3.5 w-3.5" strokeWidth={3} /></span>
+          <span className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.14)] ring-1 ring-black/5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#16A34A] text-white"><Check className="h-3.5 w-3.5" strokeWidth={3} /></span>
             {toast}
           </span>
         </div>

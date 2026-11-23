@@ -24,7 +24,7 @@ export function AutoSaveStatus() {
 
   return (
     <div className="flex h-10 w-44 shrink-0 items-center justify-center text-xs" style={{ fontFamily: 'Cairo, sans-serif' }}>
-      <span role="status" aria-live="polite" className="flex items-center justify-center gap-1.5 text-[#8e8e93]">
+      <span role="status" aria-live="polite" className="flex items-center justify-center gap-1.5 text-[#737373]">
         {conflict ? <span className="text-amber-700">تعارض في النسخ</span>
           : draftState === 'limit' ? <span className="text-amber-700">وصلت للحد اليومي للحفظ</span>
           : draftState === 'error' ? <>

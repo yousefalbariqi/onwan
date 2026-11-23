@@ -40,6 +40,9 @@ export function normalizeDesign(value: any) {
   delete typography.useCustomFont;
   for (const key of Object.keys(customColors)) if (!COLOR.test(String(customColors[key] ?? ''))) delete customColors[key];
   delete design.profileStyle.bannerImage;
+  delete design.profileStyle.bannerX;
+  delete design.profileStyle.bannerY;
+  delete design.profileStyle.bannerZoom;
   if (JSON.stringify(design).length > 8000) throw new HttpError(400, 'القالب أكبر من المسموح.');
   return design;
 }

@@ -102,6 +102,8 @@ export interface PageData {
   wallpaper: {
     type: 'color' | 'gradient' | 'image' | 'video';
     value: string;
+    fit?: 'cover' | 'contain' | 'tile';
+    posterFromVideo?: boolean;
     preview?: string; // lightweight version of the same image, replaced after full decode
     position?: 'top' | 'center' | 'bottom';
     // Background photo framing from «تنسيق»: focus 0–100 % and zoom 1–3.
@@ -143,6 +145,10 @@ export interface PageData {
     // Note 21 «شعار مع بنر»: a wide photo on top, the logo over its lower edge.
     // positionX places the logo across the banner; logoSize is its width in px.
     bannerImage?: string;
+    // The cover's own framing; the logo keeps positionX / positionY / zoom.
+    bannerX?: number;
+    bannerY?: number;
+    bannerZoom?: number;
     logoSize?: number;
     positionX?: number;
     positionY?: number;
@@ -151,6 +157,7 @@ export interface PageData {
   typography?: {
     bioFormat?: TextFormat;
     font?: FontId;
+    nameFont?: FontId;
     size?: 'small' | 'medium' | 'large';
     nameSize?: 'small' | 'medium' | 'large';
     bioSize?: 'small' | 'medium' | 'large';
@@ -186,6 +193,9 @@ interface PageContextType {
   isDirty: boolean;
   // The last version that reached the server, shown beside the live draft.
   savedPageData: PageData | null;
+  savedDraftData: PageData | null;
+  enableManualDraftSaving: () => void;
+  discardDraftChanges: () => Promise<void>;
   savedHistory: SavedVersion[];
   undo: () => void;
   redo: () => void;
@@ -535,7 +545,8 @@ function loadLocalPageData() {
 export type PageSource = {
   uploadToken?: () => string | null;
   saveDraft?: (pageData: PageData) => Promise<void | { pageData: PageData }>;
-  load: () => Promise<{ pageData: any }>;
+  backupDraft?: (pageData: PageData) => Promise<void>;
+  load: () => Promise<{ pageData: any; savedDraftData?: Partial<PageData> }>;
   save: (pageData: PageData) => Promise<{ pageData: any }>;
 };
 
@@ -546,6 +557,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
   const [loadingPage, setLoadingPage] = useState(true);
   // PAGE-07: edits stay a local draft (live preview only) until «حفظ».
   const [isDirty, setIsDirty] = useState(false);
+  const [manualDraftSaving, setManualDraftSaving] = useState(false);
+  const enableManualDraftSaving = useCallback(() => setManualDraftSaving(true), []);
+  const [savedDraftData, setSavedDraftData] = useState<PageData | null>(null);
   const [savedPageData, setSavedPageData] = useState<PageData | null>(null);
   const [savedHistory, setSavedHistory] = useState<SavedVersion[]>([]);
   const [saving, setSaving] = useState(false);
@@ -645,7 +659,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     conflictRef.current = false; setConflict(false);
     const loaded = mergeWithDefaults(response.pageData);
     const draft = response.draft?.pageData && !response.draft.conflict ? mergeWithDefaults(response.draft.pageData) : null;
-    setPageData(draft ?? loaded); setSavedPageData(loaded); setAccount(response.account);
+    setPageData(draft ?? loaded); setSavedPageData(loaded); setSavedDraftData(draft ?? loaded); setAccount(response.account);
     setIsDirty(Boolean(draft)); setDraftState(draft ? 'saved' : 'idle');
     lastDraft.current = JSON.stringify(draft);
   }, []);
@@ -688,6 +702,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
             const loaded = mergeWithDefaults(response.pageData);
             setPageData(loaded);
             setSavedPageData(loaded);
+            setSavedDraftData(mergeWithDefaults(response.savedDraftData ?? response.pageData));
           }
         } catch (error) {
           console.error('Failed to load page:', error);
@@ -737,6 +752,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
           conflictRef.current = hasConflict; setConflict(hasConflict);
           const draft = local && differs ? local : serverDraft;
           lastDraft.current = JSON.stringify(serverDraft);
+          setSavedDraftData(serverDraft ?? loaded);
           setPageData(draft ?? loaded);
           setSavedPageData(loaded);
           setSavedHistory(readHistory(sessionOwner()));
@@ -852,6 +868,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     setPageData(loaded);
     savedRef.current = loaded;
     setSavedPageData(loaded);
+    setSavedDraftData(loaded);
     setSavedHistory(readHistory(draftOwner.current));
     setIsDirty(false);
   }, []);
@@ -862,6 +879,16 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     pushHistory(true);
     show(data);
   }, [pushHistory, show]);
+
+  const discardDraftChanges = useCallback(async () => {
+    if (!savedDraftData) return;
+    setSaving(true);
+    try {
+      restoreDraft(savedDraftData);
+      if (source?.backupDraft) await source.backupDraft(savedDraftData);
+      setDraftState('saved');
+    } finally { setSaving(false); }
+  }, [savedDraftData, source, restoreDraft]);
 
   // One save at a time: a second press while one is running gets the same
   // result instead of a duplicate request (note 28).
@@ -908,6 +935,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
 
         savedRef.current = savedData;
         setSavedPageData(savedData);
+        setSavedDraftData(savedData);
         lastDraft.current = '';
         // Edits made while the save was running stay in the draft, unsaved.
         if (pageDataRef.current === sent) {
@@ -937,8 +965,10 @@ export function PageProvider({ children, source }: { children: ReactNode; source
       setSaving(true); setDraftState('saving');
       try {
         const result = await source.saveDraft(sent);
+        const returned = (result as { pageData?: PageData } | undefined)?.pageData;
+        setSavedDraftData(mergeWithDefaults(returned ?? sent));
         if (pageDataRef.current !== sent) throw new Error('لديك تغييرات أحدث لم تُحفظ بعد. أعد المحاولة.');
-        if (result?.pageData && JSON.stringify(result.pageData) !== JSON.stringify(sent)) setPageData(mergeWithDefaults(result.pageData));
+        if (returned && JSON.stringify(returned) !== JSON.stringify(sent)) setPageData(mergeWithDefaults(returned));
         setDraftState('saved');
       } catch (error) { setDraftState('error'); throw error; }
       finally { setSaving(false); }
@@ -956,7 +986,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         await sendMutation(true, prepared);
         lastDraft.current = json;
       }
+      setSavedDraftData(prepared);
       if (pageDataRef.current !== sent) throw new Error('لديك تغييرات أحدث؛ اضغط حفظ تعديلاتي لحفظها قبل الإغلاق.');
+      if (prepared !== sent) setPageData(prepared);
       setDraftState('saved');
     } catch (error) {
       setDraftState(error instanceof ApiError && error.code === 'save_limit' ? 'limit' : 'error');
@@ -970,17 +1002,25 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     return () => window.removeEventListener('online', online);
   }, []);
   useEffect(() => {
-    if (source || conflict || draftState !== 'error') return;
+    if (manualDraftSaving || source || conflict || draftState !== 'error') return;
     const timer = window.setTimeout(() => { retryDelay.current = Math.min(30000, retryDelay.current * 2); setRetryTick(tick => tick + 1); }, retryDelay.current);
     return () => window.clearTimeout(timer);
-  }, [source, conflict, draftState, retryTick]);
+  }, [manualDraftSaving, source, conflict, draftState, retryTick]);
+
+  useEffect(() => {
+    if (!manualDraftSaving || !source?.backupDraft || loadingPage || !isAuthenticated) return;
+    const timer = window.setTimeout(() => {
+      void source.backupDraft!(pageData).then(() => setLocalBackupError(false)).catch(() => setLocalBackupError(true));
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [manualDraftSaving, source, pageData, loadingPage, isAuthenticated]);
 
   // REQ-015: unpublished edits are kept on the server by themselves, merged —
   // one save 2.5 s after the editing pauses, never one per change. They stay
   // invisible to visitors until «نشر التعديلات» publishes them. Files go to
   // storage first so the draft stays small.
   useEffect(() => {
-    if (source || loadingPage || conflict || !isAuthenticated || !isDirty || draftState === 'limit') return;
+    if (manualDraftSaving || source || loadingPage || conflict || !isAuthenticated || !isDirty || draftState === 'limit') return;
     const generation = publishedGeneration.current;
     const timer = window.setTimeout(async () => {
       if (inFlight.current) return;
@@ -1002,7 +1042,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
       }
     }, 2500);
     return () => window.clearTimeout(timer);
-  }, [pageData, isDirty, isAuthenticated, source, loadingPage, conflict, retryTick, draftState === 'limit', sendMutation]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [manualDraftSaving, pageData, isDirty, isAuthenticated, source, loadingPage, conflict, retryTick, draftState === 'limit', sendMutation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isDirty && savedPageData && JSON.stringify(pageData) === JSON.stringify(savedPageData)) setIsDirty(false);
@@ -1010,11 +1050,11 @@ export function PageProvider({ children, source }: { children: ReactNode; source
 
   // Edits undone back to the published version: the server draft goes too.
   useEffect(() => {
-    if (source || loadingPage || conflict || !isAuthenticated || isDirty || !lastDraft.current || lastDraft.current === 'null') return;
+    if (manualDraftSaving || source || loadingPage || conflict || !isAuthenticated || isDirty || !lastDraft.current || lastDraft.current === 'null') return;
     sendMutation(true, null, () => JSON.stringify(pageDataRef.current) !== JSON.stringify(savedRef.current)).then((response) => {
       if (response) { lastDraft.current = ''; setDraftState('idle'); }
     }).catch(() => undefined);
-  }, [isDirty, draftState, isAuthenticated, source, loadingPage, conflict, sendMutation]);
+  }, [manualDraftSaving, isDirty, draftState, isAuthenticated, source, loadingPage, conflict, sendMutation]);
 
   const restoreVersion = useCallback((data: PageData) => {
     pushHistory(true);
@@ -1035,6 +1075,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
     setAccount(null);
     setPageData(defaultPageData);
     setSavedPageData(null);
+    setSavedDraftData(null);
     setSavedHistory([]);
     setIsDirty(false);
   }, []);
@@ -1077,7 +1118,7 @@ export function PageProvider({ children, source }: { children: ReactNode; source
       wallpaper: design.wallpaper,
       buttonStyle: design.buttonStyle,
       customColors: design.customColors,
-      profileStyle: { ...design.profileStyle, bannerImage: prev.profileStyle.bannerImage },
+      profileStyle: { ...design.profileStyle, bannerImage: prev.profileStyle.bannerImage, bannerX: prev.profileStyle.bannerX, bannerY: prev.profileStyle.bannerY, bannerZoom: prev.profileStyle.bannerZoom },
       typography: { ...design.typography, bioFormat: prev.typography?.bioFormat, ...(prev.typography?.customFont ? { customFont: prev.typography.customFont, useCustomFont: false } : {}) },
     }));
   }, [edit]);
@@ -1172,6 +1213,9 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         loadingPage,
         isDirty,
         savedPageData,
+        savedDraftData,
+        enableManualDraftSaving,
+        discardDraftChanges,
         savedHistory,
         restoreVersion,
         undo,

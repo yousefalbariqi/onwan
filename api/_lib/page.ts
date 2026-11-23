@@ -1,3 +1,4 @@
+import { videoOwnerMatches } from './videoOwnership.js';
 import { normalizeTextFormat, type TextFormat } from '../../shared/textFormatting.js';
 import { getBinding } from './runtime.js';
 import { streamUidFromUrl, verifyStreamVideo } from './stream.js';
@@ -320,6 +321,8 @@ function normalizeProfileStyle(value: any) {
   const style = value && typeof value === 'object' && !Array.isArray(value) ? { ...value } : { ...DEFAULT_PAGE_DATA.profileStyle };
   if (style.bannerImage !== undefined) style.bannerImage = validateImageValue(style.bannerImage, 'صورة البنر') || undefined;
   if (style.logoSize !== undefined) style.logoSize = Math.min(160, Math.max(56, Number(style.logoSize) || 112));
+  for (const key of ['bannerX', 'bannerY']) if (style[key] !== undefined) style[key] = Math.min(100, Math.max(0, Number(style[key]) || 50));
+  if (style.bannerZoom !== undefined) style.bannerZoom = Math.min(3, Math.max(1, Number(style.bannerZoom) || 1));
   return style;
 }
 
@@ -576,10 +579,14 @@ function normalizeWallpaper(input: any) {
   // The browser's average colour of a photo/video background, for the Wallet card.
   if (['image', 'video'].includes(value.type) && typeof value.tint === 'string' && /^#[0-9a-f]{6}$/i.test(value.tint)) result.tint = value.tint;
   if (value.type === 'image') {
+    if (['cover', 'contain', 'tile'].includes(value.fit)) result.fit = value.fit;
+    if (typeof value.fileName === 'string') result.fileName = value.fileName.slice(0, 255);
+    if (typeof value.fileSize === 'number') result.fileSize = value.fileSize;
     validateImageValue(value.value, 'صورة الخلفية');
     if (value.preview) result.preview = validateImageValue(value.preview, 'المعاينة الخفيفة للخلفية');
   }
   if (value.type === 'video') {
+    if (typeof value.posterFromVideo === 'boolean') result.posterFromVideo = value.posterFromVideo;
     if (value.poster) result.poster = validateImageValue(value.poster, 'غلاف الفيديو');
     if (typeof value.uploaded === 'boolean') result.uploaded = value.uploaded;
     if (typeof value.fileName === 'string') result.fileName = value.fileName;
@@ -617,13 +624,18 @@ export async function savePageData(userId: string, sentPageData: any, options: {
   const profileImage = validateImageValue(pageData.profileImage, 'الصورة / الشعار');
   const wallpaper = normalizeWallpaper(pageData.wallpaper);
 
+  let videoOwner = options.mediaOwnerId ?? userId;
+  if (wallpaper.type === 'video' && wallpaper.uploaded) {
+    const uploadedOwner = /^\/media\/wallpapers\/([a-zA-Z0-9-]{1,64})\//.exec(String(wallpaper.value))?.[1];
+    if (uploadedOwner && await videoOwnerMatches(uploadedOwner, videoOwner, options.client ?? pool)) videoOwner = uploadedOwner;
+  }
   if (wallpaper.type === 'video') {
     if (!parseVideoSource(String(wallpaper.value ?? ''), true)) throw new HttpError(400, 'خلفية الفيديو تحتاج رابط HTTPS مباشرًا لملف MP4 أو WebM.');
     if (wallpaper.poster) validateImageValue(wallpaper.poster, 'الصورة البديلة للفيديو');
     // The same uploaded file was checked when it was first saved; asking the
     // storage again on every save only slowed saving down.
     const alreadyVerified = stored?.wallpaper?.uploaded && stored.wallpaper.type === 'video' && stored.wallpaper.value === wallpaper.value && typeof stored.wallpaper.fileSize === 'number';
-    if (wallpaper.uploaded && !alreadyVerified && !streamUidFromUrl(String(wallpaper.value)) && String(wallpaper.value).startsWith('/media/') && !String(wallpaper.value).startsWith(`/media/wallpapers/${options.mediaOwnerId ?? userId}/`)) {
+    if (wallpaper.uploaded && !alreadyVerified && !streamUidFromUrl(String(wallpaper.value)) && String(wallpaper.value).startsWith('/media/') && !String(wallpaper.value).startsWith(`/media/wallpapers/${videoOwner}/`)) {
       throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
     }
     if (wallpaper.uploaded && alreadyVerified) {
@@ -631,11 +643,11 @@ export async function savePageData(userId: string, sentPageData: any, options: {
       wallpaper.fileSize = stored!.wallpaper.fileSize;
     } else if (wallpaper.uploaded && streamUidFromUrl(String(wallpaper.value))) {
       // REQ-023: a Stream video must belong to this account (checked once).
-      const video = await verifyStreamVideo(String(wallpaper.value), options.mediaOwnerId ?? userId);
+      const video = await verifyStreamVideo(String(wallpaper.value), videoOwner);
       wallpaper.fileSize = video?.size ?? undefined;
     } else if (wallpaper.uploaded) {
       const value = String(wallpaper.value);
-      if (!value.startsWith(`/media/wallpapers/${options.mediaOwnerId ?? userId}/`)) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
+      if (!value.startsWith(`/media/wallpapers/${videoOwner}/`)) throw new HttpError(403, 'فيديو الخلفية لا يتبع ملفات حسابك.');
       const media = getBinding<MediaBucket>('MEDIA');
       if (!media) throw new HttpError(503, 'تخزين الفيديو غير متاح الآن. حاول لاحقًا.');
       const file = await media.head(value.slice('/media/'.length));

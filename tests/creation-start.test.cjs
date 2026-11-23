@@ -52,14 +52,13 @@ test('changing the category selects exactly one card and confirmation retains it
   assert.ok(radios[1].props.className.includes('is-selected'));
   assert.deepEqual(h.navigations, [], 'selection must not navigate automatically');
   walk(tree, node => node.props?.className === 'creation-start__continue')[0].props.onClick();
-  assert.deepEqual(h.navigations, ['/signup?step=templates']);
+  assert.deepEqual(h.navigations, ['/signup?step=profile']);
   assert.equal([...h.values.values()][0], 'business');
   assert.match(walk(h.render(), node => node.props?.role === 'status')[0].props.children, /نشاط تجاري/);
   radios[0].props.onClick();
   tree = h.render(); radios = walk(tree, node => node.props?.role === 'radio');
   assert.equal(radios[0].props['aria-checked'], true);
   assert.equal(radios[1].props['aria-checked'], false);
-  assert.match(walk(tree, node => node.props?.role === 'status')[0].props.children, /بدون تسجيل/);
 });
 test('category cards support arrow-key selection in their RTL grid', () => {
   const h = screen(); let prevented = false;

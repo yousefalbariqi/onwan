@@ -5,7 +5,7 @@
 [data-composition-align="start"] .page-composition-content > h1,
 [data-composition-align="start"] .page-composition-content > p { text-align: start; }
 [data-composition-inset="airy"] .page-composition-content { padding: 48px 24px 40px; }
-[data-composition-inset="compact"] .page-composition-content { padding: 24px 16px; }
+[data-composition-inset="compact"] .page-composition-content { padding: 40px 20px 32px; }
 [data-composition-surface="sheet"] > .page-composition-body { margin: 20px 12px; width: calc(100% - 24px); border-radius: 28px; background: color-mix(in srgb, var(--page-ink, currentColor) 3%, transparent); border: 1px solid color-mix(in srgb, currentColor 12%, transparent); box-shadow: 0 12px 36px #00000008; }
 [data-composition-surface="outline"] > .page-composition-body { margin: 12px; width: calc(100% - 24px); border: 1px solid color-mix(in srgb, currentColor 22%, transparent); }
 [data-composition-pattern="grid"] > .page-composition-pattern { opacity: .065; background-image: linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px); background-size: 32px 32px; }

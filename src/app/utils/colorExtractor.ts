@@ -17,7 +17,7 @@ export async function extractColorsFromImage(
     img.onload = async () => {
       try {
         // استخدام API الجديد من colorthief v3
-        const palette = await getPalette(img, { count });
+        const palette = await getPalette(img, { colorCount: count });
         
         // تحويل Color objects إلى HEX مباشرة
         const hexColors = palette.map((color) => color.hex());

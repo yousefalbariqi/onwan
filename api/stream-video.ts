@@ -1,4 +1,7 @@
 import { getBearerToken, verifySessionToken } from './_lib/auth.js';
+import { requireCreationDraft } from './_lib/creationDraft.js';
+import { beginMediaUpload } from './_lib/mediaUploadLimits.js';
+import { MAX_BACKGROUND_VIDEO_BYTES } from '../shared/videoSources.js';
 import { pool } from './_lib/db.js';
 import { allowMethods, handleApiError, HttpError, readJsonBody, sendJson } from './_lib/http.js';
 import { requireUser } from './_lib/session.js';
@@ -13,7 +16,9 @@ export default async function handler(req: any, res: any) {
   try {
     const session = verifySessionToken(getBearerToken(req));
     let owner: string | undefined;
-    if (session?.kind === 'partner') {
+    if (session?.kind === 'creation') {
+      owner = (await requireCreationDraft(req)).id;
+    } else if (session?.kind === 'partner') {
       const result = await pool.query("select id from partners where id = $1 and status = 'active'", [session.userId]);
       owner = result.rows[0]?.id;
       if (!owner) throw new HttpError(403, 'حساب الشريك غير متاح لرفع الفيديو.');
@@ -25,7 +30,13 @@ export default async function handler(req: any, res: any) {
     const body = await readJsonBody(req);
     if (body.action === 'config') { sendJson(res, 200, { enabled: Boolean(streamConfig()) }); return; }
     if (!streamConfig()) throw new HttpError(503, 'Stream غير مفعّل.', 'stream_off');
-    if (body.action === 'create') { sendJson(res, 200, await createStreamUpload(owner!)); return; }
+    if (body.action === 'create') {
+      if (session?.kind === 'creation') {
+        if (!Number.isSafeInteger(body.size) || body.size <= 0 || body.size > MAX_BACKGROUND_VIDEO_BYTES) throw new HttpError(413, 'حجم الفيديو يتجاوز الحد المعتمد: 20 MB.');
+        await beginMediaUpload(owner!, MAX_BACKGROUND_VIDEO_BYTES);
+      }
+      sendJson(res, 200, await createStreamUpload(owner!)); return;
+    }
     if (body.action === 'status') { sendJson(res, 200, await streamStatus(String(body.uid ?? ''), owner!)); return; }
     throw new HttpError(400, 'إجراء غير معروف.');
   } catch (error) {

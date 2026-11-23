@@ -29,7 +29,7 @@ export function Customers({ onOpen }: { onOpen: (userId: string) => void }) {
   const { data, error, loading } = useLoad(load);
 
   return (
-    <Card title="العملاء" actions={<Tabs value={filter} onChange={setFilter} options={FILTERS} />}>
+    <Card title="العملاء" actions={<Tabs value={filter} onChange={value => setFilter(value as Filter)} options={FILTERS} />}>
       <div className="relative mb-4">
         <Search className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-gray-400" />
         <input

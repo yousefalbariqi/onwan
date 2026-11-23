@@ -57,11 +57,11 @@ const matches = (query: string, ...texts: string[]) => !fold(query) || texts.som
 function PhoneCard({ name, style, active, onClick, children, short = false }: { name: string; style: CSSProperties; active: boolean; onClick: () => void; children?: ReactNode; short?: boolean }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={active} className="min-w-0 text-right transition-transform active:scale-[0.97]">
-      <span className={`relative block ${short ? 'aspect-[9/13]' : 'aspect-[9/19]'} overflow-hidden rounded-[22px] border shadow-[0_8px_18px_rgba(15,23,42,0.14)] transition-all ${active ? 'border-[#0a84ff] ring-2 ring-[#0a84ff]/60 ring-offset-2' : 'border-black/5'}`} style={style}>
+      <span className={`relative block ${short ? 'aspect-[9/13]' : 'aspect-[9/19]'} overflow-hidden rounded-[22px] border shadow-[0_8px_18px_rgba(15,23,42,0.14)] transition-all ${active ? 'border-[#111111] ring-2 ring-[#111111] ring-offset-2' : 'border-black/5'}`} style={style}>
         {children}
-        {active && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0a84ff] text-white shadow"><Check className="h-3.5 w-3.5" /></span>}
+        {active && <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#111111] text-white shadow"><Check className="h-3.5 w-3.5" /></span>}
       </span>
-      <span className="mt-2 block truncate text-center text-xs font-bold text-[#3a3a3c]" style={{ fontFamily: 'Cairo, sans-serif' }}>{name}</span>
+      <span className="mt-2 block truncate text-center text-xs font-bold text-[#262626]" style={{ fontFamily: 'Cairo, sans-serif' }}>{name}</span>
     </button>
   );
 }
@@ -69,8 +69,8 @@ function PhoneCard({ name, style, active, onClick, children, short = false }: { 
 function SearchField({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
   return (
     <div className="relative">
-      <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8e8e93]" />
-      <input type="search" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={placeholder} className="h-10 w-full rounded-xl bg-[#e3e3e8] pl-3 pr-9 text-[15px] text-[#1d1d1f] placeholder:text-[#8e8e93] focus:outline-none focus:ring-2 focus:ring-[#0a84ff]/40" />
+      <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737373]" />
+      <input type="search" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={placeholder} className="h-10 w-full rounded-xl bg-[#e3e3e8] pl-3 pr-9 text-[15px] text-[#111111] placeholder:text-[#737373] focus:outline-none focus:ring-2 focus:ring-[#111111]" />
     </div>
   );
 }
@@ -78,8 +78,8 @@ function SearchField({ value, onChange, placeholder }: { value: string; onChange
 function NoResults({ onClear }: { onClear: () => void }) {
   return (
     <div className="rounded-2xl bg-white px-4 py-8 text-center">
-      <p className="text-sm text-[#6e6e73]">لا توجد نتائج مطابقة.</p>
-      <button type="button" onClick={onClear} className="mt-2 text-sm font-bold text-[#0a84ff]">مسح البحث</button>
+      <p className="text-sm text-[#737373]">لا توجد نتائج مطابقة.</p>
+      <button type="button" onClick={onClear} className="mt-2 text-sm font-bold text-[#C2410C]">مسح البحث</button>
     </div>
   );
 }
@@ -87,7 +87,7 @@ function NoResults({ onClear }: { onClear: () => void }) {
 // The background photo in a phone frame, with the dimming the page will show.
 function PhotoPreview({ wallpaper, className = '' }: { wallpaper: PageData['wallpaper']; className?: string }) {
   return (
-    <span className={`relative block aspect-[9/19] overflow-hidden rounded-[26px] bg-[#1d1d1f] shadow-[0_10px_24px_rgba(15,23,42,0.2)] ${className}`}>
+    <span className={`relative block aspect-[9/19] overflow-hidden rounded-[26px] bg-[#111111] shadow-[0_10px_24px_rgba(15,23,42,0.2)] ${className}`}>
       <WallpaperImage wallpaper={wallpaper} />
       {!!wallpaper.dim && <span className="absolute inset-0 bg-black" style={{ opacity: Math.min(wallpaper.dim, 80) / 100 }} />}
       <span className="absolute inset-x-0 top-3 text-center text-sm font-bold text-white/90 drop-shadow" dir="ltr">9:41</span>
@@ -107,10 +107,10 @@ function PhotoFraming({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[65] flex items-end bg-black/40 sm:items-center sm:justify-center" dir="rtl" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-      <section className="max-h-[94dvh] w-full overflow-y-auto rounded-t-[28px] bg-[#f2f2f7] pb-6 sm:max-w-md sm:rounded-[28px]" role="dialog" aria-modal="true" aria-label="تنسيق صورة الخلفية">
-        <div className="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center bg-[#f2f2f7]/95 px-5 py-3 backdrop-blur">
-          <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e3e3e8] text-[#55555b]" aria-label="إغلاق التنسيق"><X className="h-5 w-5" /></button>
-          <h3 className="text-[17px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>تنسيق الصورة</h3>
+      <section className="max-h-[94dvh] w-full overflow-y-auto rounded-t-[28px] bg-[#F5F5F3] pb-6 sm:max-w-md sm:rounded-[28px]" role="dialog" aria-modal="true" aria-label="تنسيق صورة الخلفية">
+        <div className="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center bg-[#F5F5F3]/95 px-5 py-3 backdrop-blur">
+          <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e3e3e8] text-[#525252]" aria-label="إغلاق التنسيق"><X className="h-5 w-5" /></button>
+          <h3 className="text-[17px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>تنسيق الصورة</h3>
           <span />
         </div>
 
@@ -141,15 +141,15 @@ function PhotoFraming({ onClose }: { onClose: () => void }) {
           <EndsSlider label="يمين / يسار" start="يمين" end="يسار" min={0} max={100} value={x} onChange={(value) => set({ positionX: value })} />
 
           <div className="rounded-2xl bg-white px-4 py-3">
-            <div className="mb-1 flex items-center justify-between text-[15px] text-[#1d1d1f]">
+            <div className="mb-1 flex items-center justify-between text-[15px] text-[#111111]">
               <span>التعتيم</span>
-              <span className="text-sm text-[#8e8e93]" dir="ltr">{wallpaper.dim ?? 0}%</span>
+              <span className="text-sm text-[#737373]" dir="ltr">{wallpaper.dim ?? 0}%</span>
             </div>
-            <input type="range" aria-label="تعتيم الخلفية" min={0} max={80} step={5} value={wallpaper.dim ?? 0} onChange={(event) => set({ dim: Number(event.target.value) })} className="w-full accent-[#0a84ff]" />
-            <p className="text-xs text-[#8e8e93]">يجعل الكتابة والأزرار أوضح فوق الصور المزدحمة.</p>
+            <input type="range" aria-label="تعتيم الخلفية" min={0} max={80} step={5} value={wallpaper.dim ?? 0} onChange={(event) => set({ dim: Number(event.target.value) })} className="w-full accent-[#FF6B2C]" />
+            <p className="text-xs text-[#737373]">يجعل الكتابة والأزرار أوضح فوق الصور المزدحمة.</p>
           </div>
 
-          {changed && <button type="button" onClick={() => set({ positionX: 50, positionY: 50, zoom: 1 })} className="block w-full text-center text-sm text-[#0a84ff]">إعادة الصورة إلى المنتصف</button>}
+          {changed && <button type="button" onClick={() => set({ positionX: 50, positionY: 50, zoom: 1 })} className="block w-full text-center text-sm text-[#C2410C]">إعادة الصورة إلى المنتصف</button>}
         </div>
       </section>
     </div>
@@ -228,8 +228,8 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, se
     <Panel>
       {shownSegments.length > 1 && <Segmented large options={shownSegments} value={segment} onChange={(id) => setSegment(id as WallpaperSegment)} />}
 
-      {simple && segment === 'photo' && <p className="-mt-2 px-1 text-xs text-[#6e6e73]">استخدم صورة كخلفية للصفحة.</p>}
-      {simple && segment === 'video' && <p className="-mt-2 px-1 text-xs text-[#6e6e73]">استخدم مقطع فيديو كخلفية متحركة للصفحة.</p>}
+      {simple && segment === 'photo' && <p className="-mt-2 px-1 text-xs text-[#737373]">استخدم صورة كخلفية للصفحة.</p>}
+      {simple && segment === 'video' && <p className="-mt-2 px-1 text-xs text-[#737373]">استخدم مقطع فيديو كخلفية متحركة للصفحة.</p>}
 
       {searchable && !(simple && segment === 'colors') && <SearchField value={query} onChange={setQuery} placeholder={segment === 'themes' ? 'ابحث عن ثيم بالاسم' : segment === 'colors' ? 'ابحث عن لون' : 'ابحث عن تدرج'} />}
 
@@ -260,7 +260,7 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, se
             ))}
           </div>
           {!query && themeCount < shownThemes.length && (
-            <button type="button" onClick={() => setThemeCount((count) => count + 3)} className="block w-full border-t border-[#e5e5ea] py-3 text-center text-[15px] font-bold text-[#0a84ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <button type="button" onClick={() => setThemeCount((count) => count + 3)} className="block w-full border-t border-[#E7E7E7] py-3 text-center text-[15px] font-bold text-[#C2410C]" style={{ fontFamily: 'Cairo, sans-serif' }}>
               عرض المزيد ({shownThemes.length - themeCount})
             </button>
           )}
@@ -272,7 +272,7 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, se
           {/* Note 47: the logo's colours first, «اختيار لون آخر» beside them. A saved
               gradient is left as it is until another colour is picked. */}
           {pageData.wallpaper.type === 'gradient' && (
-            <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-xs text-[#6e6e73]">
+            <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-xs text-[#737373]">
               <span className="h-8 w-8 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: pageData.wallpaper.value }} />
               خلفيتك الحالية متدرجة، وتبقى كما هي حتى تختار لونًا.
             </div>
@@ -280,9 +280,9 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, se
           <Group title={extractedColors.length ? 'ألوان شعارك' : 'لون الخلفية'}>
             <div className="flex flex-wrap items-center gap-3 p-4">
               {extractedColors.map((color) => (
-                <button key={color} type="button" onClick={() => updateWallpaper({ type: 'color', value: color })} aria-label={color} className={`h-10 w-10 rounded-full ring-1 ring-black/10 ${solid === color ? 'outline outline-2 outline-offset-2 outline-[#0a84ff]' : ''}`} style={{ backgroundColor: color }} />
+                <button key={color} type="button" onClick={() => updateWallpaper({ type: 'color', value: color })} aria-label={color} className={`h-10 w-10 rounded-full ring-1 ring-black/10 ${solid === color ? 'outline outline-2 outline-offset-2 outline-[#111111]' : ''}`} style={{ backgroundColor: color }} />
               ))}
-              <label className="flex h-10 cursor-pointer items-center gap-2 rounded-full bg-[#f2f2f7] px-4 text-sm font-bold text-[#0a84ff] focus-within:ring-2 focus-within:ring-[#0a84ff]/40">
+              <label className="flex h-10 cursor-pointer items-center gap-2 rounded-full bg-[#F5F5F3] px-4 text-sm font-bold text-[#C2410C] focus-within:ring-2 focus-within:ring-[#111111]">
                 <span className="h-5 w-5 rounded-full ring-1 ring-black/10" style={{ background: solid ?? 'conic-gradient(#ff3b30, #ffcc00, #34c759, #0a84ff, #af52de, #ff3b30)' }} />
                 اختيار لون آخر
                 <input type="color" className="sr-only" value={solid && /^#[0-9a-f]{6}$/i.test(solid) ? solid : '#ffffff'} onChange={(event) => updateWallpaper({ type: 'color', value: event.target.value })} />
@@ -292,7 +292,7 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, se
           <Group title="ألوان جاهزة">
             <div className="flex flex-wrap gap-3 p-4">
               {colors.map((color) => (
-                <button key={color.value} type="button" onClick={() => updateWallpaper({ type: 'color', value: color.value })} aria-label={color.name} title={color.name} className={`h-10 w-10 rounded-full ring-1 ring-black/10 ${solid === color.value ? 'outline outline-2 outline-offset-2 outline-[#0a84ff]' : ''}`} style={{ backgroundColor: color.value }} />
+                <button key={color.value} type="button" onClick={() => updateWallpaper({ type: 'color', value: color.value })} aria-label={color.name} title={color.name} className={`h-10 w-10 rounded-full ring-1 ring-black/10 ${solid === color.value ? 'outline outline-2 outline-offset-2 outline-[#111111]' : ''}`} style={{ backgroundColor: color.value }} />
               ))}
             </div>
           </Group>
@@ -319,12 +319,12 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, se
             <Group title="من شعارك" footer="ألوان مأخوذة تلقائيًا من الصورة التي رفعتها في «الهوية».">
               <div className="flex flex-wrap gap-3 p-4">
                 {extractedColors.map((color) => (
-                  <button key={color} onClick={() => updateWallpaper({ type: 'color', value: color })} aria-label={color} className={`h-10 w-10 rounded-full ring-1 ring-black/10 ${solid === color ? 'outline outline-2 outline-offset-2 outline-[#0a84ff]' : ''}`} style={{ backgroundColor: color }} />
+                  <button key={color} onClick={() => updateWallpaper({ type: 'color', value: color })} aria-label={color} className={`h-10 w-10 rounded-full ring-1 ring-black/10 ${solid === color ? 'outline outline-2 outline-offset-2 outline-[#111111]' : ''}`} style={{ backgroundColor: color }} />
                 ))}
               </div>
             </Group>
           ) : (
-            <p className="px-4 text-xs text-[#8e8e93]">ارفع شعارك في «الهوية» لتظهر هنا ألوان مأخوذة منه.</p>
+            <p className="px-4 text-xs text-[#737373]">ارفع شعارك في «الهوية» لتظهر هنا ألوان مأخوذة منه.</p>
           ))}
         </>
       )}
@@ -347,24 +347,24 @@ export function WallpaperEditor({ initialSegment = 'themes', onThemeSelected, se
           {isImage ? (
             <section className="flex flex-col items-center gap-4 rounded-2xl bg-white px-4 py-5">
               <PhotoPreview wallpaper={pageData.wallpaper} className="w-36" />
-              <button type="button" onClick={() => setFraming(true)} className="flex min-h-11 items-center gap-2 rounded-full bg-[#0a84ff] px-6 text-[15px] font-bold text-white shadow-[0_4px_12px_rgba(10,132,255,0.3)] active:scale-95" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <button type="button" onClick={() => setFraming(true)} className="flex min-h-11 items-center gap-2 rounded-full bg-[#111111] px-6 text-[15px] font-bold text-white shadow-[0_4px_12px_rgba(17,17,17,0.3)] active:scale-95" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 <SlidersHorizontal className="h-4 w-4" />
                 تنسيق
               </button>
               <div className="flex items-center gap-5 text-[15px]">
-                <label className="cursor-pointer text-[#0a84ff] focus-within:underline">{preparing ? 'جارٍ التجهيز…' : 'تغيير الصورة'}{photoInput}</label>
-                <button type="button" onClick={() => updateWallpaper({ type: 'color', value: pageData.theme.background })} className="text-[#ff3b30]">إزالة</button>
+                <label className="cursor-pointer text-[#C2410C] focus-within:underline">{preparing ? 'جارٍ التجهيز…' : 'تغيير الصورة'}{photoInput}</label>
+                <button type="button" onClick={() => updateWallpaper({ type: 'color', value: pageData.theme.background })} className="text-[#DC2626]">إزالة</button>
               </div>
             </section>
           ) : (
-            <label className="flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-[#c7c7cc] bg-white px-4 py-10 text-center focus-within:border-[#0a84ff]">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#0a84ff]/10 text-[#0a84ff]">{preparing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}</span>
-              <span className="text-[15px] font-bold text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{preparing ? 'جارٍ تجهيز الصورة…' : 'اختيار صورة خلفية'}</span>
-              <span className="text-xs text-[#8e8e93]">PNG أو JPG أو WebP حتى 8MB</span>
+            <label className="flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-[#D4D4D4] bg-white px-4 py-10 text-center focus-within:border-[#111111]">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#111111]/5 text-[#C2410C]">{preparing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}</span>
+              <span className="text-[15px] font-bold text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>{preparing ? 'جارٍ تجهيز الصورة…' : 'اختيار صورة خلفية'}</span>
+              <span className="text-xs text-[#737373]">PNG أو JPG أو WebP حتى 8MB</span>
               {photoInput}
             </label>
           )}
-          {!!imageError && <p role="alert" className="px-4 text-xs text-[#ff3b30]">{imageError}</p>}
+          {!!imageError && <p role="alert" className="px-4 text-xs text-[#DC2626]">{imageError}</p>}
           {framing && isImage && <PhotoFraming onClose={() => setFraming(false)} />}
         </>
       )}

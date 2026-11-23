@@ -42,7 +42,7 @@ function formatDate(value: string | null) {
 }
 
 // Inputs inside grouped rows, as in iOS Settings.
-const inputClass = 'w-full bg-transparent py-3 text-[16px] text-[#1d1d1f] placeholder:text-[#c7c7cc] focus:outline-none';
+const inputClass = 'w-full bg-transparent py-3 text-[16px] text-[#111111] placeholder:text-[#D4D4D4] focus:outline-none';
 
 // PAGE-15, «صمّم لي» (DES-01/02, NEW-06), DOMAIN-03 and NFC (NFC-02, NEW-07):
 // one overview request feeds the settings list and each service page.
@@ -76,12 +76,12 @@ export function VisitsPage({ overview }: { overview: Overview }) {
       <div className="grid grid-cols-2 gap-3 text-center">
         {[{ value: overview.stats.last30, label: 'آخر 30 يومًا' }, { value: overview.stats.total, label: 'منذ البداية' }].map((item) => (
           <div key={item.label} className="rounded-2xl bg-white px-3 py-5">
-            <div className="text-3xl font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>{item.value.toLocaleString('ar-u-nu-latn')}</div>
-            <div className="mt-1 text-xs text-[#8e8e93]">{item.label}</div>
+            <div className="text-3xl font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>{item.value.toLocaleString('ar-u-nu-latn')}</div>
+            <div className="mt-1 text-xs text-[#737373]">{item.label}</div>
           </div>
         ))}
       </div>
-      <p className="px-4 text-xs leading-5 text-[#8e8e93]">تُحسب زيارة واحدة عند كل فتح لصفحتك المنشورة.</p>
+      <p className="px-4 text-xs leading-5 text-[#737373]">تُحسب زيارة واحدة عند كل فتح لصفحتك المنشورة.</p>
     </>
   );
 }
@@ -93,9 +93,9 @@ export function DesignServicePage({ overview, reload }: { overview: Overview; re
   return (
     <>
       <Group title="عن الخدمة" footer="تنتهي الخدمة باعتمادك للتصميم.">
-        <p className="px-4 py-3 text-[15px] leading-7 text-[#1d1d1f]">
+        <p className="px-4 py-3 text-[15px] leading-7 text-[#111111]">
           يصمم فريق عنوان صفحتك لمرة واحدة، والتواصل والاعتماد عبر واتساب.
-          <span className="block text-[#8e8e93]">{design.priceSar !== null ? `السعر ${design.priceSar} ريال` : 'السعر يُعلن قريبًا'}</span>
+          <span className="block text-[#737373]">{design.priceSar !== null ? `السعر ${design.priceSar} ريال` : 'السعر يُعلن قريبًا'}</span>
         </p>
       </Group>
       {pkg?.state === 'pending_payment' && <Notice tone="warn">طلبك مسجّل وبانتظار الدفع. سيتواصل معك الفريق عبر واتساب.</Notice>}
@@ -117,7 +117,7 @@ export function DomainPage({ overview, reload }: { overview: Overview; reload: (
   const current = overview.domain.current;
   return (
     <>
-      <p className="px-4 text-[13px] leading-6 text-[#6e6e73]">
+      <p className="px-4 text-[13px] leading-6 text-[#737373]">
         اعرض صفحتك على دومين جهتك مثل <span dir="ltr">link.example.org</span>. الرابط الحالي يبقى يعمل، فلا تتعطل رموز QR ولا قطع NFC.
         {overview.domain.priceSar !== null ? ` الرسوم ${overview.domain.priceSar} ريال.` : ' الخدمة تتاح قريبًا.'}
       </p>
@@ -135,8 +135,8 @@ export function DomainPage({ overview, reload }: { overview: Overview; reload: (
         <>
           <Group title="دومينك">
             <div className="flex min-h-[48px] items-center justify-between gap-3 px-4 text-[15px]">
-              <span className="truncate font-bold text-[#1d1d1f]" dir="ltr">{current.domain}</span>
-              <span className={current.status === 'active' ? 'text-[#34c759]' : 'text-[#8e8e93]'}>{DOMAIN_STATUS[current.status] ?? current.status}</span>
+              <span className="truncate font-bold text-[#111111]" dir="ltr">{current.domain}</span>
+              <span className={current.status === 'active' ? 'text-[#16A34A]' : 'text-[#737373]'}>{DOMAIN_STATUS[current.status] ?? current.status}</span>
             </div>
           </Group>
           {current.status === 'pending_payment' && <Notice tone="warn">بانتظار الدفع ({current.price} ريال). سيتواصل معك الفريق.</Notice>}
@@ -145,8 +145,8 @@ export function DomainPage({ overview, reload }: { overview: Overview; reload: (
               <Group title="السجل المطلوب" footer="أضفه عند مزوّد الدومين (أو اطلب ذلك من مسؤول التقنية في جهتك)، ثم اضغط «تحقق من الربط».">
                 {(['type', 'name', 'value'] as const).map((key) => (
                   <div key={key} className="flex min-h-[44px] items-center justify-between gap-3 px-4 text-[14px]" dir="ltr">
-                    <span className="capitalize text-[#8e8e93]">{key}</span>
-                    <span className="select-all break-all font-mono font-bold text-[#1d1d1f]">{current.instruction[key]}</span>
+                    <span className="capitalize text-[#737373]">{key}</span>
+                    <span className="select-all break-all font-mono font-bold text-[#111111]">{current.instruction[key]}</span>
                   </div>
                 ))}
               </Group>
@@ -172,14 +172,14 @@ export function NfcPage({ overview, reload, nameFixed }: { overview: Overview; r
   const ready = quantity >= 1 && nfc.recipientName.trim().length >= 2 && nfc.recipientPhone.length >= 8 && nfc.city.trim().length >= 2 && nfc.address.trim().length >= 5;
   const field = (key: keyof typeof empty, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <label className="flex min-h-[48px] items-center gap-3 px-4">
-      <span className="w-24 shrink-0 text-[15px] text-[#1d1d1f]">{label}</span>
+      <span className="w-24 shrink-0 text-[15px] text-[#111111]">{label}</span>
       <input value={nfc[key]} onChange={(e) => setNfc({ ...nfc, [key]: key === 'recipientPhone' ? e.target.value.replace(/[^0-9]/g, '') : e.target.value })} className={inputClass} {...props} />
     </label>
   );
 
   return (
     <>
-      <p className="px-4 text-[13px] leading-6 text-[#6e6e73]">
+      <p className="px-4 text-[13px] leading-6 text-[#737373]">
         قطعة تفتح صفحتك عند تقريب الجوال منها، ولا تحتاج تبديلها عند تحديث صفحتك.
         {priced ? ` القطعة ${overview.nfc.unitPrice} ريال والشحن ${overview.nfc.shippingPrice} ريال.` : ' السعر يُعلن قريبًا.'}
       </p>
@@ -194,12 +194,12 @@ export function NfcPage({ overview, reload, nameFixed }: { overview: Overview; r
             {field('recipientPhone', 'الجوال', { dir: 'ltr', inputMode: 'numeric', placeholder: '05XXXXXXXX' })}
             {field('city', 'المدينة')}
             <label className="block px-4 py-2">
-              <span className="text-[15px] text-[#1d1d1f]">عنوان الشحن</span>
+              <span className="text-[15px] text-[#111111]">عنوان الشحن</span>
               <textarea value={nfc.address} onChange={(e) => setNfc({ ...nfc, address: e.target.value })} rows={2} placeholder="الحي، الشارع، رقم المبنى" className={`${inputClass} resize-none py-2`} />
             </label>
             <div className="flex min-h-[48px] items-center justify-between px-4 text-[15px]">
-              <span className="text-[#1d1d1f]">الإجمالي شامل الشحن</span>
-              <span className="font-black text-[#1d1d1f]">{quantity > 0 ? `${total} ريال` : '—'}</span>
+              <span className="text-[#111111]">الإجمالي شامل الشحن</span>
+              <span className="font-black text-[#111111]">{quantity > 0 ? `${total} ريال` : '—'}</span>
             </div>
           </Group>
           <PrimaryButton busy={busy} disabled={!ready} onClick={() => run(async () => {
@@ -215,8 +215,8 @@ export function NfcPage({ overview, reload, nameFixed }: { overview: Overview; r
         <Group title="طلباتك">
           {overview.nfc.orders.map((order) => (
             <div key={order.order_number} className="flex min-h-[48px] items-center justify-between gap-3 px-4 text-[14px]">
-              <span className="text-[#1d1d1f]">#{order.order_number} · {order.quantity} قطعة · {order.total} ريال</span>
-              <span className="shrink-0 text-[#8e8e93]">{NFC_STATUS[order.status]}</span>
+              <span className="text-[#111111]">#{order.order_number} · {order.quantity} قطعة · {order.total} ريال</span>
+              <span className="shrink-0 text-[#737373]">{NFC_STATUS[order.status]}</span>
             </div>
           ))}
         </Group>
@@ -283,7 +283,7 @@ export function AccountSecurity({ change, onAccount, onDone }: { change: Change;
     return (
       <>
         <Group title={`تغيير ${CHANGE_LABELS[change]}`} footer="نرسل رمز تحقق إلى بريدك المسجل لتأكيد أنك صاحب الحساب. لن يُرسل شيء قبل أن تطلبه.">
-          <p className="px-4 py-3 text-[15px] leading-7 text-[#3a3a3c]">{change === 'password' ? 'ستختار كلمة مرور جديدة بعد إدخال الرمز.' : change === 'email' ? 'ستكتب بريدك الجديد بعد إدخال الرمز، ثم نؤكده برمز ثانٍ.' : 'ستكتب رقم جوالك الجديد بعد إدخال الرمز.'}</p>
+          <p className="px-4 py-3 text-[15px] leading-7 text-[#262626]">{change === 'password' ? 'ستختار كلمة مرور جديدة بعد إدخال الرمز.' : change === 'email' ? 'ستكتب بريدك الجديد بعد إدخال الرمز، ثم نؤكده برمز ثانٍ.' : 'ستكتب رقم جوالك الجديد بعد إدخال الرمز.'}</p>
         </Group>
         <PrimaryButton busy={busy} onClick={() => { setStep('sending'); void sendCode(); }}>إرسال رمز التحقق</PrimaryButton>
         {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
@@ -311,7 +311,7 @@ export function AccountSecurity({ change, onAccount, onDone }: { change: Change;
       )}
       <PrimaryButton busy={busy} disabled={!ready} onClick={submit}>{change === 'email' && step === 'code' ? 'التالي' : `حفظ ${CHANGE_LABELS[change]}`}</PrimaryButton>
       {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
-      {step !== 'sending' && <button type="button" disabled={busy} onClick={sendCode} className="block w-full text-center text-sm text-[#0a84ff] disabled:text-[#c7c7cc]">لم يصلك الرمز؟ أرسله مجددًا</button>}
+      {step !== 'sending' && <button type="button" disabled={busy} onClick={sendCode} className="block w-full text-center text-sm text-[#C2410C] disabled:text-[#D4D4D4]">لم يصلك الرمز؟ أرسله مجددًا</button>}
     </>
   );
 }

@@ -446,3 +446,74 @@ test('association signup stores a nonexclusive suggestion without any availabili
   assert.ok(statements.some(({ sql }) => sql === 'commit'));
   assert.ok(!response.headers.get('Server-Timing').includes('username_reserve'));
 });
+
+
+test('creation sessions upload R2 video under the draft owner without a user account', async () => {
+  query = async sql => ({ rows:
+    sql.includes('where id=$1 and email=$2') ? [{ id: 'test-id', account_user_id: null }] :
+    sql.includes('as minute') ? [{ minute: 0, day: 0, bytes: '0' }] :
+    sql.includes('returning id::text') ? [{ id: 'upload-event' }] :
+    sql.includes('reserved_bytes::text') ? [{ reserved_bytes: String(20 * 1024 * 1024), deleting: null }] : [], rowCount: 1 });
+  const keys = [];
+  const response = await worker.fetch(new Request('https://onwan.link/api/video-upload', { method: 'POST', headers: { Authorization: `Bearer ${token('creation')}`, 'Content-Type': 'video/mp4' }, body: new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]) }), { ...env, MEDIA: { head: async () => null, list: async () => ({ objects: [], truncated: false }), put: async key => keys.push(key) } });
+  assert.equal(response.status, 200);
+  assert.match(keys[0], /^wallpapers\/test-id\//);
+});
+test('revoked or completed creation sessions cannot upload videos', async () => {
+  for (const rows of [[], [{ id: 'test-id', account_user_id: 'completed-user' }]]) {
+    query = async () => ({ rows, rowCount: rows.length });
+    for (const path of ['/api/video-upload', '/api/stream-video']) {
+      const response = await call(path, { method: 'POST', bearer: token('creation'), body: { action: 'create', size: 100 } });
+      assert.equal(response.status, rows.length ? 409 : 401);
+    }
+  }
+});
+test('creation Stream uploads retain duration and size limits and reserve the existing upload quota', async () => {
+  const reservations = [], requests = [];
+  query = async (sql, values) => {
+    if (sql.includes('where id=$1 and email=$2')) return { rows: [{ id: 'test-id' }] };
+    if (sql.includes('as minute')) return { rows: [{ minute: 0, day: 0, bytes: '0' }] };
+    if (sql.includes('returning id::text')) { reservations.push(values); return { rows: [{ id: 'event' }] }; }
+    return { rows: [] };
+  };
+  const settings = { ...env, CF_ACCOUNT_ID: 'test', STREAM_API_TOKEN: 'test', STREAM_CUSTOMER_HOST: 'customer-test.cloudflarestream.com' };
+  const original = global.fetch;
+  global.fetch = async (url, options) => { requests.push(JSON.parse(options.body)); return new Response(JSON.stringify({ success: true, result: { uid: 'a'.repeat(32), uploadURL: 'https://upload.example.test/one-time' } })); };
+  try {
+    const bad = await call('/api/stream-video', { method: 'POST', bearer: token('creation'), body: { action: 'create', size: 21 * 1024 * 1024 } }, settings);
+    assert.equal(bad.status, 413); assert.equal(requests.length, 0);
+    const good = await call('/api/stream-video', { method: 'POST', bearer: token('creation'), body: { action: 'create', size: 1024 } }, settings);
+    assert.equal(good.status, 200); assert.equal(requests[0].meta.owner, 'test-id');
+    assert.equal(requests[0].maxDurationSeconds, 60);
+    assert.equal(reservations[0][1], 20 * 1024 * 1024);
+  } finally { global.fetch = original; }
+});
+test('creation video ownership transfers only through the server recorded completed-account link', async () => {
+  const { videoOwnerMatches } = load('api/_lib/videoOwnership.ts');
+  const db = { query: async (_sql, values) => ({ rows: values[0] === 'draft-one' && values[1] === 'account-one' ? [{ id: 'draft-one' }] : [] }) };
+  assert.equal(await videoOwnerMatches('draft-one', 'account-one', db), true);
+  assert.equal(await videoOwnerMatches('draft-two', 'account-one', db), false);
+  assert.equal(await videoOwnerMatches('account-one', 'account-one', db), true);
+});
+test('saved creation videos are retained by Stream cleanup', async () => {
+  const { runStreamCleanup } = load('api/_lib/streamCleanup.ts');
+  const uid = 'b'.repeat(32), requests = [];
+  query = async sql => ({ rows: sql.includes('select distinct m[1]') && sql.includes('creation_email_drafts') ? [{ uid }] : [] });
+  const original = global.fetch;
+  global.fetch = async (_url, options) => { requests.push(options?.method || 'GET'); return new Response(JSON.stringify({ success: true, result: [{ uid, created: '2020-01-01T00:00:00Z' }] })); };
+  try {
+    const result = await withRuntime({ env: { ...env, CF_ACCOUNT_ID: 'test', STREAM_API_TOKEN: 'test', STREAM_CUSTOMER_HOST: 'customer-test.cloudflarestream.com' } }, () => runStreamCleanup());
+    assert.equal(result.deleted, 0); assert.equal(requests.includes('DELETE'), false);
+  } finally { global.fetch = original; }
+});
+
+
+test('background image fitting and automatic-poster metadata survive server normalization', () => {
+  const { validatePartnerPageDraft } = load('api/_lib/page.ts');
+  for (const fit of ['cover', 'contain', 'tile']) {
+    const result = validatePartnerPageDraft({ name: 'Test', links: [], wallpaper: { type: 'image', value: 'https://example.test/photo.jpg', fit, fileName: 'photo.jpg', fileSize: 1024 } });
+    assert.equal(result.wallpaper.fit, fit); assert.equal(result.wallpaper.fileName, 'photo.jpg');
+  }
+  const result = validatePartnerPageDraft({ name: 'Test', links: [], wallpaper: { type: 'video', value: 'https://example.test/video.mp4', poster: 'https://example.test/poster.jpg', posterFromVideo: true } });
+  assert.equal(result.wallpaper.posterFromVideo, true);
+});

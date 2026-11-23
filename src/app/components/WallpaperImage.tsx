@@ -14,11 +14,12 @@ export function WallpaperImage({ wallpaper, src = wallpaper.value }: { wallpaper
   const [decodedSrc, setDecodedSrc] = useState('');
   const preview = src === wallpaper.value ? wallpaper.preview : undefined;
   const ready = decodedSrc === src;
-  const style: CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', maxWidth: 'none', objectFit: 'cover', objectPosition: `${x}% ${y}%` };
+  const style: CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', maxWidth: 'none', objectFit: wallpaper.fit === 'contain' ? 'contain' : 'cover', objectPosition: `${x}% ${y}%` };
+  if (wallpaper.fit === 'tile') return <div className="pointer-events-none absolute inset-0" aria-hidden="true" style={{ backgroundImage: `url(${JSON.stringify(src)})`, backgroundRepeat: 'repeat', backgroundSize: `${160 * zoom}px auto`, backgroundPosition: `${x}% ${y}%` }} />;
   return <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
     <div className="absolute inset-0" style={{ transform: zoom !== 1 ? `scale(${zoom})` : undefined, transformOrigin: `${x}% ${y}%` }}>
       {preview && !ready && <img src={preview} alt="" decoding="async" style={{ ...style, filter: 'blur(6px)' }} />}
-      <img key={src} src={src} alt="" decoding="async" fetchPriority="high" style={{ ...style, opacity: ready || !preview ? 1 : 0 }} onLoad={async event => {
+      <img key={src} src={src} alt="" decoding="async" {...{ fetchpriority: "high" }} style={{ ...style, opacity: ready || !preview ? 1 : 0 }} onLoad={async event => {
         const element = event.currentTarget;
         try { await element.decode(); } catch { /* A loaded image remains usable without decode(). */ }
         if (element.isConnected) setDecodedSrc(src);

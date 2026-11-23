@@ -63,7 +63,7 @@ const TILES: Record<string, { background?: string; glyph: string; filter?: strin
   twitter: { background: '#000000', glyph: '#ffffff' },
   snapchat: { background: '#FFFC00', glyph: '#ffffff', filter: 'drop-shadow(0 0 0.8px #000) drop-shadow(0 0 0.4px #000)' },
   website: { background: '#000000', glyph: '#ffffff' },
-  email: { background: '#1d1d1f', glyph: '#ffffff' },
+  email: { background: '#111111', glyph: '#ffffff' },
   youtube: { glyph: '#FF0000' },
   facebook: { glyph: '#0866FF' },
   linkedin: { glyph: '#0A66C2' },
@@ -174,7 +174,7 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
   return (
     <div dir="rtl" className="relative isolate flex min-h-[100dvh] flex-col bg-[#F8F8F6] text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>
       <header className="mx-auto flex w-full max-w-2xl items-center gap-4 px-5 pt-6">
-        <button type="button" onClick={back} aria-label="رجوع" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#ecebe6] text-[#1d1d1f] transition-transform active:scale-95"><ChevronRight className="h-6 w-6" /></button>
+        <button type="button" onClick={back} aria-label="رجوع" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#ecebe6] text-[#111111] transition-transform active:scale-95"><ChevronRight className="h-6 w-6" /></button>
         <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#e8e8e3]" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS} aria-valuenow={step} aria-label="خطوات الإعداد">
           <div className="h-full rounded-full bg-[#FF6B2C] transition-all duration-300" style={{ width: `${(step / STEPS) * 100}%` }} />
         </div>
@@ -190,7 +190,7 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
         <aside aria-label="أمثلة للمحتوى الذي يمكنك إضافته" className="fixed right-[max(2rem,calc((100vw-1320px)/2))] top-60 hidden w-52 xl:block">
           <p className="mb-4 text-sm font-bold">مساحة لكل ما يعرّف بكم</p>
           <div className="space-y-3">
-            {[{ Icon: Play, title: 'مقطع تعريفي', detail: nonprofit ? 'عرّف برسالتكم وأثركم' : 'عرّف بنفسك وخدماتك' }, { Icon: ImageIcon, title: 'صورة', detail: nonprofit ? 'شارك لحظة من أنشطتكم' : 'شارك صورك وأعمالك' }, { Icon: FileText, title: 'ملف أو وثيقة', detail: nonprofit ? 'قرّب تقاريركم من الداعمين' : 'أضف ملفاتك وعروضك' }].map(({ Icon, title, detail }) => <div key={title} className="flex items-center gap-3 rounded-2xl border border-[#E7E7E7] bg-white px-4 py-4"><Icon size={21} className="shrink-0 text-[#FF6B2C]" /><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-[11px] leading-5 text-[#737373]">{detail}</p></div></div>)}
+            {[{ Icon: Play, title: 'مقطع تعريفي', detail: nonprofit ? 'عرّف برسالتكم وأثركم' : 'عرّف بنفسك وخدماتك' }, { Icon: ImageIcon, title: 'صورة', detail: nonprofit ? 'شارك لحظة من أنشطتكم' : 'شارك صورك وأعمالك' }, { Icon: FileText, title: 'ملف أو وثيقة', detail: nonprofit ? 'قرّب تقاريركم من الداعمين' : 'أضف ملفاتك وعروضك' }].map(({ Icon, title, detail }) => <div key={title} className="flex items-center gap-3 rounded-2xl border border-[#E7E7E7] bg-white px-4 py-4"><Icon size={21} className="shrink-0 text-[#C2410C]" /><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-[11px] leading-5 text-[#737373]">{detail}</p></div></div>)}
           </div>
           <p className="mt-4 text-xs leading-6 text-[#737373]">تختار الآن، وتضيف التفاصيل في المحرر.</p>
         </aside>
@@ -199,7 +199,7 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
         {step === 1 ? (
           <>
             <div className="mb-6 flex justify-center"><OnwanLogo /></div>
-            <h1 className="text-center text-[26px] font-bold leading-relaxed sm:text-[32px]">أضف روابط وملفات <span className="text-[#FF6B2C]">لصفحتك</span></h1>
+            <h1 className="text-center text-[26px] font-bold leading-relaxed sm:text-[32px]">أضف روابط وملفات <span className="text-[#C2410C]">لصفحتك</span></h1>
             <p className="mx-auto mt-3 max-w-lg text-center text-sm leading-7 text-[#737373] sm:text-base">{copy.selectionDescription}<br />ويمكنك إضافة المزيد وتعديل اختياراتك لاحقًا من المحرر.</p>
             <div className="mt-5 flex items-center gap-4 rounded-2xl border border-[#E7E7E7] bg-white px-4 py-3 xl:hidden">
               <img src="/nonprofit/phone-page.webp" alt="مثال لصفحة عنوان على الجوال" className="h-24 w-auto shrink-0" />
@@ -224,7 +224,7 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
                 );
               })}
               <div className="flex aspect-square flex-col items-center justify-center gap-1 rounded-[22px] border-2 border-[#FF6B2C]/20 bg-[#FFF0E8] px-2 text-center">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#FF6B2C] sm:h-14 sm:w-14"><Plus size={28} strokeWidth={1.75} aria-hidden="true" /></span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#C2410C] sm:h-14 sm:w-14"><Plus size={28} strokeWidth={1.75} aria-hidden="true" /></span>
                 <span className="text-[13px] font-bold sm:text-[15px]">والمزيد</span>
                 <span className="text-[10px] leading-[1.4] text-[#737373] sm:text-xs">أضف أي رابط أو محتوى<br />لاحقًا من المحرر</span>
               </div>
@@ -234,7 +234,7 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
         ) : step === 2 ? (
           <>
             <h1 className="text-center text-[28px] font-black leading-tight sm:text-[34px]">{copy.identityTitle}</h1>
-            <p className="mt-2 text-center text-[15px] text-[#6e6e73] sm:text-base">{copy.identityDescription}</p>
+            <p className="mt-2 text-center text-[15px] text-[#737373] sm:text-base">{copy.identityDescription}</p>
             <div className="mx-auto mt-8 max-w-md">
               <input id={uploadId} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="peer sr-only" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) pickLogo(file); }} />
               <label htmlFor={uploadId} className="relative mx-auto block h-36 w-36 cursor-pointer rounded-full peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-[#c64f18]">
@@ -244,7 +244,7 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
                 </span>
                 <span className="absolute bottom-1 left-1 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-[#FF6B2C] text-white"><Plus className="h-6 w-6" /></span>
               </label>
-              {preparingLogo && <p role="status" className="mt-3 text-center text-sm text-[#6e6e73]">جارٍ تجهيز الشعار…</p>}
+              {preparingLogo && <p role="status" className="mt-3 text-center text-sm text-[#737373]">جارٍ تجهيز الشعار…</p>}
               {imageError && <p role="alert" className="mt-3 text-center text-sm text-red-700">{imageError}</p>}
               <label className="mt-7 block">
                 <span className="text-[16px] font-bold">{copy.nameLabel}</span>
@@ -253,8 +253,8 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
               <label className="mt-5 block">
                 <span className="text-[16px] font-bold">{copy.bioLabel}</span>
                 <span className="mt-2 block rounded-2xl border-2 border-[#e2e2de] bg-white px-5 pb-3 pt-4 focus-within:border-[#FF6B2C]">
-                  <textarea value={pageData.bio} onChange={(e) => updatePageData({ bio: e.target.value.slice(0, BIO_LIMIT) })} maxLength={BIO_LIMIT} rows={4} placeholder={copy.bioPlaceholder} className="block w-full resize-none bg-transparent text-[17px] placeholder:text-[#8e8e93] focus:outline-none" />
-                  <span className="mt-1 block text-[14px] text-[#6e6e73]" dir="ltr" style={{ textAlign: 'right' }}>{pageData.bio.length}/{BIO_LIMIT}</span>
+                  <textarea value={pageData.bio} onChange={(e) => updatePageData({ bio: e.target.value.slice(0, BIO_LIMIT) })} maxLength={BIO_LIMIT} rows={4} placeholder={copy.bioPlaceholder} className="block w-full resize-none bg-transparent text-[17px] placeholder:text-[#737373] focus:outline-none" />
+                  <span className="mt-1 block text-[14px] text-[#737373]" dir="ltr" style={{ textAlign: 'right' }}>{pageData.bio.length}/{BIO_LIMIT}</span>
                 </span>
               </label>
             </div>
@@ -288,7 +288,7 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
                 <div className="my-6 h-px bg-[#efede8]" />
                 <h2 className="text-base font-bold">{nonprofit ? 'حضور متكامل، يشبه جمعيتك.' : 'حضور متكامل، يحمل هويتك.'}</h2>
                 <ul className="mt-5 space-y-4">
-                  {(nonprofit ? ['روابطكم ووثائقكم ومبادراتكم في صفحة واحدة', 'تصميم يعكس هوية الجمعية وشعارها', 'تعديل المحتوى وتحديثه من محرر سهل'] : ['روابطك وصورك وملفاتك في صفحة واحدة', 'تصميم يعكس هويتك وشعارك', 'تعديل المحتوى وتحديثه من محرر سهل']).map(feature => <li key={feature} className="flex items-start gap-3 text-sm leading-6 text-[#52524e]"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#fff0e7] text-[#c64f18]"><Check size={12} strokeWidth={2.5} aria-hidden="true" /></span>{feature}</li>)}
+                  {(nonprofit ? ['روابطكم ووثائقكم ومبادراتكم في صفحة واحدة', 'تصميم يعكس هوية الجمعية وشعارها', 'تعديل المحتوى وتحديثه من محرر سهل'] : ['روابطك وصورك وملفاتك في صفحة واحدة', 'تصميم يعكس هويتك وشعارك', 'تعديل المحتوى وتحديثه من محرر سهل']).map(feature => <li key={feature} className="flex items-start gap-3 text-sm leading-6 text-[#52524e]"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#FFF0E8] text-[#c64f18]"><Check size={12} strokeWidth={2.5} aria-hidden="true" /></span>{feature}</li>)}
                 </ul>
                 <button type="button" disabled={!canContinue} onClick={next} className="mt-8 flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-[#FF6B2C] px-4 py-3 text-base font-bold text-white transition-colors hover:bg-[#ef5a1b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#c64f18] disabled:cursor-wait disabled:opacity-60">
                   {preparingLogo ? 'جارٍ تجهيز الشعار…' : starting ? 'جارٍ بدء إنشاء الصفحة…' : saving ? 'جارٍ الحفظ…' : copy.startLabel}
@@ -306,8 +306,8 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
       {step !== 3 && <footer className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-[#F8F8F6] via-[#F8F8F6] to-[#F8F8F6]/0 pt-8">
         <div className="mx-auto w-full max-w-2xl px-5 pb-6">
           {step === 2 && (
-            <p className="mb-3 text-center text-[13px] leading-6 text-[#6e6e73]">
-              بالمتابعة توافق على <a href={path('terms')} className="font-bold text-[#FF6B2C] underline underline-offset-2">الشروط والأحكام</a>. {nonprofit ? '«عنوان» مخصّص للجمعيات والمنظمات.' : 'صمّم صفحتك وعاينها قبل الدفع.'}
+            <p className="mb-3 text-center text-[13px] leading-6 text-[#737373]">
+              بالمتابعة توافق على <a href={path('terms')} className="font-bold text-[#C2410C] underline underline-offset-2">الشروط والأحكام</a>. {nonprofit ? '«عنوان» مخصّص للجمعيات والمنظمات.' : 'صمّم صفحتك وعاينها قبل الدفع.'}
             </p>
           )}
           <button
@@ -318,7 +318,7 @@ export function JourneyOnboarding({ kind = 'nonprofit' }: { kind?: JourneyKind }
           >
             {preparingLogo ? 'جارٍ تجهيز الشعار…' : starting ? 'جارٍ بدء إنشاء الصفحة…' : saving ? 'جارٍ الحفظ…' : 'متابعة'}
           </button>
-          {step === 1 && <button type="button" onClick={() => { setChosen([]); setStep(2); saveOnboarding({ step: 2, chosen: [] }, kind); }} className="mt-3 block w-full py-2 text-center text-[15px] font-bold text-[#6e6e73]">تخطي</button>}
+          {step === 1 && <button type="button" onClick={() => { setChosen([]); setStep(2); saveOnboarding({ step: 2, chosen: [] }, kind); }} className="mt-3 block w-full py-2 text-center text-[15px] font-bold text-[#737373]">تخطي</button>}
         </div>
       </footer>}
     </div>

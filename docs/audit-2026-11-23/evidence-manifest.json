@@ -1,0 +1,286 @@
+{
+  "date": "2026-11-23",
+  "images": [
+    {
+      "file": "screenshots/01-category.jpg",
+      "width": 325,
+      "height": 703,
+      "sha256": "93cbfd33f6954a015c1eb805a400713d0426258c6a2bc7c0eef4075c80780535",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/02-profile.jpg",
+      "width": 325,
+      "height": 703,
+      "sha256": "481c8e883139907ce949770284731e43479ec153f6b8e0e18067cc5b95e8f2d5",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/03-templates.jpg",
+      "width": 325,
+      "height": 703,
+      "sha256": "b79e5f4c10399c5020c9b40aa99087068e47a486ceedbace6a04c7b52991223a",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/04-image-card-requires-image.jpg",
+      "width": 423,
+      "height": 658,
+      "sha256": "75c003cc4855c21e8c5ead5afa2bac693d01dfebac6df42019dd44a2cd78c0ba",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/05-preview-gradient.jpg",
+      "width": 410,
+      "height": 638,
+      "sha256": "7864f01ab7ec4f7ac8ab66f381635b063490422ea57f9dc638c5fd047623e6aa",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/06-header-banner.jpg",
+      "width": 423,
+      "height": 658,
+      "sha256": "02161b7e51150743080f4b290837bc43cb70b7396fdf0b6ea8de64595799236b",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/07-low-contrast-gradient.jpg",
+      "width": 410,
+      "height": 638,
+      "sha256": "2bfde42d1b21ae4be68cfa52a9bbebfcf3b2b95fac641ba4837b6f2fe53fa122",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/10-linktree-wallpaper.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "85d16694212733aad99d0895ba6f5b4195d0dc9608e071e6bc75b4d4cad751dd",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/11-linktree-header.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "8bce1141c9fbf39c7cd27b93a80624eff30ce08c997d430d3dcb3ca807169810",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/12-linktree-share.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "882a9889d84b8a0d6af8a094dbe666716741229c68ad6609b60bcdaaa0d52584",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/13-linktree-add.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "140ca69748a0170b50bbdb7d052085d55ae5f5f3e66b2ed65e31561a37ce8202",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/14-profile-crop.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "2546bdb61c25e53ad5f94c359cf7ca5568f295741344d702a665d832bd20b0d8",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/15-template-search.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "8a755246eace9c458bf9685e4bc70c00dda76ce8268f75ca321c683f3466c045",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/16-linktree-editor.jpg",
+      "width": 325,
+      "height": 703,
+      "sha256": "3f91dd2343c1915fe4ee412b09ccfccd69f52a3489395af851454ea473a2d132",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/17-linktree-preview.jpg",
+      "width": 325,
+      "height": 703,
+      "sha256": "c606b1dd1bca79b4202d86b843297146db642aec04013383d9790950539e9022",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/18-pdf-open.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "829f56cfd90bd8dd87821ea83a3307aa6ae70fffabdf082c1f1fac049aa35313",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/19-linktree-buttons.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "401026829cd2b3e8efa67557e3d1126e9fbd3f16d8cfe2f6bd5589ec3d885bda",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/20-image-open.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "d6ea6b34a9b2352dc90ed3271011a8e0cd1baa444efacb5a0f60bf947517f5e7",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/21-buttons-outline.jpg",
+      "width": 365,
+      "height": 789,
+      "sha256": "ab62fbba5792e4e5460ebe331dbc2ff8e1ec9fda9ca9395d36d0c860c280ce1b",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/22-low-contrast-outline.jpg",
+      "width": 492,
+      "height": 849,
+      "sha256": "28c1df4772b5d28cb6be7f8b23e42bca47f886bf469649717162c8106ba87bf1",
+      "note": "لقطة موسعة؛ دليل لون فقط، لا قياس هندسي"
+    },
+    {
+      "file": "screenshots/23-linktree-text-blocked.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "94fb616efc1f6bcb6c35290d28455a1a0edcc190aebf62cb1393259ec5ed1e4a",
+      "note": "لوحة Linktree فارغة: عائق جلسة، ليست عطلًا عامًا مثبتًا"
+    },
+    {
+      "file": "screenshots/24-invalid-link.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "4d476ac3995b04cbf3d4cdb86500ceb5791aab86efb903dbb5e024ca5f4e34b6",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/25-content-reorder.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "87522a9cd6773d61325de954b438e769cc3bfb895ae095102e5360d76b9aad8e",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/26-group-grid-editor.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "32efef4ea479a0ef9c59d51912987aecb59032fa348f69003ed8afe80c155a21",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/27-group-grid-preview.jpg",
+      "width": 375,
+      "height": 812,
+      "sha256": "16648d39276a70e805a9d0fa8b5bb9d6132efdfc4212bf5b8905703f41aeb798",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/28-editor-dock.jpg",
+      "width": 375,
+      "height": 812,
+      "sha256": "ca1788530a3ee5716a732c99c721e8c3a2db4e8869e357addf0f175a60fbab65",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/29-cancel-scope.jpg",
+      "width": 375,
+      "height": 812,
+      "sha256": "1a5853016822efdb23e79ef6cfce3f127d56772dc1acd81e2d592953b509fab6",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/30-saved-before-reload.jpg",
+      "width": 375,
+      "height": 812,
+      "sha256": "dbc0eb56e24f6056f7561ad951bc7ff38a9228197d1de64627dec1cc95cc0c11",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/31-alternate-theme-font.jpg",
+      "width": 492,
+      "height": 849,
+      "sha256": "1b95fbaf5d19cbc42c5a73b45e3669370fb0e35a0a016b46b323f613d81f3096",
+      "note": "لقطة موسعة لثيم وخط بديلين؛ لا مقارنة قياسية"
+    },
+    {
+      "file": "screenshots/32-reload-clean.jpg",
+      "width": 375,
+      "height": 812,
+      "sha256": "47572e2a33f7cbda5f8c9ce710d3583b865c4b13e5dfe4f27a955c383a1854ca",
+      "note": "حالة مستقرة بعد إعادة التحميل: لا تعديلات معلقة"
+    },
+    {
+      "file": "screenshots/33-pdf-size-error.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "03c0dee831d19e47dd10f04357a479c218e07fabe68f9b79bda1121bb9a392d2",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/34-photo-background-settings.jpg",
+      "width": 365,
+      "height": 789,
+      "sha256": "82cb2a3b476863734b2d2515ff145e5b189f85d45e5b0d190547150ee680e52f",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/35-gradient-before-direction.jpg",
+      "width": 365,
+      "height": 789,
+      "sha256": "fc59c931cf91aa966d56cdfdfd4e0491164c1e1801504b942d7c5cd970460ba3",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/36-gradient-after-direction.jpg",
+      "width": 365,
+      "height": 789,
+      "sha256": "b396a76cbb4a51c7cdafd82aec7a983cd654180d5c53d12b98371ebc7169216b",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/37-header-options.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "0d4fb86053780bf3c89c354e54c6d6b80237540106e3226c5dd8a688c278c973",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/38-cover-layout.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "170f0d7f83336ad16508e7d026d6311e2967401c17daa32ce1efc13d0110e79d",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/39-margin-layout.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "37a9a1f4ebd32621081c6dcd8564c03de72151df7866fd06d1b8e6316424129d",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/40-independent-banner.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "702e3b09b0bde236d6e90635c63cb3464360ab316cf4a302acd2fb52fe5be990",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/41-banner-preview.jpg",
+      "width": 375,
+      "height": 812,
+      "sha256": "f08952541d121630d60e03a541587691169c1193b23f74a017d8756265df593b",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    },
+    {
+      "file": "screenshots/42-prelaunch-sharing.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "c097700dc74a72e5df74ea1ef3f754535eb0f3f72fd392071f54dd5ce1a06884",
+      "note": "لقطة من جلسة الفحص الحالية؛ يُقرأ نطاق الاستدلال في التقرير"
+    }
+  ],
+  "limitations": "أبعاد الصورة لا تثبت وحدها عرض CSS؛ لا استنتاج عيوب قص من اختلاف الالتقاط. لم تُختبر لوحة مفاتيح هاتف فعلية."
+}

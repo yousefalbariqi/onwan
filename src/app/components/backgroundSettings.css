@@ -1,0 +1,79 @@
+.background-settings { min-width: 0; width: 100%; padding: 16px; box-sizing: border-box; background: #fff; color: #25282b; font-family: 'Cairo', sans-serif; }
+.background-settings [hidden] { display: none !important; }
+.background-settings__intro { margin: 0 0 16px; color: #777d80; font-size: 12px; }
+.background-settings__tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 5px; margin-bottom: 22px; background: #eeeef0; border-radius: 20px; }
+.background-settings__tabs button { display: flex; justify-content: center; align-items: center; gap: 7px; min-width: 0; min-height: 46px; padding: 8px 5px; border: 0; border-radius: 16px; background: transparent; color: #575b60; font: 700 14px 'Cairo', sans-serif; cursor: pointer; }
+.background-settings__tabs button[aria-selected='true'] { background: #fff; color: #d54f17; box-shadow: 0 2px 5px #0000000a; }
+.background-settings h3 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 14px; font-size: 15px; line-height: 1.7; font-weight: 800; }
+.background-settings h3 > span { flex-shrink: 0; padding: 3px 8px; border-radius: 99px; color: #b74618; background: #fff0e8; font-size: 10px; font-weight: 600; }
+.background-settings p { margin: 8px 0; font-size: 12px; line-height: 1.9; color: #747980; overflow-wrap: anywhere; }
+.background-settings__section { min-width: 0; margin: 22px 0; }
+.background-settings__card { min-width: 0; padding: 16px; margin-bottom: 18px; border-radius: 22px; background: #f4f5f6; }
+.background-settings__swatches { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+.background-settings__swatches button { display: grid; align-items: center; min-width: 0; min-height: 44px; padding: 2px; border: 0; background: transparent; cursor: pointer; }
+.background-settings__swatches button > span { display: grid; place-items: center; width: 100%; aspect-ratio: 1; border: 1px solid #00000012; border-radius: 50%; }
+.background-settings__swatches button[aria-pressed='true'] > span { outline: 2px solid #ff6b2c; outline-offset: 2px; }
+.background-settings__swatches.is-square { grid-template-columns: repeat(auto-fit, minmax(32px, 1fr)); }
+.background-settings__swatches.is-square button > span { border-radius: 12px; }
+.background-settings__custom-color { display: flex; align-items: stretch; gap: 10px; }
+.background-settings__custom-color > input { width: 54px; height: 48px; padding: 6px; border: 1px solid #e0e2e4; border-radius: 14px; background: #f3f4f5; cursor: pointer; }
+.background-settings__custom-color label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #e0e2e4; border-radius: 16px; background: #f3f4f5; }
+.background-settings__custom-color label > span { color: #7b7d82; font-size: 12px; }
+.background-settings__custom-color label input { min-width: 0; width: 100%; border: 0; background: transparent; color: #25282b; font: 700 16px 'Cairo', sans-serif; }
+.background-settings__media-summary { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.background-settings__media-summary > img { width: 72px; height: 82px; flex-shrink: 0; object-fit: cover; border-radius: 14px; }
+.background-settings__media-summary > div:not(.background-settings__video-preview) { flex: 1; min-width: 0; }
+.background-settings__media-summary h3 { font-size: 13px; overflow-wrap: anywhere; }
+.background-settings__media-summary p { font-size: 11px; }
+.background-settings__filename { font-weight: 700; color: #25282b !important; }
+.background-settings button { cursor: pointer; }
+.background-settings button:disabled { opacity: .45; cursor: default; }
+.background-settings__delete { display: grid; place-items: center; width: 40px; min-height: 44px; flex-shrink: 0; padding: 6px; border: 0; border-radius: 13px; background: #ffe4e0; color: #bf3528; }
+.background-settings__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.background-settings__actions > :is(button, label), .background-settings__frame-picker > button { display: flex; align-items: center; justify-content: center; flex: 1; gap: 7px; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid #e5e6e8; border-radius: 14px; background: #fff; color: #333b40; font: 700 12px 'Cairo', sans-serif; cursor: pointer; }
+.background-settings__actions > :first-child { color: #bc4918; }
+.background-settings__actions .is-disabled { pointer-events: none; opacity: .45; }
+.background-settings__actions .background-settings__danger { color: #bf3528; }
+.background-settings__choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.background-settings__choices button { min-width: 0; min-height: 50px; padding: 8px 5px; border: 1px solid #e3e5e7; border-radius: 15px; background: #f4f5f6; color: #666a71; font: 700 12px 'Cairo', sans-serif; }
+.background-settings__choices button[aria-pressed='true'] { border-color: #ffc5a9; background: #fff0e8; color: #bf4a17; }
+.background-settings__zoom { display: flex; align-items: center; gap: 10px; direction: ltr; }
+.background-settings__zoom button { display: grid; place-items: center; width: 40px; min-height: 44px; flex-shrink: 0; border: 1px solid #e3e5e7; border-radius: 50%; background: white; color: #555; }
+.background-settings input[type='range'] { width: 100%; min-width: 0; min-height: 28px; accent-color: #ff6b2c; }
+.background-settings__video-preview { position: relative; flex-shrink: 0; width: 76px; }
+.background-settings__video-preview > span { width: 76px; aspect-ratio: 1; border-radius: 15px; box-shadow: none; }
+.background-settings__video-preview > button { position: absolute; inset: 0; display: grid; place-items: center; margin: auto; width: 34px; height: 34px; border: 1px solid #fff7; border-radius: 50%; color: #fff; background: #0007; }
+.background-settings .background-settings__ready { color: #16694c; background: #e0f5eb; }
+.background-settings__frame-picker { display: grid; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #e2e4e6; }
+.background-settings__frame-picker label { display: grid; gap: 8px; color: #747980; font-size: 12px; }
+.background-settings__dim-label { margin-top: 24px !important; }
+.background-settings progress { width: 100%; accent-color: #ff6b2c; }
+.background-settings__text-button { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 0; border: 0; background: transparent; color: #bb491a !important; font: 12px 'Cairo', sans-serif; cursor: pointer; }
+.background-settings__error { margin-top: 12px; color: #DC2626 !important; font-size: 12px; line-height: 1.8; }
+.background-settings__error button { min-height: 44px; margin-inline-start: 10px; border: 0; background: transparent; color: inherit; text-decoration: underline; font: inherit; }
+.background-settings :is(button, input, label:has(input)):focus-visible { outline: 2px solid #b74618; outline-offset: 3px; }
+@media (max-width: 350px) { .background-settings { padding: 12px; } .background-settings__media-summary { gap: 8px; } .background-settings__tabs button { font-size: 12px; gap: 5px; } }
+
+.background-settings__gradients { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.background-settings__gradients button { display: grid; place-items: center; aspect-ratio: 1 / 1.2; border: 1px solid #00000012; border-radius: 16px; color: #fff; cursor: pointer; }
+.background-settings__gradients button[aria-pressed='true'] { outline: 2px solid #ff6b2c; outline-offset: 2px; }
+.background-settings__gradients svg { filter: drop-shadow(0 1px 2px #0007); }
+
+/* A gradient the owner builds: two colours, a direction, seen as they change. */
+.background-settings__builder { display: grid; gap: 12px; margin-bottom: 20px; }
+.background-settings__builder h3, .background-settings__presets-title { margin: 0; font-size: 14px; font-weight: 700; color: #111; }
+.background-settings__presets-title { margin-bottom: 10px; }
+.background-settings__builder-preview { height: 72px; border-radius: 16px; box-shadow: inset 0 0 0 1px #0000000f; }
+.background-settings__builder-colors { display: grid; grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr); align-items: center; gap: 6px; }
+.background-settings__builder-colors label { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 56px; padding: 6px 8px; border: 1.5px solid #e7e7e7; border-radius: 14px; background: #fff; cursor: pointer; }
+.background-settings__builder-colors input { flex: 0 0 34px; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 10px; background: transparent; cursor: pointer; }
+.background-settings__builder-colors span { display: grid; min-width: 0; line-height: 1.35; }
+.background-settings__builder-colors b { font-size: 12px; color: #111; white-space: nowrap; }
+.background-settings__builder-colors small { font-size: 11px; color: #737373; text-align: right; }
+.background-settings__builder-colors button { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 50%; background: #f5f5f3; color: #111; cursor: pointer; }
+.background-settings__directions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.background-settings__directions button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 58px; padding: 4px 2px; border: 1.5px solid #e7e7e7; border-radius: 14px; background: #fff; color: #525252; font: 600 11px 'Cairo', sans-serif; cursor: pointer; }
+.background-settings__directions button[aria-pressed='true'] { border: 2px solid #111; color: #111; }
+
+.background-settings__readable { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 10px 12px; border-radius: 14px; background: #FFF0E8; color: #9A3412; font-size: 12px; line-height: 1.7; }
+.background-settings__readable button { flex: none; min-height: 36px; padding: 4px 12px; border: 0; border-radius: 100px; background: #fff; color: #C2410C; font: 700 12px 'Cairo', sans-serif; cursor: pointer; }

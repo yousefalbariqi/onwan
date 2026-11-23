@@ -5,7 +5,7 @@ import { Group, Segmented } from './ios';
 import { ImageProblem, compressImage } from '../lib/compressImage';
 import { cardImageStyle } from './PageView';
 
-export function LinkAppearanceEditor({ display, onChange }: { display: LinkDisplay; onChange: (value: LinkDisplay) => void }) {
+export function LinkAppearanceEditor({ display, onChange, fileImage }: { display: LinkDisplay; onChange: (value: LinkDisplay) => void; fileImage?: string }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const request = useRef(0);
@@ -35,13 +35,13 @@ export function LinkAppearanceEditor({ display, onChange }: { display: LinkDispl
         {([['button', 'زر عادي'], ['card', 'بطاقة مصوّرة']] as const).map(([id, label]) => {
           const active = (display.layout ?? 'button') === id;
           return (
-            <button key={id} type="button" role="radio" aria-checked={active} onClick={() => !active && onChange({ ...display, layout: id === 'card' ? 'card' : undefined })} className={`flex flex-col items-stretch gap-1.5 rounded-xl p-1.5 transition-colors ${active ? 'bg-[#0a84ff]/10 ring-2 ring-[#0a84ff]' : 'bg-[#f2f2f7]'}`}>
+            <button key={id} type="button" role="radio" aria-checked={active} onClick={() => !active && onChange({ ...display, layout: id === 'card' ? 'card' : undefined, ...(id === 'card' && !display.image && fileImage ? { image: fileImage, positionX: 50, positionY: 50 } : {}) })} className={`flex flex-col items-stretch gap-1.5 rounded-xl p-1.5 transition-colors ${active ? 'bg-[#111111]/5 ring-2 ring-[#111111]' : 'bg-[#F5F5F3]'}`}>
               <span className="flex h-[76px] items-center justify-center rounded-lg bg-white px-3" aria-hidden="true">
                 {id === 'button'
-                  ? <span className="flex h-7 w-full items-center justify-center rounded-full bg-[#1d1d1f]/85"><span className="h-1.5 w-12 rounded-full bg-white/80" /></span>
-                  : <span className="flex w-16 flex-col overflow-hidden rounded-lg bg-[#1d1d1f]/85"><span className="aspect-square w-full bg-[#c7c7cc]">{display.image && <img src={display.image} alt="" className="h-full w-full object-cover" />}</span><span className="flex h-3.5 items-center justify-center"><span className="h-1 w-8 rounded-full bg-white/80" /></span></span>}
+                  ? <span className="flex h-7 w-full items-center justify-center rounded-full bg-[#111111]/85"><span className="h-1.5 w-12 rounded-full bg-white/80" /></span>
+                  : <span className="flex w-16 flex-col overflow-hidden rounded-lg bg-[#111111]/85"><span className="aspect-square w-full bg-[#D4D4D4]">{display.image && <img src={display.image} alt="" className="h-full w-full object-cover" />}</span><span className="flex h-3.5 items-center justify-center"><span className="h-1 w-8 rounded-full bg-white/80" /></span></span>}
               </span>
-              <span className={`text-center text-[12px] ${active ? 'font-bold text-[#0a84ff]' : 'text-[#3a3a3c]'}`}>{label}</span>
+              <span className={`text-center text-[12px] ${active ? 'font-bold text-[#C2410C]' : 'text-[#262626]'}`}>{label}</span>
             </button>
           );
         })}
@@ -50,17 +50,18 @@ export function LinkAppearanceEditor({ display, onChange }: { display: LinkDispl
         {/* Note 44: the card's own frame (16:9, as on the page): drag the photo to
             place it, zoom with − / + — the same result visitors see. */}
         {display.image && <CardFrame display={display} onChange={onChange} />}
-        <label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-[#0a84ff] focus-within:ring-2 focus-within:ring-blue-500">
+        <label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-[#C2410C] focus-within:ring-2 focus-within:ring-blue-500">
           <Upload className="h-4 w-4" />{loading ? 'جارٍ تجهيز الصورة…' : display.image ? 'تغيير صورة البطاقة' : 'إرفاق صورة البطاقة'}
           <input type="file" aria-label="صورة البطاقة" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void upload(file); }} />
         </label>
         {display.image && <>
           <Segmented options={[{ id: 'cover', label: 'ملء المساحة' }, { id: 'contain', label: 'إظهار كاملة' }]} value={fit} onChange={imageFit => onChange({ ...display, imageFit: imageFit as 'cover' | 'contain' })} />
-          <button type="button" onClick={() => onChange({ ...display, image: undefined, positionX: 50, positionY: 50, zoom: undefined })} className="text-xs text-[#ff3b30]">إزالة صورة البطاقة</button>
+          <button type="button" onClick={() => onChange({ ...display, image: undefined, positionX: 50, positionY: 50, zoom: undefined })} className="text-xs text-[#DC2626]">إزالة صورة البطاقة</button>
         </>}
-        {!display.image && <p className="text-xs text-[#6e6e73]">أرفق صورة لإكمال البطاقة المصوّرة.</p>}
+        {!display.image && fileImage && <button type="button" onClick={() => onChange({ ...display, image: fileImage, positionX: 50, positionY: 50 })} className="min-h-11 rounded-xl bg-white text-sm font-bold text-[#111111]">استخدام نفس الصورة</button>}
+        {!display.image && !fileImage && <p className="text-xs text-[#737373]">أرفق صورة لإكمال البطاقة المصوّرة.</p>}
       </>}
-      {!!error && <p role="alert" className="text-xs text-[#ff3b30]">{error}</p>}
+      {!!error && <p role="alert" className="text-xs text-[#DC2626]">{error}</p>}
     </div>
   </Group>;
 }
@@ -75,7 +76,7 @@ function CardFrame({ display, onChange }: { display: LinkDisplay; onChange: (val
   return (
     <div className="space-y-2">
       <div
-        className="relative aspect-video w-full cursor-grab touch-none select-none overflow-hidden rounded-xl bg-[#f2f2f7] active:cursor-grabbing"
+        className="relative aspect-video w-full cursor-grab touch-none select-none overflow-hidden rounded-xl bg-[#F5F5F3] active:cursor-grabbing"
         aria-label="اسحب الصورة لضبط موضعها"
         onPointerDown={(event) => {
           const box = event.currentTarget.getBoundingClientRect();
@@ -95,11 +96,11 @@ function CardFrame({ display, onChange }: { display: LinkDisplay; onChange: (val
         <img src={display.image} alt="" draggable={false} className="pointer-events-none h-full w-full" style={cardImageStyle(display)} />
       </div>
       <div className="flex items-center gap-2" dir="ltr">
-        <button type="button" aria-label="تصغير صورة البطاقة" onClick={() => setZoom(zoom - 0.1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f2f2f7] text-lg font-bold text-[#1d1d1f]">−</button>
-        <input type="range" aria-label="تكبير صورة البطاقة" min={1} max={3} step={0.01} value={zoom} onChange={(event) => setZoom(Number(event.target.value))} className="min-w-0 flex-1 accent-[#0a84ff]" />
-        <button type="button" aria-label="تكبير صورة البطاقة" onClick={() => setZoom(zoom + 0.1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f2f2f7] text-lg font-bold text-[#1d1d1f]">+</button>
+        <button type="button" aria-label="تصغير صورة البطاقة" onClick={() => setZoom(zoom - 0.1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F5F5F3] text-lg font-bold text-[#111111]">−</button>
+        <input type="range" aria-label="تكبير صورة البطاقة" min={1} max={3} step={0.01} value={zoom} onChange={(event) => setZoom(Number(event.target.value))} className="min-w-0 flex-1 accent-[#FF6B2C]" />
+        <button type="button" aria-label="تكبير صورة البطاقة" onClick={() => setZoom(zoom + 0.1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F5F5F3] text-lg font-bold text-[#111111]">+</button>
       </div>
-      <p className="text-center text-[11px] text-[#8e8e93]">اسحب الصورة لتحريكها، وكبّرها من الشريط.</p>
+      <p className="text-center text-[11px] text-[#737373]">اسحب الصورة لتحريكها، وكبّرها من الشريط.</p>
     </div>
   );
 }

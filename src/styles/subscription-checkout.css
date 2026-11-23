@@ -1,15 +1,15 @@
-.subscription-checkout { min-height: 100svh; padding: 24px 20px max(32px, env(safe-area-inset-bottom)); background: #fffefa; color: #171813; font-family: 'Cairo', sans-serif; }
+.subscription-checkout { min-height: 100svh; padding: 24px 20px max(32px, env(safe-area-inset-bottom)); background: #FFFFFF; color: #171813; font-family: 'Cairo', sans-serif; }
 .subscription-checkout__container { max-width: 530px; margin: 0 auto; }
 .subscription-checkout__back { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: #efede7; cursor: pointer; }
 .subscription-checkout header { margin: 23px 0 30px; text-align: center; }
 .subscription-checkout h1 { margin: 0; font-size: clamp(29px, 7vw, 38px); font-weight: 800; }
-.subscription-checkout header p { font-size: 13px; color: #777970; line-height: 2; }
+.subscription-checkout header p { font-size: 13px; color: #737373; line-height: 2; }
 .subscription-checkout__card { padding: 28px 24px; border: 1px solid #eae5dc; border-radius: 28px; background: #fff; }
 .subscription-checkout h2 { margin: 0 0 16px; font-size: 19px; font-weight: 800; }
 .subscription-checkout__price { margin: 0; font-size: 34px; font-weight: 800; line-height: 1.6; }
-.subscription-checkout__price span { font-size: 14px; font-weight: 400; color: #777970; }
+.subscription-checkout__price span { font-size: 14px; font-weight: 400; color: #737373; }
 .subscription-checkout__annual { margin: 6px 0 10px; font-size: 14px; font-weight: 600; }
-.subscription-checkout__muted { font-size: 11px; line-height: 1.9; color: #73756c; }
+.subscription-checkout__muted { font-size: 11px; line-height: 1.9; color: #737373; }
 .subscription-checkout__features { list-style: none; padding: 0; margin: 26px 0 18px; display: grid; gap: 15px; }
 .subscription-checkout__features li { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; line-height: 1.9; }
 .subscription-checkout__features svg { flex-shrink: 0; color: #db5b20; margin-top: 3px; }
@@ -24,12 +24,12 @@
 .subscription-checkout__pay:disabled { opacity: .5; cursor: default; }
 .subscription-checkout__legal { margin: 16px 0 0; font-size: 10px; color: #787b6d; line-height: 2; text-align: center; }
 .subscription-checkout__legal a { text-decoration: underline; text-underline-offset: 3px; }
-.subscription-checkout__error { color: #b42318; font-size: 12px; line-height: 1.9; }
+.subscription-checkout__error { color: #DC2626; font-size: 12px; line-height: 1.9; }
 .subscription-checkout__methods { display: grid; gap: 10px; }
 .subscription-checkout__methods button { display: flex; align-items: center; justify-content: space-between; border: 1px solid #dedbd3; border-radius: 13px; padding: 16px; background: #fff; cursor: pointer; font: inherit; }
 .subscription-checkout__methods button[aria-checked="true"] { background: #fff1e9; border-color: #ff6b2c; }
 .subscription-checkout :is(button,a):focus-visible { outline: 3px solid #b4481c; outline-offset: 3px; }
-.subscription-checkout__loading { padding: 40px; text-align: center; font-size: 13px; color: #73756c; }
+.subscription-checkout__loading { padding: 40px; text-align: center; font-size: 13px; color: #737373; }
 .subscription-checkout__loading svg { margin: 0 auto 12px; }
 @media (max-width: 350px) { .subscription-checkout { padding-inline: 14px; } .subscription-checkout__card { padding: 24px 18px; } .subscription-checkout__total { font-size: 11px; } .subscription-checkout__total strong { font-size: 18px; } }
 .subscription-checkout__result { padding: 50px 10px; text-align: center; }

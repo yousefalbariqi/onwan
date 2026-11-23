@@ -5,6 +5,7 @@ import { OnwanLogo } from '../components/OnwanLogo';
 import { PasswordInput } from '../components/PasswordInput';
 import { passwordChecks, passwordProblem, normalizeSaudiMobile, PHONE_HINT, isValidEmailAddress } from '../../../shared/accountRules';
 import { arabicSlug } from '../lib/arabicSlug';
+import { cleanLinkName, findAvailableLinks, linkCandidates, linkFromEmail } from '../lib/linkSuggestions';
 import { digitsOnly } from '../lib/digits';
 import { checkUsername, signup } from '../lib/api';
 import { changeCreationEmail, creationSession, clearCreationSession, readCloudCreation, storeCreationSession } from '../lib/creationCloud';
@@ -32,13 +33,14 @@ export default function CreationAccount() {
   const [wait, setWait] = useState(0);
   const [accepted, setAccepted] = useState(false);
   const [recordedConsent, setRecordedConsent] = useState(false);
-  const [linkState, setLinkState] = useState<{ name: string; status: string; reason?: string }>({ name: '', status: '' });
+  const [linkState, setLinkState] = useState<{ name: string; status: string; reason?: string; kind?: string }>({ name: '', status: '' });
+  const [alternatives, setAlternatives] = useState<{ name: string; options: string[] }>({ name: '', options: [] });
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const running = useRef(false);
   const humanOk = useHumanOk();
-  const username = customLink ?? arabicSlug(name);
+  const username = customLink ?? (cleanLinkName(arabicSlug(name)) || linkFromEmail(session?.email));
   const formKey = session ? `onwan_account_form:${session.id}` : '';
   useEffect(() => {
     let live = true;
@@ -60,10 +62,19 @@ export default function CreationAccount() {
     setLinkState({ name: username, status: 'checking' });
     const timeout = setTimeout(() => controller.abort(), 10000);
     const timer = setTimeout(() => { checkUsername(username, controller.signal).then(result => {
-      if (live) setLinkState({ name: username, status: result.available ? 'available' : 'unavailable', reason: result.reason || undefined });
+      if (live) setLinkState({ name: username, status: result.available ? 'available' : 'unavailable', reason: result.reason || undefined, kind: result.status });
     }).catch(() => { if (live) setLinkState({ name: username, status: 'error', reason: 'تعذر التحقق. أعد المحاولة.' }); }).finally(() => clearTimeout(timeout)); }, 400);
     return () => { live = false; clearTimeout(timer); clearTimeout(timeout); controller.abort(); };
   }, [username, retry]);
+  // A name that cannot be used comes with free ones to pick from.
+  useEffect(() => {
+    if (linkState.name !== username || linkState.status !== 'unavailable') return;
+    let live = true; const controller = new AbortController();
+    findAvailableLinks(linkCandidates(username, session?.email, linkState.kind), candidate => checkUsername(candidate, controller.signal))
+      .then(options => { if (live) setAlternatives({ name: username, options }); })
+      .catch(() => { if (live) setAlternatives({ name: username, options: [] }); });
+    return () => { live = false; controller.abort(); };
+  }, [linkState.name, linkState.status, linkState.kind, username, session?.email]);
   async function back() {
     if (running.current) return;
     running.current = true; setBusy(true); setError('');
@@ -110,8 +121,9 @@ export default function CreationAccount() {
       <ul id="creation-password-rules" className="creation-account__rules" aria-live="polite">{passwordChecks(password).map(rule => <li key={rule.label} data-valid={rule.ok}>{rule.ok ? '✓' : '○'} {rule.label}</li>)}</ul>
       <label className="creation-account__field">رقم الجوال<input type="tel" inputMode="tel" dir="ltr" value={phone} placeholder="05XXXXXXXX" autoComplete="tel" disabled={busy} onChange={event => setPhone(digitsOnly(event.target.value))} aria-invalid={Boolean(phone && !normalizeSaudiMobile(phone))} /></label>{phone && !normalizeSaudiMobile(phone) && <p className="creation-email__error">{PHONE_HINT}</p>}
       <div className="creation-account__row"><div><span>اسم الصفحة</span>{editName ? <input value={name} maxLength={80} disabled={busy} onChange={event => setName(event.target.value)} aria-label="اسم الصفحة" /> : <strong>{name || 'جارٍ تحميل الصفحة…'}</strong>}</div><button type="button" disabled={busy} onClick={() => setEditName(value => !value)}>{editName ? 'تم' : 'تعديل'}</button></div>
-      <div className="creation-account__row"><div><span>رابط صفحتك</span>{editLink ? <input dir="ltr" aria-label="اسم رابط الصفحة" value={username} maxLength={30} disabled={busy} onChange={event => setCustomLink(event.target.value.toLowerCase().trim())} /> : <strong dir="ltr">{username || '…'}.onwan.link</strong>}</div><button type="button" disabled={busy} onClick={() => { if (!editLink) setCustomLink(username); setEditLink(value => !value); }}>{editLink ? 'تم' : 'تعديل'}</button></div>
+      <div className="creation-account__row"><div><span>رابط صفحتك</span>{editLink ? <input dir="ltr" aria-label="اسم رابط الصفحة" value={username} maxLength={30} disabled={busy} autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={event => setCustomLink(event.target.value.toLowerCase().trim())} /> : <strong dir="ltr">{username || '…'}.onwan.link</strong>}</div><button type="button" disabled={busy} onClick={() => { if (!editLink) setCustomLink(username); setEditLink(value => !value); }}>{editLink ? 'تم' : 'تعديل'}</button></div>
       <p className="creation-account__availability" role="status" data-valid={linkReady}>{linkState.name !== username || linkState.status === 'checking' ? 'جارٍ التحقق من الرابط…' : linkReady ? 'الرابط متاح — يتأكد الحجز عند حفظ الحساب' : linkState.reason || 'اختر رابطًا لصفحتك'}{linkState.status === 'error' && <button type="button" onClick={() => setRetry(value => value + 1)}>إعادة المحاولة</button>}</p>
+      {linkState.name === username && linkState.status === 'unavailable' && alternatives.name === username && alternatives.options.length > 0 && <div className="creation-account__link-options" role="group" aria-label="روابط متاحة"><span>روابط متاحة:</span>{alternatives.options.map(option => <button type="button" key={option} dir="ltr" disabled={busy} onClick={() => { setCustomLink(option); setEditLink(false); }}>{option}</button>)}</div>}
       {!recordedConsent ? <label className="creation-account__consent"><input type="checkbox" checked={accepted} disabled={busy} onChange={event => setAccepted(event.target.checked)} /><span>أوافق على <Link to="/terms" target="_blank">الشروط والأحكام</Link> و<Link to="/privacy" target="_blank">سياسة الخصوصية</Link>.</span></label> : <p className="creation-email__terms">موافقتك على الشروط وسياسة الخصوصية مسجلة.</p>}
       <TurnstileBox />{error && <p className="creation-email__error" role="alert">{error} <Link to="/login">تسجيل الدخول</Link></p>}
       <button type="submit" className="creation-email__button" disabled={busy || !ready}>{busy ? <><Loader2 size={18} className="animate-spin" />جارٍ حفظ صفحتك…</> : 'حفظ صفحتي والمتابعة'}</button>

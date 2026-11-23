@@ -46,20 +46,20 @@ function OrderFlow({ partner, orderId, draftKey }: { partner: PartnerAccount; or
     <Builder staffEdit={{ title: 'تجهيز صفحة العميل', onExit: () => navigate('/partner'), onContinue: () => { if (isDraft) void save().then(() => partnerCall('orders.markReady', { id: orderId })).catch(() => undefined); setCheckout(true); }, continueLabel: isDraft ? 'جاهز للمراجعة' : orderId ? 'إنهاء التعديل' : 'إرسال للعميل' }} />
     {checkout && isDraft && meta && (
       <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/30 sm:items-center sm:p-4" dir="rtl" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-        <section className="max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-[#f2f2f7] px-5 pb-7 pt-5 sm:rounded-[28px]">
+        <section className="max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-[#F5F5F3] px-5 pb-7 pt-5 sm:rounded-[28px]">
           {created ? (
             <div className="space-y-4 text-center">
-              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#34c759] text-2xl text-white">✓</span>
-              <h1 className="text-[22px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>أُرسل العرض #{created.orderNumber}</h1>
-              <p className="text-[15px] leading-7 text-[#6e6e73]">{created.emailed ? 'وصل العميلَ رابط آمن يعاين فيه تصميمه ثم يشتري.' : 'حُفظ الطلب، لكن تعذر إرسال البريد. شارك الرابط أدناه.'}</p>
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#16A34A] text-2xl text-white">✓</span>
+              <h1 className="text-[22px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>أُرسل العرض #{created.orderNumber}</h1>
+              <p className="text-[15px] leading-7 text-[#737373]">{created.emailed ? 'وصل العميلَ رابط آمن يعاين فيه تصميمه ثم يشتري.' : 'حُفظ الطلب، لكن تعذر إرسال البريد. شارك الرابط أدناه.'}</p>
               <input readOnly value={created.payLink} className={inputClass} dir="ltr" onFocus={(e) => e.target.select()} />
-              {partner.testMode && <a href={created.payLink} target="_blank" rel="noopener noreferrer" className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#34c759] text-[17px] font-bold text-white">فتح رابط العميل (تجربة)</a>}
-              <button onClick={() => navigate('/partner')} className="min-h-[52px] w-full rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white">العودة إلى الطلبات</button>
+              {partner.testMode && <a href={created.payLink} target="_blank" rel="noopener noreferrer" className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#16A34A] text-[17px] font-bold text-white">فتح رابط العميل (تجربة)</a>}
+              <button onClick={() => navigate('/partner')} className="min-h-[52px] w-full rounded-2xl bg-[#111111] text-[17px] font-bold text-white">العودة إلى الطلبات</button>
             </div>
           ) : (
             <div className="space-y-4">
-              <h1 className="text-center text-[22px] font-black text-[#1d1d1f]" style={{ fontFamily: 'Cairo, sans-serif' }}>مراجعة العرض</h1>
-              <dl className="divide-y divide-[#e5e5ea] overflow-hidden rounded-2xl bg-white text-[15px]">
+              <h1 className="text-center text-[22px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>مراجعة العرض</h1>
+              <dl className="divide-y divide-[#E7E7E7] overflow-hidden rounded-2xl bg-white text-[15px]">
                 {[
                   ['العميل', meta.customerName],
                   ['البريد', <span dir="ltr">{meta.customerEmail}</span>],
@@ -68,12 +68,12 @@ function OrderFlow({ partner, orderId, draftKey }: { partner: PartnerAccount; or
                   ['الاشتراك', `${meta.salePrice} ريال`],
                   ['التصميم', meta.designPrice ? `${meta.designPrice} ريال` : 'مجانًا'],
                   ['الإجمالي', `${meta.salePrice + meta.designPrice} ريال`],
-                ].map(([label, value]) => <div key={String(label)} className="flex min-h-[48px] items-center justify-between gap-3 px-4"><dt className="text-[#6e6e73]">{label}</dt><dd className="truncate font-bold text-[#1d1d1f]">{value}</dd></div>)}
+                ].map(([label, value]) => <div key={String(label)} className="flex min-h-[48px] items-center justify-between gap-3 px-4"><dt className="text-[#737373]">{label}</dt><dd className="truncate font-bold text-[#111111]">{value}</dd></div>)}
               </dl>
-              <p className="px-1 text-[13px] leading-6 text-[#8e8e93]">يصل العميل رابط يرى فيه صفحته كما ستظهر، فيوافق ويدفع أو يطلب تعديلًا. لا يُرسل له أي رابط تعديل.</p>
+              <p className="px-1 text-[13px] leading-6 text-[#737373]">يصل العميل رابط يرى فيه صفحته كما ستظهر، فيوافق ويدفع أو يطلب تعديلًا. لا يُرسل له أي رابط تعديل.</p>
               <ErrorNote message={error} />
-              <button disabled={busy} onClick={sendOffer} className="min-h-[52px] w-full rounded-2xl bg-[#0a84ff] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>{busy ? 'جارٍ الإرسال…' : 'إرسال للعميل'}</button>
-              <button disabled={busy} onClick={() => setCheckout(false)} className="block w-full text-center text-[15px] text-[#0a84ff]">العودة للتصميم</button>
+              <button disabled={busy} onClick={sendOffer} className="min-h-[52px] w-full rounded-2xl bg-[#111111] text-[17px] font-bold text-white shadow-[0_6px_16px_rgba(10,132,255,0.28)] disabled:opacity-50" style={{ fontFamily: 'Cairo, sans-serif' }}>{busy ? 'جارٍ الإرسال…' : 'إرسال للعميل'}</button>
+              <button disabled={busy} onClick={() => setCheckout(false)} className="block w-full text-center text-[15px] text-[#C2410C]">العودة للتصميم</button>
             </div>
           )}
         </section>

@@ -35,15 +35,14 @@ function walk(node, predicate, found = []) {
   React.Children.forEach(node.props?.children, child => walk(child, predicate, found));
   return found;
 }
-test('templates use different layout, button and spacing settings as well as palettes', async () => {
+test('templates use different layout and button settings as well as palettes', async () => {
   const { api } = setup();
   for (const group of api.TEMPLATE_GROUPS) {
     const templates = api.creationTemplates(group.id);
-    assert.equal(templates.length, 6);
-    assert.equal(new Set(templates.map(item => item.id)).size, 6);
+    assert.equal(templates.length, 12);
+    assert.equal(new Set(templates.map(item => item.id)).size, 12);
     assert.ok(new Set(templates.map(item => item.design.buttonStyle.shape)).size > 1);
-    assert.ok(new Set(templates.map(item => item.design.buttonStyle.spacing)).size > 1);
-    assert.ok(new Set(templates.map(item => item.design.buttonStyle.composition.align)).size > 1);
+    assert.ok(templates.every(item => item.design.buttonStyle.composition.align === 'center'));
   }
   assert.equal(api.templateGroup('creator'), 'personal');
 });
@@ -81,8 +80,8 @@ test('the prior category determines templates without repeated category tabs', (
   const tree = h.render();
   assert.equal(walk(tree, node => node.type === h.PhonePreview)[0].props.data.name, 'اسم جمعيتك');
   assert.equal(walk(tree, node => node.props?.['aria-pressed'] !== undefined).length, 0);
-  assert.equal(walk(tree, node => node.props?.['aria-label'] === 'تغيير نوع الصفحة')[0].props.to, '/signup');
-  assert.equal(walk(tree, node => node.props?.role === 'radio').length, 6);
+  assert.equal(walk(tree, node => node.props?.['aria-label'] === 'تغيير تصنيف الصفحة')[0].props.to, '/signup');
+  assert.equal(walk(tree, node => node.props?.role === 'radio').length, 12);
 });
 
 test('smart search finds Nukhba by Arabic specialties and English synonyms, not just its name', async () => {
@@ -105,7 +104,7 @@ test('search normalization supports Arabic spelling variants, diacritics and pun
 });
 test('search is inside the sheet, retains the current preview, and only continues after a matching result is chosen', async () => {
   const h = setup({ category: 'business' });
-  walk(h.render(), node => node.props?.['aria-label'] === 'البحث عن تصميم أو مجال')[0].props.onClick();
+  walk(h.render(), node => node.type === 'input' && node.props.type === 'search')[0].props.onFocus();
   const original = walk(h.render(), node => node.type === h.PhonePreview)[0].props.data;
   walk(h.render(), node => node.type === 'input' && node.props.type === 'search')[0].props.onChange({ target: { value: 'محامي' } });
   let tree = h.render();
@@ -122,24 +121,24 @@ test('search is inside the sheet, retains the current preview, and only continue
 test('empty results allow clearing search without changing the category or forgetting the selected design', async () => {
   const h = setup();
   await walk(h.render(), node => node.props?.role === 'radio')[2].props.onClick();
-  walk(h.render(), node => node.props?.['aria-label'] === 'البحث عن تصميم أو مجال')[0].props.onClick();
+  walk(h.render(), node => node.type === 'input' && node.props.type === 'search')[0].props.onFocus();
   walk(h.render(), node => node.type === 'input' && node.props.type === 'search')[0].props.onChange({ target: { value: 'xyzunknown' } });
   let tree = h.render();
   assert.equal(walk(tree, node => node.props?.role === 'radio').length, 0);
   const next = walk(tree, node => node.props?.className === 'creation-themes__continue')[0];
   assert.equal(next.props.disabled, true);
   await next.props.onClick(); assert.deepEqual(h.routes, []);
-  await walk(tree, node => node.props?.['aria-label'] === 'مسح البحث')[0].props.onClick();
+  await walk(tree, node => node.type === 'button' && node.props.children === 'عرض كل التصاميم')[0].props.onClick();
   tree = h.render();
-  assert.equal(walk(tree, node => node.props?.role === 'radio').length, 6);
+  assert.equal(walk(tree, node => node.props?.role === 'radio').length, 12);
   assert.equal(walk(tree, node => node.props?.role === 'radio' && node.props['aria-checked'])[0].props['aria-label'], 'تصميم مدار');
 });
 
 test('search opens on demand and expands the sheet; Escape clears it and returns to preview', () => {
   const h = setup();
   let tree = h.render();
-  assert.equal(walk(tree, node => node.type === 'input').length, 0);
-  walk(tree, node => node.props?.['aria-label'] === 'البحث عن تصميم أو مجال')[0].props.onClick();
+  assert.equal(walk(tree, node => node.props?.['aria-label'] === 'إغلاق البحث').length, 0);
+  walk(tree, node => node.type === 'input')[0].props.onFocus();
   tree = h.render();
   assert.ok(tree.props.className.includes('is-expanded'));
   const input = walk(tree, node => node.type === 'input')[0];
@@ -150,8 +149,9 @@ test('search opens on demand and expands the sheet; Escape clears it and returns
   finally { global.window = previous; }
   tree = h.render();
   assert.equal(tree.props.className, 'creation-themes');
-  assert.equal(walk(tree, node => node.type === 'input').length, 0);
-  assert.equal(walk(tree, node => node.props?.role === 'radio').length, 6);
+  assert.equal(walk(tree, node => node.type === 'input')[0].props.value, '');
+  assert.equal(walk(tree, node => node.props?.['aria-label'] === 'إغلاق البحث').length, 0);
+  assert.equal(walk(tree, node => node.props?.role === 'radio').length, 12);
   assert.deepEqual(h.routes, []);
 });
 test('handle swipes snap to expanded and compact states without the following click undoing the swipe', () => {
