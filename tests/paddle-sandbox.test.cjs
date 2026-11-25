@@ -70,3 +70,22 @@ test('a declined card asks for another test card, and completion clears the old 
   assert.ok(updates.some(([index, value]) => index === 1 && value === ''));
   assert.ok(updates.some(([index, value]) => index === 4 && value === true));
 });
+test('connected checkout uses only the server transaction and returns to server status, never client activation',async()=>{
+  let state=0,ref=0,listener;const effects=[],calls=[],navigation=[];
+  const client={Checkout:{open:options=>calls.push(['open',options])}};
+  const helpers={sandboxConfig,sandboxPrice,loadSandbox:async()=>client,subscribeToSandbox:callback=>{listener=callback;return()=>{};}};
+  const hooks={...React,useEffect:effect=>effects.push(effect),useState:initial=>[state++===0?sandboxPrice(preview(),priceId):initial,()=>{}],
+    useRef:value=>({current:ref++===0?client:value})};
+  const Page=load('src/app/components/PaddleSandboxCheckout.tsx',{react:hooks,'../lib/paddleSandbox':helpers,
+    'react-router':{Link:'a',useNavigate:()=>path=>navigation.push(path)}}).default;
+  const original=global.window;global.window={location:{origin:'https://sandbox.example.com'}};
+  try {
+    Page({ready:true,email:'test@example.com',features:[],retry(){},saveDraft:async()=>calls.push(['save']),
+      prepareCheckout:async()=>{calls.push(['prepare']);return {orderId:'opaque-order',transactionId:'txn_from_server',priceId,state:'open'};}});
+    effects[0]();effects[3]();await new Promise(resolve=>setImmediate(resolve));
+    assert.deepEqual(calls.map(([name])=>name),['save','prepare','open']);
+    assert.equal(calls[2][1].transactionId,'txn_from_server');assert.equal(calls[2][1].items,undefined);
+    assert.equal(calls[2][1].settings.successUrl,'https://sandbox.example.com/payment/success?order=opaque-order');
+    listener({name:'checkout.completed'});assert.deepEqual(navigation,['/payment/success?order=opaque-order']);
+  } finally {global.window=original;}
+});

@@ -44,3 +44,13 @@
 .subscription-checkout__result-actions button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 8px; border: 1px solid #dedbd3; border-radius: 14px; background: #fff; font: inherit; font-size: 12px; cursor: pointer; }
 .subscription-checkout__result > .subscription-checkout__pay { display: flex; justify-content: center; align-items: center; gap: 9px; text-decoration: none; margin-bottom: 25px; }
 .subscription-checkout__result > a:last-of-type { display: inline-block; margin: 15px 0; font-size: 13px; color: #5e6254; }
+.payment-activation-spinner { margin: 0 auto; color: #db5b20; animation: payment-spin 1.2s linear infinite; }
+.payment-activation-preview { display: grid; justify-items: center; gap: 9px; padding: 24px; margin: 24px 0; border: 1px solid #eae5dc; border-radius: 24px; background: #faf9f6; }
+.payment-activation-preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 50%; }
+.payment-activation-preview span { color: #74776a; font-size: 12px; }
+.payment-activation-steps { list-style: none; padding: 0; display: grid; gap: 16px; text-align: start; margin: 24px 0; }
+.payment-activation-steps li { display: flex; gap: 10px; align-items: center; color: #74776a; font-size: 13px; }
+.payment-activation-steps li[data-complete="true"] { color: #24864a; }
+.payment-step-dot { width: 16px; height: 16px; border: 1px solid #c9c9c0; border-radius: 50%; }
+@keyframes payment-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .payment-activation-spinner { animation: none; } }

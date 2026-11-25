@@ -4,10 +4,11 @@ import { ArrowRight, Check, Loader2 } from 'lucide-react';
 import type { Paddle } from '@paddle/paddle-js';
 import { loadSandbox, sandboxConfig, sandboxPrice, subscribeToSandbox } from '../lib/paddleSandbox';
 
-type Props = { ready: boolean; email?: string; features: string[]; loadError?: string; retry: () => void; saveDraft: () => Promise<unknown> };
+type Props = { ready: boolean; email?: string; features: string[]; loadError?: string; retry: () => void; saveDraft: () => Promise<unknown>;
+  prepareCheckout?: (currencyCode:string) => Promise<{orderId:string;transactionId?:string;priceId?:string;state:string}> };
 
 // Sandbox UI only: never calls publication, activation, or payment confirmation.
-export default function PaddleSandboxCheckout({ ready, email, features, loadError, retry, saveDraft }: Props) {
+export default function PaddleSandboxCheckout({ ready, email, features, loadError, retry, saveDraft, prepareCheckout }: Props) {
   const navigate = useNavigate();
   const [price, setPrice] = useState<ReturnType<typeof sandboxPrice> | null>(null);
   const [error, setError] = useState('');
@@ -17,10 +18,14 @@ export default function PaddleSandboxCheckout({ ready, email, features, loadErro
   const paddle = useRef<Paddle | null>(null);
   const running = useRef(false);
   const opened = useRef(false);
+  const orderId = useRef<string | null>(null);
 
   useEffect(() => subscribeToSandbox(event => {
     if (!opened.current) return;
-    if (event.name === 'checkout.completed') { setError(''); setCompleted(true); setOpening(false); }
+    if (event.name === 'checkout.completed') {
+      setError(''); setCompleted(true); setOpening(false);
+      if(orderId.current) navigate(`/payment/success?order=${encodeURIComponent(orderId.current)}`,{replace:true});
+    }
     if (event.name === 'checkout.loaded') setOpening(false);
     if (event.name === 'checkout.closed') { opened.current = false; setOpening(false); }
     if (event.name === 'checkout.payment.failed') {
@@ -73,9 +78,17 @@ export default function PaddleSandboxCheckout({ ready, email, features, loadErro
     try {
       const config = sandboxConfig(import.meta.env);
       await saveDraft();
+      const order=await prepareCheckout?.(price.currency);
+      if(order) {
+        orderId.current=order.orderId;
+        if(['paid','published','publication_failed'].includes(order.state)) {
+          navigate(`/payment/success?order=${encodeURIComponent(order.orderId)}`,{replace:true}); return;
+        }
+        if(!order.transactionId || (order.priceId && order.priceId!==config.priceId)) throw new Error('تعذر مطابقة طلب الدفع بالسعر المعروض. لم يتم فتح الدفع.');
+      }
       opened.current = true;
       paddle.current.Checkout.open({
-        items: [{ priceId: config.priceId, quantity: 1 }],
+        ...(order?.transactionId ? {transactionId:order.transactionId} : {items: [{ priceId: config.priceId, quantity: 1 }]}),
         ...(email ? { customer: { email, ...(price.address ? { address: price.address } : {}) } } : {}),
         settings: {
           displayMode: 'inline', variant: 'one-page', locale: 'ar',
@@ -84,6 +97,7 @@ export default function PaddleSandboxCheckout({ ready, email, features, loadErro
           allowedPaymentMethods: ['apple_pay', 'card'],
           showAddDiscounts: false, showAddTaxId: false,
           ...(email ? { allowLogout: false } : {}),
+          ...(order ? {successUrl:`${window.location.origin}/payment/success?order=${encodeURIComponent(order.orderId)}`} : {}),
         },
       });
     } catch (problem) {
@@ -96,7 +110,7 @@ export default function PaddleSandboxCheckout({ ready, email, features, loadErro
     <button type="button" className="subscription-checkout__back" onClick={() => navigate('/builder')} aria-label="الرجوع إلى المصمم"><ArrowRight size={22} /></button>
     <header><h1>جرّب الدفع</h1><p>اشتراك عنوان السنوي · بيئة Sandbox</p></header>
     <section className="subscription-checkout__card" aria-label="تجربة دفع اشتراك عنوان">
-      <p className="subscription-checkout__notice">تجربة فقط — لا تحصيل حقيقي ولا نشر للصفحة أو تفعيل للاشتراك.</p>
+      <p className="subscription-checkout__notice">{prepareCheckout ? 'بيئة تجريبية — لا يُحصّل مبلغ حقيقي. بعد تأكيد الدفع التجريبي، يتفعّل الاشتراك وتُنشر الصفحة.' : 'تجربة فقط — لا تحصيل حقيقي ولا نشر للصفحة أو تفعيل للاشتراك.'}</p>
       <h2>اشتراك عنوان السنوي</h2>
       {price ? <><p className="subscription-checkout__price" dir="auto">{price.total}</p><p className="subscription-checkout__annual">دفعة سنوية · العملة {price.currency}</p><p className="subscription-checkout__muted">هذا سعر الاختبار من Paddle، وليس سعر الإطلاق بالريال. قد يتحدث الإجمالي عند تغيير بلد الفوترة داخل نافذة الدفع.</p></> : !error && !loadError && <p role="status" className="subscription-checkout__loading"><Loader2 className="animate-spin" />جارٍ تحميل السعر التجريبي…</p>}
       <ul className="subscription-checkout__features">{features.map(feature => <li key={feature}><Check size={17} aria-hidden="true" /><span>{feature}</span></li>)}</ul>

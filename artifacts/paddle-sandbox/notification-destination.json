@@ -1,0 +1,7 @@
+{
+  "id": "ntfset_01m84haevc6vb2gyp3ckgq8ctx",
+  "destination": "https://onwan.link/api/paddle/webhook",
+  "active": false,
+  "environment": "sandbox",
+  "reason": "Enable only after deploying the verified endpoint and its Worker secrets."
+}

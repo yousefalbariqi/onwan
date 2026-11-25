@@ -1,4 +1,5 @@
 import { publishWithManualPayment } from './manualPublication.js';
+import { startPaddleCheckout, paddleCheckoutStatus } from './paddleCheckout.js';
 import { subscriptionCheckoutPolicy } from '../../shared/subscriptionCheckout.js';
 import { attachReferral, getReferralOffer } from './partnerReferral.js';
 import { completeDemoPayment } from './demoPayment.js';
@@ -59,6 +60,8 @@ function text(value: unknown, message: string, min: number, max: number) {
 }
 
 const handlers: Record<string, Handler> = {
+  'paddle.checkout.start': startPaddleCheckout,
+  'paddle.checkout.status': paddleCheckoutStatus,
   'payment.demo.confirm': completeDemoPayment,
   // Fail closed until a real provider adapter exists. Never send this action
   // to demo activation or create a cart that looks like a payable checkout.

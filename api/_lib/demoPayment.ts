@@ -8,7 +8,7 @@ import type { SessionUser } from './session.js';
 
 // Temporary owner-enabled checkout: real activation, no money collected.
 export async function completeDemoPayment(params: any, user: SessionUser) {
-  if (getEnv('DEMO_PAYMENT_ENABLED') !== 'true') {
+  if (getEnv('DEMO_PAYMENT_ENABLED') !== 'true' || getEnv('PADDLE_ENABLED') === 'true') {
     throw new HttpError(403, 'الدفع التجريبي غير مفعّل.');
   }
   const client = await pool.connect();

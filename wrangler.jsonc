@@ -38,7 +38,7 @@
   // Background videos (note 30). Create once: npx wrangler r2 bucket create onwan-media
   // Hourly: unused stored files are deleted (30 days if ever saved, else 24 hours — owner, 25 Oct 2026).
   "triggers": {
-    "crons": ["0 * * * *"]
+    "crons": ["0 * * * *", "* * * * *"]
   },
   "r2_buckets": [
     {

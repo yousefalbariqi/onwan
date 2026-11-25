@@ -49,7 +49,8 @@ export default function SubscriptionCheckout() {
   }
   if (paddleSandboxRequested(import.meta.env) && quote?.account.kind !== 'nonprofit') {
     return <PaddleSandboxCheckout ready={Boolean(quote && isAuthenticated && !loadingPage)} email={quote?.account.email}
-      features={policy?.features ?? []} loadError={error} retry={() => setAttempt(value => value + 1)} saveDraft={saveDraft} />;
+      features={policy?.features ?? []} loadError={error} retry={() => setAttempt(value => value + 1)} saveDraft={saveDraft}
+      prepareCheckout={currencyCode => accountCall('paddle.checkout.start',{currencyCode})} />;
   }
   return <main className="subscription-checkout" dir="rtl"><div className="subscription-checkout__container">
     <button type="button" className="subscription-checkout__back" onClick={() => navigate('/builder')} aria-label="الرجوع إلى المصمم"><ArrowRight size={22} /></button>

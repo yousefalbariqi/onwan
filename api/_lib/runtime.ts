@@ -9,6 +9,7 @@ export interface RuntimeEnv {
 export interface RequestRuntime {
   env: RuntimeEnv;
   pool?: Pool;
+  defer?: (work: () => Promise<void>) => void;
 }
 const requests = new AsyncLocalStorage<RequestRuntime>();
 export const requestRuntime = () => requests.getStore();

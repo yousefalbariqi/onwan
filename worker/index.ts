@@ -13,6 +13,8 @@ import publicPage from '../api/public-page.js';
 import usernameCheck from '../api/username/check.js';
 import report from '../api/report.js';
 import account from '../api/account.js';
+import paddleWebhook from '../api/paddle/webhook.js';
+import { retryPaddleFulfillment } from '../api/_lib/paddleFulfillment.js';
 import admin from '../api/admin.js';
 import partner from '../api/partner.js';
 import videoUpload from '../api/video-upload.js';
@@ -40,6 +42,7 @@ export const routes: Record<string, (req: any, res: any) => Promise<void>> = {
   '/api/username/check': usernameCheck,
   '/api/report': report,
   '/api/account': account,
+  '/api/paddle/webhook': paddleWebhook,
   '/api/admin': admin,
   '/api/partner': partner,
   '/api/nonprofit': nonprofit,
@@ -188,8 +191,15 @@ async function dispatch(request: Request, env: RuntimeEnv): Promise<Response> {
 }
 
 export default {
-  async fetch(request: Request, env: RuntimeEnv): Promise<Response> {
+  async fetch(request: Request, env: RuntimeEnv, context?: {waitUntil(promise:Promise<unknown>):void}): Promise<Response> {
     const scope: RequestRuntime = { env };
+    if(context) scope.defer=work=>{
+      // Background publication owns a fresh request scope/pool, never the socket being closed below.
+      const background:RequestRuntime={env};
+      context.waitUntil(withRuntime(background,async()=>{
+        try { await work(); } finally { await background.pool?.end(); }
+      }));
+    };
     return withRuntime(scope, async () => {
       try {
         return await dispatch(request, env);
@@ -201,9 +211,14 @@ export default {
   },
 
   // Hourly: delete unused files (30 days if ever saved; 24 hours if abandoned).
-  async scheduled(_event: unknown, env: RuntimeEnv): Promise<void> {
+  async scheduled(_event: {cron?:string}, env: RuntimeEnv): Promise<void> {
     const scope: RequestRuntime = { env };
     await withRuntime(scope, async () => {
+      if(_event?.cron==='* * * * *') {
+        try { if(env.PADDLE_ENABLED==='true') await retryPaddleFulfillment(); }
+        finally { await scope.pool?.end(); }
+        return;
+      }
       try {
         if (!env.MEDIA) throw new Error('no MEDIA bucket');
         const result = await runMediaCleanup(env.MEDIA as MediaStore);

@@ -1,5 +1,6 @@
 import { purgePublicPage } from './publicCache.js';
 import { pool } from './db.js';
+import { getEnv } from './runtime.js';
 import { HttpError } from './http.js';
 import { pricePlan } from './account.js';
 import { getReferralOffer } from './partnerReferral.js';
@@ -8,6 +9,7 @@ import { getPageDataByUserId, savePageData } from './page.js';
 // A narrow exception for the official launch flow. No paid transaction,
 // subscription activation, receipt, or referral conversion is invented.
 export async function publishWithManualPayment(params: any, user: { id: string }) {
+  if(getEnv('PADDLE_ENABLED')==='true') throw new HttpError(409,'أكمل الدفع لتفعيل الاشتراك ونشر الصفحة.','payment_required');
   const client = await pool.connect();
   try {
     await client.query('begin');

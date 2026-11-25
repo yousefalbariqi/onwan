@@ -5,9 +5,14 @@ import { accountCall } from '../lib/api';
 import { usePageContext } from '../context/PageContext';
 import { pageHost, pageUrl } from '../lib/site';
 import '../../styles/subscription-checkout.css';
+import PaddlePaymentResult from '../components/PaddlePaymentResult';
 
 type Result = { state: 'published' | 'published_pending_payment' | 'publication_pending' | 'failed' | 'pending'; demo: boolean; username: string | null; manualPaymentUrl?: string | null; manualInvoiceUrl?: string | null };
 export default function PaymentResult() {
+  const [params]=useSearchParams();
+  return params.get('order') ? <PaddlePaymentResult order={params.get('order')!}/> : <LegacyPaymentResult/>;
+}
+function LegacyPaymentResult() {
   const [params] = useSearchParams();
   const { isAuthenticated, loadingPage } = usePageContext();
   const cart = params.get('cart');
