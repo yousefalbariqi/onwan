@@ -27,7 +27,7 @@ import { TemporaryPasswordGate } from '../components/TemporaryPasswordGate';
 
 export type Tab = 'theme' | 'header' | 'wallpaper' | 'style' | 'links' | 'account' | 'history' | 'sharing';
 
-// A product built on this editor (e.g. the nonprofit editor) narrows or
+// A product on this editor (e.g. the nonprofit editor) narrows or
 // renames its sections here. Without it the general editor is unchanged.
 export type EditorConfig = { sections?: Tab[]; labels?: Partial<Record<Tab, string>>; logoZoomOut?: boolean; logoBanner?: boolean };
 
