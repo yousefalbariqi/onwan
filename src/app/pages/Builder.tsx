@@ -1,4 +1,5 @@
 import { journeyPath, type JourneyKind } from '../lib/journey';
+import { LAUNCH_HIDDEN } from '../lib/launchFlags';
 import { AutoSaveStatus } from '../components/AutoSaveStatus';
 import '../../styles/nonprofit-builder.css';
 import { nonprofitPath } from '../lib/nonprofit';
@@ -571,7 +572,7 @@ export default function Builder({ staffEdit, workspace, editor }: { staffEdit?: 
             <EmailVerifyChip />
           ) : (
             <>
-              {designOffer && (
+              {designOffer && !LAUNCH_HIDDEN.designService && (
                 <button
                   onClick={() => setDesignSheet(true)}
                   className="flex h-10 w-[104px] items-center justify-center gap-1.5 rounded-full bg-gradient-to-l from-violet-600 via-fuchsia-500 to-orange-400 text-sm font-bold text-white shadow-[0_4px_14px_rgba(168,85,247,0.4)] transition-transform active:scale-95"

@@ -97,8 +97,8 @@
 .creation-profile > input.has-error { margin-bottom: 4px; border-color: #d92d20; }
 .creation-profile > input:focus, .creation-profile__bio:focus-within { border-color: var(--creation-accent); }
 .creation-profile__bio { display: flex; flex-direction: column; padding: 10px 16px 8px; }
-.creation-profile__bio textarea { width: 100%; resize: none; border: 0; outline: 0; background: transparent; font: inherit; font-size: 16px; line-height: 1.7; color: #111; }
-.creation-profile__bio span { align-self: flex-end; font-size: 12px; color: #737373; }
+.creation-profile__bio textarea { width: 100%; min-height: 5.1em; overflow: hidden; resize: none; border: 0; outline: 0; background: transparent; font: inherit; font-size: 16px; line-height: 1.7; color: #111; }
+.creation-profile__bio span { align-self: flex-end; margin-top: 6px; font-size: 12px; color: #737373; }
 .creation-profile__error { margin: 0 0 12px; font-size: 12px; color: #d92d20; }
 .creation-profile__status { margin: -10px 0 12px; text-align: center; font-size: 12px; color: #737373; }
 

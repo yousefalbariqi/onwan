@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, Pencil, Plus, UserRound } from 'lucide-react';
 import { OnwanLogo } from '../components/OnwanLogo';
@@ -21,6 +21,7 @@ function ProfileForm({ source }: { source: PageSource }) {
   const { pageData, loadingPage, updatePageData, updateProfileStyle } = usePageContext();
   const sample = useMemo(() => creationSample(templateGroup(readCreationCategory())), []);
   const uploadId = useId();
+  const bioRef = useRef<HTMLTextAreaElement>(null);
   const [sheet, setSheet] = useState<'menu' | 'crop' | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState('');
@@ -33,6 +34,13 @@ function ProfileForm({ source }: { source: PageSource }) {
   // Sample text is shown as a hint, never as the owner's own content.
   const name = pageData.name === sample.name ? '' : pageData.name;
   const bio = pageData.bio === sample.bio ? '' : pageData.bio;
+  // Grow the bio box with its text so the whole bio stays visible while typing.
+  useLayoutEffect(() => {
+    const el = bioRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [bio]);
   const image = pageData.profileImage === SAMPLE_IMAGE ? '' : pageData.profileImage;
   const fit = pageData.profileStyle.fit ?? 'cover';
   const zoom = pageData.profileStyle.zoom ?? 1;
@@ -107,7 +115,7 @@ function ProfileForm({ source }: { source: PageSource }) {
 
           <label htmlFor={`${uploadId}-bio`}>النبذة</label>
           <div className="creation-profile__bio">
-            <textarea id={`${uploadId}-bio`} rows={3} value={bio} maxLength={BIO_LIMIT} placeholder="سطر أو سطرين عمّا تقدمه" onChange={event => updatePageData({ bio: event.target.value })} />
+            <textarea ref={bioRef} id={`${uploadId}-bio`} rows={3} value={bio} maxLength={BIO_LIMIT} placeholder="سطر أو سطرين عمّا تقدمه" onChange={event => updatePageData({ bio: event.target.value })} />
             <span dir="ltr">{bio.length}/{BIO_LIMIT}</span>
           </div>
           {error && <p role="alert" className="creation-profile__error">{error}</p>}

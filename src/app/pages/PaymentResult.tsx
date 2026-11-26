@@ -16,6 +16,7 @@ function LegacyPaymentResult() {
   const [params] = useSearchParams();
   const { isAuthenticated, loadingPage } = usePageContext();
   const cart = params.get('cart');
+  const geidea = params.get('geidea');
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -27,14 +28,16 @@ function LegacyPaymentResult() {
     let checks = 0;
     async function check() {
       try {
-        const response = await accountCall<Result>('checkout.status', { cart });
+        const response = geidea
+          ? await accountCall<Result>('geidea.checkout.status', { order: geidea, geideaOrderId: params.get('orderId') ?? params.get('orderid') ?? undefined })
+          : await accountCall<Result>('checkout.status', { cart });
         if (!live) return;
         setResult(response); setError('');
         if (response.state === 'pending' && ++checks < 18) timer = setTimeout(check, 5000);
       } catch (problem) { if (live) setError(problem instanceof Error ? problem.message : 'تعذر تأكيد العملية.'); }
     }
     void check(); return () => { live = false; clearTimeout(timer); };
-  }, [isAuthenticated, cart, retry]);
+  }, [isAuthenticated, cart, geidea, retry]);
   const published = (result?.state === 'published' || result?.state === 'published_pending_payment') && Boolean(result.username);
   const pendingPayment = result?.state === 'published_pending_payment';
   const url = published ? pageUrl(result!.username!) : '';

@@ -939,6 +939,11 @@ export function PageProvider({ children, source }: { children: ReactNode; source
         lastDraft.current = '';
         // Edits made while the save was running stay in the draft, unsaved.
         if (pageDataRef.current === sent) {
+          // Adopt the server's copy now, not on the next render: callers check
+          // hasPendingChanges() right after save() resolves, and comparing the
+          // sent copy with the server's normalised one falsely reported newer
+          // edits ("لديك تعديلات أحدث") with no save button left to press.
+          pageDataRef.current = savedData;
           setPageData(savedData);
           setIsDirty(false);
           setDraftState('idle');

@@ -12,6 +12,23 @@ import { paddleSandboxRequested } from '../lib/paddleSandbox';
 type Quote = { checkout: ReturnType<typeof subscriptionCheckoutPolicy>; account: Account; demoPrices?: boolean; cart?: { cart_number: number; plan: string; total: number; design_price: number | null; nfc_quantity: number; custom_domain: string | null; discount_code?: string | null } | null };
 export const checkoutMoney = (value: number) => `${value.toLocaleString('en', { maximumFractionDigits: 2 })} ريال`;
 
+// Geidea popup: the browser only gets a session id; the server re-checks the order before publishing.
+function loadScript(src: string) {
+  return new Promise<void>((resolve, reject) => {
+    if ((window as any).GeideaCheckout) return resolve();
+    const tag = document.createElement('script'); tag.src = src; tag.async = true;
+    tag.onload = () => resolve(); tag.onerror = () => reject(new Error('تعذر تحميل صفحة الدفع.'));
+    document.head.appendChild(tag);
+  });
+}
+async function startGeideaPopup(src: string, sessionId: string, orderId: string, go: (path: string) => void, fail: (m: string) => void) {
+  const url = new URL(src); if (url.protocol !== 'https:' || !url.hostname.endsWith('geidea.net')) throw new Error('تعذر فتح رابط دفع آمن.');
+  await loadScript(url.href);
+  const done = (data: any) => go(`/payment/success?geidea=${encodeURIComponent(orderId)}${data?.orderId ? `&orderId=${encodeURIComponent(data.orderId)}` : ''}`);
+  const checkout = new (window as any).GeideaCheckout(done, (data: any) => { if (data?.orderId) done(data); else fail(data?.detailedResponseMessage || data?.detailResponseMessage || 'لم تكتمل عملية الدفع. لم يُخصم أي مبلغ.'); }, () => fail('أُلغيت عملية الدفع.'));
+  checkout.startPayment(sessionId);
+}
+
 export default function SubscriptionCheckout() {
   const navigate = useNavigate();
   const { pageData, isAuthenticated, loadingPage, setAccount, saveDraft } = usePageContext();
@@ -38,8 +55,10 @@ export default function SubscriptionCheckout() {
     running.current = true; setBusy(true); setError('');
     try {
       await saveDraft();
-      const result = await accountCall<{ checkoutUrl?: string; state?: string; cartNumber?: number }>(canPublish ? 'checkout.publish' : 'checkout.start', { plan: 'annual', method, expectedTotal: policy.total });
-      if (result.checkoutUrl) {
+      const result = await accountCall<{ checkoutUrl?: string; state?: string; cartNumber?: number; sessionId?: string; orderId?: string; scriptUrl?: string }>(canPublish ? 'checkout.publish' : 'checkout.start', { plan: 'annual', method, expectedTotal: policy.total });
+      if (result.sessionId && result.orderId && result.scriptUrl) {
+        await startGeideaPopup(result.scriptUrl, result.sessionId, result.orderId, path => navigate(path), setError);
+      } else if (result.checkoutUrl) {
         const target = new URL(result.checkoutUrl); if (target.protocol !== 'https:') throw new Error('تعذر فتح رابط دفع آمن.');
         window.location.assign(target.href);
       } else if (result.cartNumber) window.location.assign(`/payment/success?cart=${encodeURIComponent(result.cartNumber)}`);
@@ -47,7 +66,7 @@ export default function SubscriptionCheckout() {
     } catch (problem) { setError(problem instanceof Error ? problem.message : 'تعذر بدء الدفع.'); }
     finally { running.current = false; setBusy(false); }
   }
-  if (paddleSandboxRequested(import.meta.env) && quote?.account.kind !== 'nonprofit') {
+  if (paddleSandboxRequested(import.meta.env) && quote?.account.kind !== 'nonprofit' && !quote?.checkout.paymentConfigured) {
     return <PaddleSandboxCheckout ready={Boolean(quote && isAuthenticated && !loadingPage)} email={quote?.account.email}
       features={policy?.features ?? []} loadError={error} retry={() => setAttempt(value => value + 1)} saveDraft={saveDraft}
       prepareCheckout={currencyCode => accountCall('paddle.checkout.start',{currencyCode})} />;
@@ -72,8 +91,8 @@ export default function SubscriptionCheckout() {
       <p className="subscription-checkout__muted">جميع الأسعار شاملة ضريبة القيمة المضافة.</p>
       {pageData.username && <p className="subscription-checkout__link" dir="ltr">{pageHost(pageData.username)}</p>}
       {error && <p role="alert" className="subscription-checkout__error">{error}</p>}
-      <button type="button" className="subscription-checkout__pay" disabled={(!canPay && !canPublish) || busy} onClick={() => void pay()}>{busy ? 'جارٍ نشر صفحتك…' : policy.total === null ? 'النشر غير متاح حاليًا' : canPublish ? 'انشر صفحتي' : `ادفع الآن ${checkoutMoney(policy.total)}`}</button>
-      <p className="subscription-checkout__legal">الدفع عبر رابط يرسله لك فريق عنوان. لا يوجد خصم تلقائي أو تحصيل في هذه الخطوة.</p>
+      <button type="button" className="subscription-checkout__pay" disabled={(!canPay && !canPublish) || busy} onClick={() => void pay()}>{busy ? (canPay ? 'جارٍ فتح صفحة الدفع…' : 'جارٍ نشر صفحتك…') : policy.total === null ? 'النشر غير متاح حاليًا' : canPublish ? 'انشر صفحتي' : `ادفع الآن ${checkoutMoney(policy.total)}`}</button>
+      <p className="subscription-checkout__legal">{policy.paymentConfigured ? 'الدفع آمن عبر بوابة جيديا، ويُنشر موقعك فور تأكيد الدفع.' : 'الدفع عبر رابط يرسله لك فريق عنوان. لا يوجد خصم تلقائي أو تحصيل في هذه الخطوة.'}</p>
       <p className="subscription-checkout__legal">بالنشر، تؤكد طلب الاشتراك بالقيمة المعروضة. <Link to="/terms">الشروط والأحكام</Link> و<Link to="/privacy">سياسة الخصوصية</Link>.</p>
     </section>}
   </div></main>;

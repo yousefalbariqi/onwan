@@ -15,6 +15,8 @@ import report from '../api/report.js';
 import account from '../api/account.js';
 import paddleWebhook from '../api/paddle/webhook.js';
 import { retryPaddleFulfillment } from '../api/_lib/paddleFulfillment.js';
+import geideaCallback from '../api/geidea/callback.js';
+import { retryGeideaFulfillment } from '../api/_lib/geidea.js';
 import admin from '../api/admin.js';
 import partner from '../api/partner.js';
 import videoUpload from '../api/video-upload.js';
@@ -43,6 +45,7 @@ export const routes: Record<string, (req: any, res: any) => Promise<void>> = {
   '/api/report': report,
   '/api/account': account,
   '/api/paddle/webhook': paddleWebhook,
+  '/api/geidea/callback': geideaCallback,
   '/api/admin': admin,
   '/api/partner': partner,
   '/api/nonprofit': nonprofit,
@@ -215,7 +218,7 @@ export default {
     const scope: RequestRuntime = { env };
     await withRuntime(scope, async () => {
       if(_event?.cron==='* * * * *') {
-        try { if(env.PADDLE_ENABLED==='true') await retryPaddleFulfillment(); }
+        try { if(env.PADDLE_ENABLED==='true') await retryPaddleFulfillment(); if(env.GEIDEA_PUBLIC_KEY) await retryGeideaFulfillment(); }
         finally { await scope.pool?.end(); }
         return;
       }

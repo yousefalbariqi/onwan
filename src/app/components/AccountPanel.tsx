@@ -1,4 +1,5 @@
 import { ManualPaymentNotice } from './ManualPaymentNotice';
+import { LAUNCH_HIDDEN } from '../lib/launchFlags';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { digitsOnly } from '../lib/digits';
 import { useNavigate } from 'react-router';
@@ -342,9 +343,9 @@ export function AccountPanel({ onLogout }: { onLogout?: () => void } = {}) {
 
           {overview && (
             <Group title="خدمات عنوان">
-              <SettingsRow icon={Sparkles} tone="bg-[#af52de]" label="صمّم لي" value={overview.design.package?.state === 'in_progress' ? 'قيد التنفيذ' : overview.design.package?.state === 'pending_payment' ? 'بانتظار الدفع' : overview.design.package?.state === 'done' ? 'مكتملة' : undefined} onClick={() => go('design')} />
-              {account.nameFixed && <SettingsRow icon={Globe} tone="bg-[#111111]" label="دومين خاص" value={overview.domain.current ? DOMAIN_STATUS[overview.domain.current.status] ?? '' : undefined} onClick={() => go('domain')} />}
-              <SettingsRow icon={Nfc} tone="bg-[#111111]" label="قطع NFC" value={overview.nfc.orders.length ? `${overview.nfc.orders.length} طلب` : undefined} onClick={() => go('nfc')} />
+              {!LAUNCH_HIDDEN.designService && <SettingsRow icon={Sparkles} tone="bg-[#af52de]" label="صمّم لي" value={overview.design.package?.state === 'in_progress' ? 'قيد التنفيذ' : overview.design.package?.state === 'pending_payment' ? 'بانتظار الدفع' : overview.design.package?.state === 'done' ? 'مكتملة' : undefined} onClick={() => go('design')} />}
+              {account.nameFixed && !LAUNCH_HIDDEN.customDomain && <SettingsRow icon={Globe} tone="bg-[#111111]" label="دومين خاص" value={overview.domain.current ? DOMAIN_STATUS[overview.domain.current.status] ?? '' : undefined} onClick={() => go('domain')} />}
+              {!LAUNCH_HIDDEN.nfc && <SettingsRow icon={Nfc} tone="bg-[#111111]" label="قطع NFC" value={overview.nfc.orders.length ? `${overview.nfc.orders.length} طلب` : undefined} onClick={() => go('nfc')} />}
             </Group>
           )}
 

@@ -1,5 +1,6 @@
 import { publishWithManualPayment } from './manualPublication.js';
 import { startPaddleCheckout, paddleCheckoutStatus } from './paddleCheckout.js';
+import { startGeideaCheckout, geideaCheckoutStatus, geideaEnabled } from './geidea.js';
 import { subscriptionCheckoutPolicy } from '../../shared/subscriptionCheckout.js';
 import { attachReferral, getReferralOffer } from './partnerReferral.js';
 import { completeDemoPayment } from './demoPayment.js';
@@ -66,7 +67,11 @@ const handlers: Record<string, Handler> = {
   // Fail closed until a real provider adapter exists. Never send this action
   // to demo activation or create a cart that looks like a payable checkout.
   'checkout.publish': publishWithManualPayment,
-  'checkout.start': async () => { throw new HttpError(503, 'الدفع الإلكتروني غير مفعّل حاليًا. تصميمك وحسابك محفوظان.', 'payment_not_configured'); },
+  'checkout.start': async (params, user) => {
+    if (!geideaEnabled()) throw new HttpError(503, 'الدفع الإلكتروني غير مفعّل حاليًا. تصميمك وحسابك محفوظان.', 'payment_not_configured');
+    return startGeideaCheckout(params, user);
+  },
+  'geidea.checkout.status': geideaCheckoutStatus,
   'checkout.status': async (params, user) => {
     const [account, page, result] = await Promise.all([
       getAccountSummary(user.id), getPageDataByUserId(user.id),
@@ -280,7 +285,9 @@ const handlers: Record<string, Handler> = {
 
     return {
       plans,
-      checkout: { ...subscriptionCheckoutPolicy(plans), manualPublication: account?.kind !== 'nonprofit' && !referral },
+      checkout: geideaEnabled() && account?.kind !== 'nonprofit' && !referral
+        ? { ...subscriptionCheckoutPolicy(plans), manualPublication: false, paymentConfigured: true, methods: [{ id: 'card', label: 'مدى · فيزا · ماستركارد' }] }
+        : { ...subscriptionCheckoutPolicy(plans), manualPublication: account?.kind !== 'nonprofit' && !referral },
       designPriceSar: getDesignPrice(),
       designAvailable: !isPackageOpen(pkg),
       nfcUnitPrice: settings.nfc_unit_price,

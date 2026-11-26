@@ -1,4 +1,5 @@
 import SubscriptionCheckout from './SubscriptionCheckout';
+import { LAUNCH_HIDDEN } from '../lib/launchFlags';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ArrowRight, Check, ChevronDown, Clock, Globe, Minus, Nfc, Plus, Sparkles } from 'lucide-react';
@@ -312,6 +313,7 @@ function LegacyPlanSelection() {
                 </div>
               </section>
 
+              {!(LAUNCH_HIDDEN.designService && LAUNCH_HIDDEN.nfc && LAUNCH_HIDDEN.customDomain) && <>
               <h2 className="px-1 pt-2 text-[22px] font-black text-[#111111]" style={{ fontFamily: 'Cairo, sans-serif' }}>أضف لصفحتك <span className="text-[15px] font-bold text-[#737373]">(اختياري)</span></h2>
 
               {/* Note 45 */}
@@ -383,6 +385,7 @@ function LegacyPlanSelection() {
                   </div>
                 )}
               </AddOn>
+              </>}
             </div>
 
             {/* Note 48: the summary keeps the link and the numbers, nothing else. */}

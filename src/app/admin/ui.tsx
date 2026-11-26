@@ -144,7 +144,10 @@ export function useLoad<T>(load: () => Promise<T>) {
 }
 
 // Runs one admin action, surfacing its error next to the buttons.
-export function useAction(onDone?: () => void) {
+// Waits for onDone (usually the page's reload) before reporting success, so
+// callers that clear a form only do so once the fresh data is on screen;
+// otherwise the old values flash back for the seconds a reload takes.
+export function useAction(onDone?: () => unknown) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -153,7 +156,7 @@ export function useAction(onDone?: () => void) {
       setBusy(true);
       setError('');
       await action();
-      onDone?.();
+      await onDone?.();
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'تعذر تنفيذ الإجراء.');

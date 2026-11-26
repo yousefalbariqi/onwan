@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { LAUNCH_HIDDEN } from '../lib/launchFlags';
 import { Link, useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { CreationCategoryArt } from '../components/CreationCategoryArt';
@@ -7,7 +8,7 @@ import { CREATION_CATEGORIES, readCreationCategory, saveCreationCategory, type C
 import '../../styles/creation-start.css';
 
 // Presentation order only; category IDs and template selection remain unchanged.
-const DISPLAY_CATEGORIES = ['personal', 'business', 'creator', 'nonprofit'].map(id => CREATION_CATEGORIES.find(item => item.id === id)!);
+const DISPLAY_CATEGORIES = ['personal', 'business', 'creator', ...(LAUNCH_HIDDEN.nonprofit ? [] : ['nonprofit'])].map(id => CREATION_CATEGORIES.find(item => item.id === id)!);
 
 // Stage one is intentionally independent of account kind, authentication and billing.
 export default function CreationStart() {
